@@ -5,169 +5,192 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/redis/go-redis/v9"
-	gh "github.com/yourusername/yoink/github"
+	"golang.org/x/sync/singleflight"
 )
 
-const DefaultTTL = 5 * time.Minute
+// DefaultSoftTTL is how long a cached value is served without revalidating
+// against GitHub. Override with CACHE_TTL_SECONDS.
+const DefaultSoftTTL = 15 * time.Minute
+
+// HardTTL is how long an entry (and its ETag) survives in Redis after it
+// goes stale. Keeping it well beyond SoftTTL means revalidation can keep
+// happening cheaply via conditional requests (which don't count against
+// GitHub's rate limit) instead of falling back to a full, rate-limited fetch.
+const HardTTL = 24 * time.Hour
 
 type Cache struct {
-	client *redis.Client
-	ttl    time.Duration
+	client  *redis.Client
+	softTTL time.Duration
+	hardTTL time.Duration
+	sf      singleflight.Group
 }
 
 func New() *Cache {
+	softTTL := DefaultSoftTTL
+	if v := os.Getenv("CACHE_TTL_SECONDS"); v != "" {
+		if secs, err := strconv.Atoi(v); err == nil && secs > 0 {
+			softTTL = time.Duration(secs) * time.Second
+		} else {
+			fmt.Fprintf(os.Stderr, "warning: invalid CACHE_TTL_SECONDS=%q, using default %s\n", v, DefaultSoftTTL)
+		}
+	}
+
 	redisURL := os.Getenv("UPSTASH_REDIS_URL")
 	if redisURL == "" {
 		// Return a no-op cache for local dev without Redis
-		return &Cache{ttl: DefaultTTL}
+		return &Cache{softTTL: softTTL, hardTTL: HardTTL}
 	}
 
 	opt, err := redis.ParseURL(redisURL)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "warning: invalid UPSTASH_REDIS_URL, caching disabled: %v\n", err)
-		return &Cache{ttl: DefaultTTL}
+		return &Cache{softTTL: softTTL, hardTTL: HardTTL}
 	}
 	opt.TLSConfig = &tls.Config{MinVersion: tls.VersionTLS12}
 
 	return &Cache{
-		client: redis.NewClient(opt),
-		ttl:    DefaultTTL,
+		client:  redis.NewClient(opt),
+		softTTL: softTTL,
+		hardTTL: HardTTL,
 	}
 }
 
-func releaseKey(owner, repo string) string {
+// ReleaseKey, ReleaseTagKey, ReleasesKey, ReadmeKey and DescriptionKey build
+// the cache keys used by FetchCached for each resource type.
+func ReleaseKey(owner, repo string) string {
 	return fmt.Sprintf("release:%s/%s", owner, repo)
 }
 
-func releaseTagKey(owner, repo, tag string) string {
+func ReleaseTagKey(owner, repo, tag string) string {
 	return fmt.Sprintf("release:%s/%s@%s", owner, repo, tag)
 }
 
-func (c *Cache) GetReleaseByTag(ctx context.Context, owner, repo, tag string) (*gh.Release, error) {
-	if c.client == nil {
-		return nil, nil
-	}
-
-	data, err := c.client.Get(ctx, releaseTagKey(owner, repo, tag)).Bytes()
-	if err == redis.Nil {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	var release gh.Release
-	if err := json.Unmarshal(data, &release); err != nil {
-		return nil, err
-	}
-	return &release, nil
-}
-
-func (c *Cache) SetReleaseByTag(ctx context.Context, owner, repo, tag string, release *gh.Release) error {
-	if c.client == nil {
-		return nil
-	}
-
-	data, err := json.Marshal(release)
-	if err != nil {
-		return err
-	}
-
-	return c.client.Set(ctx, releaseTagKey(owner, repo, tag), data, c.ttl).Err()
-}
-
-func (c *Cache) GetRelease(ctx context.Context, owner, repo string) (*gh.Release, error) {
-	if c.client == nil {
-		return nil, nil // cache miss, no-op
-	}
-
-	data, err := c.client.Get(ctx, releaseKey(owner, repo)).Bytes()
-	if err == redis.Nil {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	var release gh.Release
-	if err := json.Unmarshal(data, &release); err != nil {
-		return nil, err
-	}
-	return &release, nil
-}
-
-func (c *Cache) SetRelease(ctx context.Context, owner, repo string, release *gh.Release) error {
-	if c.client == nil {
-		return nil
-	}
-
-	data, err := json.Marshal(release)
-	if err != nil {
-		return err
-	}
-
-	return c.client.Set(ctx, releaseKey(owner, repo), data, c.ttl).Err()
-}
-
-func releasesKey(owner, repo string) string {
+func ReleasesKey(owner, repo string) string {
 	return fmt.Sprintf("releases:%s/%s", owner, repo)
 }
 
-func (c *Cache) GetReleases(ctx context.Context, owner, repo string) ([]gh.ReleaseSummary, error) {
-	if c.client == nil {
-		return nil, nil
-	}
-	data, err := c.client.Get(ctx, releasesKey(owner, repo)).Bytes()
-	if err == redis.Nil {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	var releases []gh.ReleaseSummary
-	if err := json.Unmarshal(data, &releases); err != nil {
-		return nil, err
-	}
-	return releases, nil
-}
-
-func (c *Cache) SetReleases(ctx context.Context, owner, repo string, releases []gh.ReleaseSummary) error {
-	if c.client == nil {
-		return nil
-	}
-	data, err := json.Marshal(releases)
-	if err != nil {
-		return err
-	}
-	return c.client.Set(ctx, releasesKey(owner, repo), data, c.ttl).Err()
-}
-
-func readmeKey(owner, repo string) string {
+func ReadmeKey(owner, repo string) string {
 	return fmt.Sprintf("readme:%s/%s", owner, repo)
 }
 
-func (c *Cache) GetREADME(ctx context.Context, owner, repo string) (string, bool, error) {
-	if c.client == nil {
-		return "", false, nil
-	}
-
-	data, err := c.client.Get(ctx, readmeKey(owner, repo)).Result()
-	if err == redis.Nil {
-		return "", false, nil
-	}
-	if err != nil {
-		return "", false, err
-	}
-	return data, true, nil
+func DescriptionKey(owner, repo string) string {
+	return fmt.Sprintf("description:%s/%s", owner, repo)
 }
 
-func (c *Cache) SetREADME(ctx context.Context, owner, repo, content string) error {
+// entry is what's actually persisted in Redis: the value, the ETag GitHub
+// returned for it (used for conditional revalidation), and when it was last
+// confirmed fresh.
+type entry[T any] struct {
+	Value    T         `json:"value"`
+	ETag     string    `json:"etag"`
+	CachedAt time.Time `json:"cached_at"`
+}
+
+// ConditionalFetch performs a conditional GET against GitHub. It should send
+// `etag` as If-None-Match when non-empty. notModified=true means the origin
+// returned 304 — the caller's existing cached value is still current.
+type ConditionalFetch[T any] func(ctx context.Context, etag string) (value T, newETag string, notModified bool, err error)
+
+// FetchCached returns the cached value for key, transparently revalidating
+// with `fetch` once the soft TTL has elapsed.
+//
+//   - Fresh cache (within soft TTL): returned immediately, no network call.
+//   - Stale cache: revalidated via a conditional request. A 304 response
+//     extends freshness for free (doesn't count against GitHub's rate limit)
+//     without needing a new value from the caller.
+//   - No cache entry: a normal fetch populates the cache with the returned
+//     value and ETag.
+//   - Concurrent requests for the same key are coalesced via singleflight, so
+//     a stampede of cache misses only triggers one origin fetch.
+//   - If the origin fetch fails and a (possibly stale) cached value exists,
+//     that value is served instead of propagating the error.
+func FetchCached[T any](ctx context.Context, c *Cache, key string, fetch ConditionalFetch[T]) (T, error) {
+	var zero T
+
+	existing, err := getEntry[T](ctx, c, key)
+	if err != nil {
+		log.Printf("cache read error (%s): %v", key, err)
+	}
+
+	if existing != nil && time.Since(existing.CachedAt) < c.softTTL {
+		return existing.Value, nil
+	}
+
+	etag := ""
+	if existing != nil {
+		etag = existing.ETag
+	}
+
+	result, err, _ := c.sf.Do(key, func() (interface{}, error) {
+		value, newETag, notModified, ferr := fetch(ctx, etag)
+		if ferr != nil {
+			return nil, ferr
+		}
+
+		next := entry[T]{CachedAt: time.Now()}
+		if notModified {
+			if existing == nil {
+				return nil, fmt.Errorf("origin reported not-modified but no cached value exists for %s", key)
+			}
+			next.Value = existing.Value
+			next.ETag = existing.ETag
+		} else {
+			next.Value = value
+			next.ETag = newETag
+		}
+
+		if setErr := setEntry(ctx, c, key, next); setErr != nil {
+			log.Printf("cache write error (%s): %v", key, setErr)
+		}
+
+		return next.Value, nil
+	})
+
+	if err != nil {
+		if existing != nil {
+			log.Printf("origin fetch failed for %s, serving stale cache: %v", key, err)
+			return existing.Value, nil
+		}
+		return zero, err
+	}
+
+	return result.(T), nil
+}
+
+func getEntry[T any](ctx context.Context, c *Cache, key string) (*entry[T], error) {
+	if c.client == nil {
+		return nil, nil
+	}
+
+	data, err := c.client.Get(ctx, key).Bytes()
+	if err == redis.Nil {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	var e entry[T]
+	if err := json.Unmarshal(data, &e); err != nil {
+		return nil, err
+	}
+	return &e, nil
+}
+
+func setEntry[T any](ctx context.Context, c *Cache, key string, e entry[T]) error {
 	if c.client == nil {
 		return nil
 	}
-	return c.client.Set(ctx, readmeKey(owner, repo), content, c.ttl).Err()
+
+	data, err := json.Marshal(e)
+	if err != nil {
+		return err
+	}
+	return c.client.Set(ctx, key, data, c.hardTTL).Err()
 }

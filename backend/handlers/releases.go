@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"log"
 	"net/http"
 
@@ -23,26 +24,15 @@ func NewReleasesHandler(gh *github.Client, c *cache.Cache) *ReleasesHandler {
 func (h *ReleasesHandler) Handle(c *gin.Context) {
 	owner := c.Param("owner")
 	repo := c.Param("repo")
-	ctx := c.Request.Context()
 
-	cached, err := h.cache.GetReleases(ctx, owner, repo)
-	if err != nil {
-		log.Printf("cache read error (releases): %v", err)
-	}
-	if cached != nil {
-		c.JSON(http.StatusOK, cached)
-		return
-	}
-
-	releases, err := h.gh.GetReleases(ctx, owner, repo)
+	key := cache.ReleasesKey(owner, repo)
+	releases, err := cache.FetchCached(c.Request.Context(), h.cache, key, func(ctx context.Context, etag string) ([]github.ReleaseSummary, string, bool, error) {
+		return h.gh.GetReleases(ctx, owner, repo, etag)
+	})
 	if err != nil {
 		log.Printf("releases: error fetching for %s/%s: %v", owner, repo, err)
 		c.JSON(httpStatusFromError(err), gin.H{"error": err.Error()})
 		return
-	}
-
-	if cacheErr := h.cache.SetReleases(ctx, owner, repo, releases); cacheErr != nil {
-		log.Printf("cache write error (releases): %v", cacheErr)
 	}
 
 	c.JSON(http.StatusOK, releases)

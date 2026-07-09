@@ -28,6 +28,7 @@ type Asset = {
 type ReleaseData = {
   owner: string;
   repo: string;
+  description: string;
   tag_name: string;
   name: string;
   body: string;
@@ -102,6 +103,9 @@ export default async function ReleasePage({ params }: Props) {
 
         {/* Download section */}
         <div className="flex flex-col items-center gap-3">
+          {release.description && (
+            <p className="text-center text-foreground/60 max-w-md">{release.description}</p>
+          )}
           <DownloadSection
             owner={owner}
             repo={repo}

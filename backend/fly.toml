@@ -18,7 +18,11 @@ primary_region = 'bom'
   force_https = true
   auto_stop_machines = 'stop'
   auto_start_machines = true
-  min_machines_running = 0
+  # 1 warm machine avoids a cold-start on the first request of a traffic spike
+  # (e.g. a shared link suddenly getting a lot of hits). Bump this further, or
+  # add [http_service.concurrency] limits, if a single repo's traffic outgrows
+  # one machine. Costs a small amount to keep running vs. scale-to-zero.
+  min_machines_running = 1
   processes = ['app']
 
 [[vm]]

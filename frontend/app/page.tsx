@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-const POPULAR = [
+const EXAMPLES = [
   "cli/cli",
   "neovim/neovim",
   "astral-sh/uv",
@@ -12,29 +12,9 @@ const POPULAR = [
   "casey/just",
 ];
 
-const RECENT_KEY = "yoink:recent";
-
-function loadRecent(): string[] {
-  try {
-    return JSON.parse(localStorage.getItem(RECENT_KEY) ?? "[]");
-  } catch {
-    return [];
-  }
-}
-
-function saveRecent(repo: string) {
-  const prev = loadRecent().filter((r) => r !== repo);
-  localStorage.setItem(RECENT_KEY, JSON.stringify([repo, ...prev].slice(0, 5)));
-}
-
 export default function Home() {
   const [input, setInput] = useState("");
-  const [recent, setRecent] = useState<string[]>([]);
   const router = useRouter();
-
-  useEffect(() => {
-    setRecent(loadRecent());
-  }, []);
 
   function parseInput(value: string) {
     return value.match(/(?:github\.com\/)?([a-zA-Z0-9._-]+)\/([a-zA-Z0-9._-]+)\/?$/);
@@ -43,8 +23,6 @@ export default function Home() {
   function navigate(slug: string) {
     const match = slug.match(/([a-zA-Z0-9._-]+)\/([a-zA-Z0-9._-]+)/);
     if (!match) return;
-    saveRecent(`${match[1]}/${match[2]}`);
-    setRecent(loadRecent());
     router.push(`/p/${match[1]}/${match[2]}`);
   }
 
@@ -52,12 +30,6 @@ export default function Home() {
     e.preventDefault();
     const match = parseInput(input);
     if (match) navigate(`${match[1]}/${match[2]}`);
-  }
-
-  function removeRecent(slug: string) {
-    const updated = loadRecent().filter((r) => r !== slug);
-    localStorage.setItem(RECENT_KEY, JSON.stringify(updated));
-    setRecent(updated);
   }
 
   const parsedHint = parseInput(input);
@@ -100,39 +72,11 @@ export default function Home() {
             )}
           </form>
 
-          {/* Recent searches */}
-          {recent.length > 0 && (
-            <div className="space-y-2 text-left">
-              <p className="text-xs text-foreground/40 font-medium uppercase tracking-wide">Recent</p>
-              <div className="flex flex-wrap gap-2">
-                {recent.map((slug) => (
-                  <div key={slug} className="flex items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={() => navigate(slug)}
-                      className="px-3 py-1.5 rounded-lg text-sm bg-foreground/5 hover:bg-foreground/10 transition-colors font-mono"
-                    >
-                      {slug}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => removeRecent(slug)}
-                      className="text-foreground/20 hover:text-foreground/50 transition-colors text-xs px-1"
-                      aria-label={`Remove ${slug}`}
-                    >
-                      ×
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Popular suggestions */}
+          {/* Example repos */}
           <div className="space-y-2 text-left">
-            <p className="text-xs text-foreground/40 font-medium uppercase tracking-wide">Popular</p>
+            <p className="text-xs text-foreground/40 font-medium uppercase tracking-wide">Examples</p>
             <div className="flex flex-wrap gap-2">
-              {POPULAR.map((slug) => (
+              {EXAMPLES.map((slug) => (
                 <button
                   key={slug}
                   type="button"

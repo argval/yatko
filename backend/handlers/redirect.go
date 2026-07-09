@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"log"
 	"net/http"
 
@@ -67,44 +68,18 @@ func (h *RedirectHandler) HandleVersioned(c *gin.Context) {
 	c.Redirect(http.StatusFound, asset.BrowserDownloadURL)
 }
 
+// getRelease returns the latest release for owner/repo, transparently caching
+// and revalidating via conditional GitHub requests (see cache.FetchCached).
 func (h *RedirectHandler) getRelease(c *gin.Context, owner, repo string) (*github.Release, error) {
-	cached, err := h.cache.GetRelease(c.Request.Context(), owner, repo)
-	if err != nil {
-		log.Printf("cache read error: %v", err)
-	}
-	if cached != nil {
-		return cached, nil
-	}
-
-	release, err := h.gh.GetLatestRelease(c.Request.Context(), owner, repo)
-	if err != nil {
-		return nil, err
-	}
-
-	if cacheErr := h.cache.SetRelease(c.Request.Context(), owner, repo, release); cacheErr != nil {
-		log.Printf("cache write error: %v", cacheErr)
-	}
-
-	return release, nil
+	key := cache.ReleaseKey(owner, repo)
+	return cache.FetchCached(c.Request.Context(), h.cache, key, func(ctx context.Context, etag string) (*github.Release, string, bool, error) {
+		return h.gh.GetLatestRelease(ctx, owner, repo, etag)
+	})
 }
 
 func (h *RedirectHandler) getReleaseByTag(c *gin.Context, owner, repo, tag string) (*github.Release, error) {
-	cached, err := h.cache.GetReleaseByTag(c.Request.Context(), owner, repo, tag)
-	if err != nil {
-		log.Printf("cache read error (tag): %v", err)
-	}
-	if cached != nil {
-		return cached, nil
-	}
-
-	release, err := h.gh.GetReleaseByTag(c.Request.Context(), owner, repo, tag)
-	if err != nil {
-		return nil, err
-	}
-
-	if cacheErr := h.cache.SetReleaseByTag(c.Request.Context(), owner, repo, tag, release); cacheErr != nil {
-		log.Printf("cache write error (tag): %v", cacheErr)
-	}
-
-	return release, nil
+	key := cache.ReleaseTagKey(owner, repo, tag)
+	return cache.FetchCached(c.Request.Context(), h.cache, key, func(ctx context.Context, etag string) (*github.Release, string, bool, error) {
+		return h.gh.GetReleaseByTag(ctx, owner, repo, tag, etag)
+	})
 }

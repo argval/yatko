@@ -38,12 +38,13 @@ func (h *PageHandler) handle(c *gin.Context, owner, repo, version string) {
 	}
 
 	readme := h.getREADME(c, owner, repo)
-	description := h.getDescription(c, owner, repo)
+	meta := h.getRepoMeta(c, owner, repo)
 
 	c.JSON(http.StatusOK, gin.H{
 		"owner":        owner,
 		"repo":         repo,
-		"description":  description,
+		"description":  meta.Description,
+		"avatar_url":   meta.AvatarURL,
 		"tag_name":     release.TagName,
 		"name":         release.Name,
 		"body":         release.Body,
@@ -55,23 +56,30 @@ func (h *PageHandler) handle(c *gin.Context, owner, repo, version string) {
 	})
 }
 
-func (h *PageHandler) getDescription(c *gin.Context, owner, repo string) string {
+// repoMeta is the subset of repo metadata cached for the page/OG-image
+// response: description and owner avatar.
+type repoMeta struct {
+	Description string `json:"description"`
+	AvatarURL   string `json:"avatar_url"`
+}
+
+func (h *PageHandler) getRepoMeta(c *gin.Context, owner, repo string) repoMeta {
 	key := cache.DescriptionKey(owner, repo)
-	desc, err := cache.FetchCached(c.Request.Context(), h.cache, key, func(ctx context.Context, etag string) (string, string, bool, error) {
-		repoMeta, newETag, notModified, err := h.gh.GetRepo(ctx, owner, repo, etag)
+	meta, err := cache.FetchCached(c.Request.Context(), h.cache, key, func(ctx context.Context, etag string) (repoMeta, string, bool, error) {
+		data, newETag, notModified, err := h.gh.GetRepo(ctx, owner, repo, etag)
 		if err != nil {
-			return "", "", false, err
+			return repoMeta{}, "", false, err
 		}
 		if notModified {
-			return "", newETag, true, nil
+			return repoMeta{}, newETag, true, nil
 		}
-		return repoMeta.Description, newETag, false, nil
+		return repoMeta{Description: data.Description, AvatarURL: data.Owner.AvatarURL}, newETag, false, nil
 	})
 	if err != nil {
 		log.Printf("repo fetch error for %s/%s: %v", owner, repo, err)
-		return ""
+		return repoMeta{}
 	}
-	return desc
+	return meta
 }
 
 func (h *PageHandler) getREADME(c *gin.Context, owner, repo string) string {

@@ -50,6 +50,9 @@ type ReleaseSummary struct {
 // Repo holds the subset of GitHub repo metadata Yoink needs.
 type Repo struct {
 	Description string `json:"description"`
+	Owner       struct {
+		AvatarURL string `json:"avatar_url"`
+	} `json:"owner"`
 }
 
 type Client struct {
@@ -212,7 +215,7 @@ func (c *Client) GetReleases(ctx context.Context, owner, repo, etag string) ([]R
 	return releases, newETag, false, nil
 }
 
-// GetRepo fetches basic repo metadata (currently just the description).
+// GetRepo fetches basic repo metadata (description and owner avatar).
 func (c *Client) GetRepo(ctx context.Context, owner, repo, etag string) (*Repo, string, bool, error) {
 	url := fmt.Sprintf("https://api.github.com/repos/%s/%s", owner, repo)
 	body, newETag, notModified, err := c.conditionalGet(ctx, url, "application/vnd.github.v3+json", etag, maxAPIResponseSize)

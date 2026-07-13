@@ -15,6 +15,7 @@ export type ReleaseData = {
   owner: string;
   repo: string;
   description: string;
+  avatar_url: string;
   tag_name: string;
   name: string;
   body: string;

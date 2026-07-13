@@ -12,6 +12,10 @@ primary_region = 'bom'
 
 [env]
   PORT = '8080'
+  # 1h instead of the 15m code default: quarters how often each cached repo
+  # revalidates against GitHub, buying more headroom under the 5,000 req/hr
+  # authenticated rate limit as the number of distinct repos being served grows.
+  CACHE_TTL_SECONDS = '3600'
 
 [http_service]
   internal_port = 8080

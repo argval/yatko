@@ -7,6 +7,8 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strconv"
+	"sync/atomic"
 	"time"
 )
 
@@ -53,6 +55,10 @@ type Repo struct {
 type Client struct {
 	httpClient *http.Client
 	token      string
+	// remaining is the last-seen X-RateLimit-Remaining value, -1 until the
+	// first response tells us. Read/written atomically since handlers hit
+	// this concurrently.
+	remaining int32
 }
 
 const (
@@ -61,12 +67,37 @@ const (
 	// maxAPIResponseSize caps JSON API responses (releases, repo metadata) at 5 MB,
 	// generous enough for releases with hundreds of assets.
 	maxAPIResponseSize = 5 << 20
+	// rateLimitReserve is the headroom kept below GitHub's rate limit. Once
+	// remaining requests drop below this, new fetches are refused so that
+	// repos already in cache.Cache keep serving their last known-good value
+	// (via FetchCached's stale-while-error fallback) instead of every repo,
+	// hot or cold, racing to fail against an exhausted quota.
+	rateLimitReserve = 200
 )
 
 func NewClient() *Client {
 	return &Client{
 		httpClient: &http.Client{Timeout: 10 * time.Second},
 		token:      os.Getenv("GITHUB_TOKEN"),
+		remaining:  -1,
+	}
+}
+
+// checkBudget refuses a new request once observed rate-limit headroom is
+// below rateLimitReserve. Unknown budget (before the first response) is
+// treated as fine.
+func (c *Client) checkBudget() error {
+	if remaining := atomic.LoadInt32(&c.remaining); remaining >= 0 && remaining < rateLimitReserve {
+		return &APIError{StatusCode: http.StatusTooManyRequests, Message: "GitHub rate limit nearly exhausted, refusing new request"}
+	}
+	return nil
+}
+
+func (c *Client) recordRateLimit(h http.Header) {
+	if v := h.Get("X-RateLimit-Remaining"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			atomic.StoreInt32(&c.remaining, int32(n))
+		}
 	}
 }
 
@@ -101,6 +132,10 @@ func (c *Client) checkStatus(resp *http.Response) error {
 // known ETag when revalidating a previously-cached value. When the origin
 // reports 304, notModified is true and body is nil.
 func (c *Client) conditionalGet(ctx context.Context, url, accept, etag string, maxSize int64) (body []byte, newETag string, notModified bool, err error) {
+	if err := c.checkBudget(); err != nil {
+		return nil, "", false, err
+	}
+
 	req, err := c.newRequest(ctx, url, accept, etag)
 	if err != nil {
 		return nil, "", false, fmt.Errorf("creating request: %w", err)
@@ -110,6 +145,7 @@ func (c *Client) conditionalGet(ctx context.Context, url, accept, etag string, m
 		return nil, "", false, fmt.Errorf("performing request: %w", err)
 	}
 	defer resp.Body.Close()
+	c.recordRateLimit(resp.Header)
 
 	if resp.StatusCode == http.StatusNotModified {
 		return nil, etag, true, nil
@@ -196,6 +232,10 @@ func (c *Client) GetRepo(ctx context.Context, owner, repo, etag string) (*Repo, 
 // GetREADME fetches the raw README content for a repo, capped at maxREADMESize.
 // A missing README (404) is not an error — it returns ("", "", false, nil).
 func (c *Client) GetREADME(ctx context.Context, owner, repo, etag string) (string, string, bool, error) {
+	if err := c.checkBudget(); err != nil {
+		return "", "", false, err
+	}
+
 	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/readme", owner, repo)
 	req, err := c.newRequest(ctx, url, "application/vnd.github.v3.raw", etag)
 	if err != nil {
@@ -206,6 +246,7 @@ func (c *Client) GetREADME(ctx context.Context, owner, repo, etag string) (strin
 		return "", "", false, fmt.Errorf("fetching readme: %w", err)
 	}
 	defer resp.Body.Close()
+	c.recordRateLimit(resp.Header)
 
 	if resp.StatusCode == http.StatusNotModified {
 		return "", etag, true, nil

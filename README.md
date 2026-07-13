@@ -119,6 +119,7 @@ Every unique `owner/repo` (and `owner/repo@tag`) is cached independently, so tra
 - **Hard TTL** (24h): how long a stale entry (and its ETag) is kept around in Redis so revalidation stays possible instead of falling back to a full fetch.
 - **Request coalescing**: concurrent cache misses for the same key are deduplicated (via `singleflight`), so a sudden burst of traffic to a cold link triggers one GitHub fetch, not N.
 - **Stale-while-error**: if GitHub is unreachable or rate-limited, the last known-good cached value is served instead of an error, as long as one exists.
+- **Rate-limit budget guard**: the GitHub client tracks the last-seen `X-RateLimit-Remaining` and refuses new requests once headroom drops below a reserve (200). Combined with stale-while-error, this means a burst of *never-before-seen* repos hitting an exhausted quota fails fast with a 429 instead of also starving already-cached repos, which keep serving their last known-good value uninterrupted.
 
 Without `GITHUB_TOKEN`, GitHub allows 60 unauthenticated requests/hour **per IP** — easy to exhaust while testing multiple repos back-to-back. Setting `GITHUB_TOKEN` raises that to 5,000/hr, and thanks to the caching behavior above, that's enough headroom for a large number of actively-shared links, even at high traffic, as long as `UPSTASH_REDIS_URL` is configured in production (without it, caching silently no-ops and every request hits GitHub directly — fine for local dev, not for production).
 

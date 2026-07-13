@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useCopy } from "./use-copy";
 
 export function InstallCommands({ commands }: { commands: string[] }) {
   return (
-    <div className="border border-foreground/10 rounded-xl p-6 sm:p-8">
-      <h2 className="text-lg font-semibold mb-4">Quick Install</h2>
+    <div className="border border-border rounded-xl bg-surface/60 p-6 sm:p-8">
+      <h2 className="text-lg font-semibold tracking-tight mb-4">Quick Install</h2>
       <div className="space-y-2">
         {commands.map((cmd) => (
           <CopyBlock key={cmd} command={cmd} />
@@ -16,20 +16,14 @@ export function InstallCommands({ commands }: { commands: string[] }) {
 }
 
 function CopyBlock({ command }: { command: string }) {
-  const [copied, setCopied] = useState(false);
-
-  function handleCopy() {
-    navigator.clipboard.writeText(command);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  }
+  const [copied, copy] = useCopy();
 
   return (
     <div className="flex items-center gap-2 rounded-lg bg-foreground/5 px-4 py-3 font-mono text-sm group">
       <span className="text-foreground/40 select-none">$</span>
       <code className="flex-1 truncate">{command}</code>
       <button
-        onClick={handleCopy}
+        onClick={() => copy(command)}
         className="shrink-0 p-1 rounded text-foreground/30 hover:text-foreground/60 transition-colors"
         aria-label="Copy to clipboard"
       >

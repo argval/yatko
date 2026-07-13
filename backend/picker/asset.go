@@ -90,12 +90,6 @@ var platformExtensions = map[Platform][]string{
 	Linux:   {".AppImage", ".deb", ".rpm", ".tar.gz", ".tar.xz", ".zip"},
 }
 
-// PickAsset selects the best matching release asset for the given platform.
-// Returns nil if no suitable asset is found.
-func PickAsset(assets []github.Asset, platform Platform) *github.Asset {
-	return PickAssetForArch(assets, platform, UnknownArch)
-}
-
 // PickAssetForArch selects the best matching release asset for the given platform and
 // CPU architecture. When arch is UnknownArch, architecture is ignored and the
 // function behaves identically to PickAsset.

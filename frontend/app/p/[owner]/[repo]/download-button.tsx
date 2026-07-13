@@ -1,45 +1,23 @@
 "use client";
 
 import { useMemo, useState, useEffect } from "react";
-import { detectPlatform, detectArch, type Platform, type Arch } from "./platform-utils";
-
-type Asset = {
-  name: string;
-  browser_download_url: string;
-  size: number;
-  download_count: number;
-};
+import {
+  detectPlatform,
+  detectArch,
+  isSource,
+  mentionsOtherPlatform,
+  platformExtensions,
+  formatSize,
+  type Platform,
+  type Arch,
+  type Asset,
+} from "./platform-utils";
 
 const platformLabels: Record<Platform, string> = {
   windows: "Windows",
   macos: "macOS",
   linux: "Linux",
 };
-
-const platformExtensions: Record<Platform, string[]> = {
-  windows: [".exe", ".msi", ".zip"],
-  macos: [".dmg", ".pkg", ".zip", ".tar.gz"],
-  linux: [".appimage", ".deb", ".rpm", ".tar.gz", ".tar.xz", ".zip"],
-};
-
-function isSource(name: string): boolean {
-  return name.includes("source") || name.includes("src");
-}
-
-function mentionsOtherPlatform(name: string, current: Platform): boolean {
-  const keywords: Record<Platform, string[]> = {
-    windows: ["windows", "win32", "win64", "win-"],
-    macos: ["macos", "darwin", "osx", "mac-", "apple"],
-    linux: ["linux", "ubuntu", "debian", "fedora", "appimage"],
-  };
-  for (const [p, kws] of Object.entries(keywords)) {
-    if (p === current) continue;
-    for (const kw of kws) {
-      if (name.includes(kw)) return true;
-    }
-  }
-  return false;
-}
 
 function archScore(name: string, arch: Arch): number {
   if (!arch) return 0;
@@ -71,12 +49,6 @@ function pickAssets(assets: Asset[], platform: Platform, arch: Arch): Asset[] {
   }
   results.sort((a, b) => a.extRank - b.extRank || a.archRank - b.archRank);
   return results.map((r) => r.asset);
-}
-
-function formatSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 export function DownloadButton({
@@ -116,19 +88,19 @@ export function DownloadButton({
     <div className="flex flex-col items-center gap-2">
       <a
         href={primaryHref}
-        className="inline-flex items-center gap-2 px-8 py-4 rounded-xl bg-foreground text-background font-semibold text-lg hover:opacity-90 transition-opacity"
+        className="inline-flex items-center gap-2 px-8 py-4 rounded-xl bg-foreground text-background font-semibold text-lg tracking-tight hover:opacity-90 active:scale-[0.98] transition-[opacity,transform] duration-150"
       >
         <DownloadIcon />
         Download for {platformLabels[platform]}
       </a>
 
       {primaryAsset ? (
-        <p className="text-xs text-foreground/40 font-mono">
+        <p className="text-xs text-muted font-mono">
           {primaryAsset.name} &middot; {formatSize(primaryAsset.size)}
         </p>
       ) : (
-        <p className="text-xs text-foreground/40">
-          No binary found for {platformLabels[platform]} — see all downloads below
+        <p className="text-xs text-muted">
+          No binary found for {platformLabels[platform]} - see all downloads below
         </p>
       )}
     </div>

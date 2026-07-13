@@ -3,13 +3,7 @@
 import { useState, useCallback } from "react";
 import { DownloadButton } from "./download-button";
 import { AssetChecksum } from "./asset-checksum";
-
-type Asset = {
-  name: string;
-  browser_download_url: string;
-  size: number;
-  download_count: number;
-};
+import type { Asset } from "./platform-utils";
 
 export function DownloadSection({
   owner,
@@ -38,7 +32,7 @@ export function DownloadSection({
         assets={assets}
         onPrimaryAsset={handlePrimaryAsset}
       />
-      <p className="text-sm text-foreground/50">
+      <p className="text-sm text-muted">
         {tagName} &middot; {publishedDate}
       </p>
       {selectedAsset && (

@@ -1,13 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-
-type Asset = {
-  name: string;
-  browser_download_url: string;
-  size: number;
-  download_count: number;
-};
+import { useCopy } from "./use-copy";
+import type { Asset } from "./platform-utils";
 
 const CHECKSUM_RE = /checksum|sha256sums|sha512sums|md5sums/i;
 
@@ -46,7 +41,7 @@ export function AssetChecksum({
   const checksumAsset = findChecksumAsset(assets);
   const [hash, setHash] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const [copied, copy] = useCopy();
 
   useEffect(() => {
     if (!checksumAsset) return;
@@ -65,12 +60,6 @@ export function AssetChecksum({
   if (loading) return <p className="text-xs text-foreground/30">Verifying checksum…</p>;
   if (!hash) return null;
 
-  function handleCopy() {
-    navigator.clipboard.writeText(hash!);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  }
-
   return (
     <div className="flex items-center gap-2 text-xs text-foreground/40 font-mono max-w-xs sm:max-w-sm">
       <span className="truncate" title={hash}>
@@ -78,7 +67,7 @@ export function AssetChecksum({
       </span>
       <button
         type="button"
-        onClick={handleCopy}
+        onClick={() => copy(hash)}
         className="shrink-0 hover:text-foreground/70 transition-colors"
         title="Copy full checksum"
       >

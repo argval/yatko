@@ -1,26 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { detectPlatform, assetPlatformLabel, type Platform } from "./platform-utils";
-
-type Asset = {
-  name: string;
-  browser_download_url: string;
-  size: number;
-  download_count: number;
-};
+import { detectPlatform, assetPlatformLabel, formatSize, type Platform, type Asset } from "./platform-utils";
 
 const platformMap: Record<Platform, string> = {
   windows: "Windows",
   macos: "macOS",
   linux: "Linux",
 };
-
-function formatSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
 
 function formatDownloadCount(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
@@ -44,10 +31,10 @@ export function AllDownloads({ assets }: { assets: Asset[] }) {
     : assets;
 
   return (
-    <div className="border border-foreground/10 rounded-xl p-6 sm:p-8">
+    <div className="border border-border rounded-xl bg-surface/60 p-6 sm:p-8">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-semibold">All Downloads</h2>
-        <label className="flex items-center gap-2 text-xs text-foreground/50 cursor-pointer select-none hover:text-foreground/70 transition-colors">
+        <h2 className="text-lg font-semibold tracking-tight">All Downloads</h2>
+        <label className="flex items-center gap-2 text-xs text-muted cursor-pointer select-none hover:text-foreground transition-colors">
           <input
             type="checkbox"
             checked={filterEnabled}

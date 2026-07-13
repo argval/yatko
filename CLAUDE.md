@@ -33,10 +33,10 @@ Useful local env vars: `GITHUB_TOKEN` (raises GitHub rate limit from 60→5000 r
 ### Frontend (`frontend/`)
 
 ```bash
-npm install
-npm run dev      # Next.js dev server on :3000
-npm run build
-npm run start
+bun install
+bun run dev      # Next.js dev server on :3000
+bun run build
+bun run start
 ```
 
 Requires `BACKEND_URL` (server-side) and `NEXT_PUBLIC_BACKEND_URL` (client-side) pointing at the backend.

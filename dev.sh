@@ -24,7 +24,7 @@ BACKEND_PID=$!
 
 (
   cd "$ROOT_DIR/frontend"
-  npm run dev 2>&1 | sed -u 's/^/[frontend] /'
+  bun run dev 2>&1 | sed -u 's/^/[frontend] /'
 ) &
 FRONTEND_PID=$!
 

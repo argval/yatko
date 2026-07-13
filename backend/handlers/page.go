@@ -21,43 +21,18 @@ func NewPageHandler(r *RedirectHandler, gh *github.Client, c *cache.Cache) *Page
 }
 
 func (h *PageHandler) Handle(c *gin.Context) {
-	owner := c.Param("owner")
-	repo := c.Param("repo")
-
-	release, err := h.redirect.getRelease(c, owner, repo)
-	if err != nil {
-		log.Printf("page: error fetching release for %s/%s: %v", owner, repo, err)
-		c.JSON(httpStatusFromError(err), gin.H{"error": err.Error()})
-		return
-	}
-
-	readme := h.getREADME(c, owner, repo)
-	description := h.getDescription(c, owner, repo)
-
-	c.JSON(http.StatusOK, gin.H{
-		"owner":        owner,
-		"repo":         repo,
-		"description":  description,
-		"tag_name":     release.TagName,
-		"name":         release.Name,
-		"body":         release.Body,
-		"published_at": release.PublishedAt,
-		"html_url":     release.HTMLURL,
-		"prerelease":   release.Prerelease,
-		"assets":       release.Assets,
-		"readme":       readme,
-	})
+	h.handle(c, c.Param("owner"), c.Param("repo"), "")
 }
 
 // HandleVersioned serves /api/release/:owner/:repo/:version — metadata for a specific tag.
 func (h *PageHandler) HandleVersioned(c *gin.Context) {
-	owner := c.Param("owner")
-	repo := c.Param("repo")
-	version := c.Param("version")
+	h.handle(c, c.Param("owner"), c.Param("repo"), c.Param("version"))
+}
 
-	release, err := h.redirect.getReleaseByTag(c, owner, repo, version)
+func (h *PageHandler) handle(c *gin.Context, owner, repo, version string) {
+	release, err := h.redirect.getRelease(c, owner, repo, version)
 	if err != nil {
-		log.Printf("page: error fetching release %s for %s/%s: %v", version, owner, repo, err)
+		log.Printf("page: error fetching release %q for %s/%s: %v", version, owner, repo, err)
 		c.JSON(httpStatusFromError(err), gin.H{"error": err.Error()})
 		return
 	}

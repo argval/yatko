@@ -1,26 +1,76 @@
 @import "tailwindcss";
 
+@source "../components";
+@source ".";
+
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #fafafa;
+  --foreground: #18181b;
+  --surface: #ffffff;
+  --muted: #71717a;
+  --border: rgb(24 24 27 / 0.1);
 }
 
 .dark {
-  --background: #0a0a0a;
-  --foreground: #ededed;
+  --background: #09090b;
+  --foreground: #fafafa;
+  --surface: #18181b;
+  --muted: #a1a1aa;
+  --border: rgb(250 250 250 / 0.1);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-surface: var(--surface);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
+  --font-sans: var(--font-outfit), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, monospace;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
 }
 
 body {
-  background: var(--background);
+  background-color: var(--background);
+  background-image:
+    radial-gradient(ellipse 80% 50% at 50% -20%, rgb(24 24 27 / 0.04), transparent 60%),
+    radial-gradient(ellipse 60% 40% at 100% 100%, rgb(24 24 27 / 0.03), transparent 50%);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-outfit), ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: -0.015em;
+}
+
+.font-mono,
+code,
+kbd,
+samp,
+pre {
+  font-family: var(--font-jetbrains), ui-monospace, monospace;
+  letter-spacing: 0;
+}
+
+.dark body {
+  background-image:
+    radial-gradient(ellipse 80% 50% at 50% -20%, rgb(250 250 250 / 0.04), transparent 60%),
+    radial-gradient(ellipse 60% 40% at 0% 100%, rgb(250 250 250 / 0.03), transparent 50%);
+}
+
+::selection {
+  background: rgb(24 24 27 / 0.12);
+  color: var(--foreground);
+}
+
+.dark ::selection {
+  background: rgb(250 250 250 / 0.16);
 }

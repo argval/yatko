@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCopy } from "./use-copy";
 
 type ShareLink = {
   label: string;
@@ -29,13 +29,13 @@ export function ShareLinks({ owner, repo }: { owner: string; repo: string }) {
     {
       label: "Direct link API",
       url: `${base}/api/link/${owner}/${repo}`,
-      description: "Returns JSON with the resolved download URL — for CI/scripts",
+      description: "Returns JSON with the resolved download URL - for CI/scripts",
     },
   ];
 
   return (
-    <div className="border border-foreground/10 rounded-xl p-6 sm:p-8">
-      <h2 className="text-lg font-semibold mb-4">Share</h2>
+    <div className="border border-border rounded-xl bg-surface/60 p-6 sm:p-8">
+      <h2 className="text-lg font-semibold tracking-tight mb-4">Share</h2>
       <ul className="space-y-4">
         {links.map((link) => (
           <ShareRow key={link.label} {...link} />
@@ -46,13 +46,7 @@ export function ShareLinks({ owner, repo }: { owner: string; repo: string }) {
 }
 
 function ShareRow({ label, url, description }: ShareLink) {
-  const [copied, setCopied] = useState(false);
-
-  function handleCopy() {
-    navigator.clipboard.writeText(url);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  }
+  const [copied, copy] = useCopy();
 
   return (
     <li className="space-y-1.5">
@@ -60,16 +54,16 @@ function ShareRow({ label, url, description }: ShareLink) {
         <span className="text-sm font-medium">{label}</span>
         <button
           type="button"
-          onClick={handleCopy}
-          className="shrink-0 text-xs text-foreground/40 hover:text-foreground/70 transition-colors"
+          onClick={() => copy(url)}
+          className="shrink-0 text-xs text-muted hover:text-foreground transition-colors"
         >
           {copied ? "Copied!" : "Copy"}
         </button>
       </div>
       <div className="flex items-center gap-2 rounded-lg bg-foreground/5 px-3 py-2">
-        <code className="flex-1 text-xs font-mono truncate text-foreground/60">{url}</code>
+        <code className="flex-1 text-xs font-mono truncate text-muted">{url}</code>
       </div>
-      <p className="text-xs text-foreground/40">{description}</p>
+      <p className="text-xs text-muted">{description}</p>
     </li>
   );
 }

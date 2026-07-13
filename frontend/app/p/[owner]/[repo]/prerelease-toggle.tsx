@@ -28,7 +28,7 @@ export function PrereleaseToggle({
   }
 
   return (
-    <label className="flex items-center gap-2 text-xs text-foreground/40 cursor-pointer select-none hover:text-foreground/60 transition-colors">
+    <label className="flex items-center gap-2 text-xs text-muted cursor-pointer select-none hover:text-foreground transition-colors">
       <input
         type="checkbox"
         checked={isCurrentPrerelease}

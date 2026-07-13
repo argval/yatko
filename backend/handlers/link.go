@@ -37,57 +37,19 @@ type LinkResponse struct {
 }
 
 func (h *LinkHandler) Handle(c *gin.Context) {
-	owner := c.Param("owner")
-	repo := c.Param("repo")
-
-	release, err := h.redirect.getRelease(c, owner, repo)
-	if err != nil {
-		log.Printf("link: error fetching release for %s/%s: %v", owner, repo, err)
-		c.JSON(httpStatusFromError(err), gin.H{"error": err.Error()})
-		return
-	}
-
-	ua := c.GetHeader("User-Agent")
-	platform := picker.DetectPlatform(ua)
-	if p := c.Query("platform"); p != "" {
-		platform = picker.Platform(p)
-	}
-	if platform == picker.Unknown {
-		platform = picker.Windows
-	}
-
-	arch := picker.ResolveArch(c.Query("arch"), ua)
-	asset := picker.PickAssetForArch(release.Assets, platform, arch)
-	if asset == nil {
-		c.JSON(http.StatusNotFound, gin.H{
-			"error":    "no suitable asset found for platform",
-			"platform": string(platform),
-			"arch":     string(arch),
-			"url":      release.HTMLURL,
-		})
-		return
-	}
-
-	c.JSON(http.StatusOK, LinkResponse{
-		URL:      asset.BrowserDownloadURL,
-		Filename: asset.Name,
-		Size:     asset.Size,
-		Platform: string(platform),
-		Arch:     string(arch),
-		Version:  release.TagName,
-	})
+	h.handle(c, c.Param("owner"), c.Param("repo"), "")
 }
 
 // HandleVersioned serves /api/link/:owner/:repo/:version.
 func (h *LinkHandler) HandleVersioned(c *gin.Context) {
-	owner := c.Param("owner")
-	repo := c.Param("repo")
-	version := c.Param("version")
+	h.handle(c, c.Param("owner"), c.Param("repo"), c.Param("version"))
+}
 
-	release, err := h.redirect.getReleaseByTag(c, owner, repo, version)
+func (h *LinkHandler) handle(c *gin.Context, owner, repo, version string) {
+	release, err := h.redirect.getRelease(c, owner, repo, version)
 	if err != nil {
-		log.Printf("link: error fetching release %s for %s/%s: %v", version, owner, repo, err)
-		c.JSON(http.StatusNotFound, gin.H{"error": "release version not found"})
+		log.Printf("link: error fetching release %q for %s/%s: %v", version, owner, repo, err)
+		c.JSON(httpStatusFromError(err), gin.H{"error": err.Error()})
 		return
 	}
 

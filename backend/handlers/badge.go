@@ -20,7 +20,7 @@ func (h *BadgeHandler) Handle(c *gin.Context) {
 	owner := c.Param("owner")
 	repo := c.Param("repo")
 
-	release, err := h.redirect.getRelease(c, owner, repo)
+	release, err := h.redirect.getRelease(c, owner, repo, "")
 	if err != nil {
 		log.Printf("badge: error fetching release for %s/%s: %v", owner, repo, err)
 		c.Data(http.StatusNotFound, "image/svg+xml", renderBadge("version", "unknown", "#e05d44"))

@@ -33,7 +33,7 @@ export function VersionSelector({
     <select
       value={currentTag}
       onChange={(e) => handleChange(e.target.value)}
-      className="px-3 py-1.5 text-sm rounded-lg border border-foreground/10 bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-foreground/20 cursor-pointer"
+      className="px-3 py-1.5 text-sm rounded-lg border border-border bg-surface text-foreground focus:outline-none focus:ring-2 focus:ring-foreground/15 cursor-pointer"
       aria-label="Select version"
     >
       {visible.map((r) => (

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { ReleasePageBody } from "../release-page";
-import { getRelease } from "../page";
+import { getRelease, getReleases, getChecksums } from "../page";
 
 type Props = {
   params: Promise<{ owner: string; repo: string; version: string }>;
@@ -17,5 +17,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function VersionedReleasePage({ params }: Props) {
   const { owner, repo, version } = await params;
   const release = await getRelease(owner, repo, version);
-  return <ReleasePageBody owner={owner} repo={repo} release={release} />;
+  const [releases, checksums] = await Promise.all([
+    getReleases(owner, repo),
+    getChecksums(release.assets),
+  ]);
+  return (
+    <ReleasePageBody owner={owner} repo={repo} release={release} releases={releases} checksums={checksums} />
+  );
 }

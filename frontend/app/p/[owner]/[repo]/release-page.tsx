@@ -27,6 +27,13 @@ export type ReleaseData = {
   readme: string;
 };
 
+export type ReleaseSummary = {
+  tag_name: string;
+  name: string;
+  published_at: string;
+  prerelease: boolean;
+};
+
 const proseClass =
   "prose prose-sm dark:prose-invert max-w-none [&_a]:text-blue-500 [&_a:hover]:underline [&_h2]:text-base [&_h2]:font-semibold [&_h2]:mt-6 [&_h2]:mb-2 [&_h3]:text-sm [&_h3]:font-semibold [&_h3]:mt-4 [&_h3]:mb-2 [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:space-y-1 [&_li]:text-sm [&_p]:text-sm [&_p]:leading-relaxed [&_code]:text-xs [&_code]:bg-foreground/5 [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded [&_code]:break-words [&_pre]:bg-foreground/5 [&_pre]:p-4 [&_pre]:rounded-lg [&_pre]:overflow-x-auto [&_table]:w-full [&_table]:border-collapse [&_thead]:bg-foreground/5 [&_th]:border [&_th]:border-foreground/10 [&_th]:px-4 [&_th]:py-2 [&_th]:text-left [&_th]:font-semibold [&_td]:border [&_td]:border-foreground/10 [&_td]:px-4 [&_td]:py-2";
 
@@ -34,7 +41,19 @@ const readmeProseClass =
   proseClass +
   " [&_h1]:text-xl [&_h1]:font-bold [&_h1]:mt-6 [&_h1]:mb-3 [&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:space-y-1 [&_img]:rounded-lg [&_img]:max-w-full";
 
-export function ReleasePageBody({ owner, repo, release }: { owner: string; repo: string; release: ReleaseData }) {
+export function ReleasePageBody({
+  owner,
+  repo,
+  release,
+  releases,
+  checksums,
+}: {
+  owner: string;
+  repo: string;
+  release: ReleaseData;
+  releases: ReleaseSummary[];
+  checksums: Record<string, string>;
+}) {
   const publishedDate = new Date(release.published_at).toLocaleDateString("en-US", {
     year: "numeric",
     month: "long",
@@ -79,17 +98,20 @@ export function ReleasePageBody({ owner, repo, release }: { owner: string; repo:
             assets={release.assets}
             tagName={release.tag_name}
             publishedDate={publishedDate}
+            checksums={checksums}
           />
           <VersionSelector
             owner={owner}
             repo={repo}
             currentTag={release.tag_name}
             showPrereleases={release.prerelease}
+            releases={releases}
           />
           <PrereleaseToggle
             owner={owner}
             repo={repo}
             isCurrentPrerelease={release.prerelease}
+            releases={releases}
           />
         </div>
 
@@ -148,21 +170,21 @@ function extractInstallCommands(readme: string): InstallCommand[] {
   const commands = new Map<string, InstallPlatform>();
   const codeBlockRe = /```[^\n]*\n([\s\S]*?)```/g;
   const patterns: { platform: InstallPlatform; re: RegExp }[] = [
-    { platform: "universal", re: /^\s*(?:\$|>)?\s*(pip install\s+\S+)/ },
-    { platform: "universal", re: /^\s*(?:\$|>)?\s*(npm install\s+\S+)/ },
-    { platform: "universal", re: /^\s*(?:\$|>)?\s*(npx\s+\S+.*)/ },
-    { platform: "universal", re: /^\s*(?:\$|>)?\s*(yarn add\s+\S+)/ },
-    { platform: "universal", re: /^\s*(?:\$|>)?\s*(pnpm add\s+\S+)/ },
-    { platform: "universal", re: /^\s*(?:\$|>)?\s*(cargo install\s+\S+)/ },
-    { platform: "universal", re: /^\s*(?:\$|>)?\s*(go install\s+\S+)/ },
-    { platform: "macos", re: /^\s*(?:\$|>)?\s*(brew install\s+\S+)/ },
-    { platform: "universal", re: /^\s*(?:\$|>)?\s*(gem install\s+\S+)/ },
-    { platform: "linux", re: /^\s*(?:\$|>)?\s*(apt(?:-get)?\s+install\s+\S+)/ },
-    { platform: "universal", re: /^\s*(?:\$|>)?\s*(uv (?:add|pip install|tool install)\s+\S+)/ },
-    { platform: "universal", re: /^\s*(?:\$|>)?\s*(uvx\s+\S+.*)/ },
-    { platform: "windows", re: /^\s*(?:\$|>)?\s*(winget install\s+\S+)/ },
-    { platform: "windows", re: /^\s*(?:\$|>)?\s*(choco install\s+\S+)/ },
-    { platform: "windows", re: /^\s*(?:\$|>)?\s*(scoop install\s+\S+)/ },
+    { platform: "universal", re: /^\s*(?:\$|>)?\s*(pip install\s+.+)/ },
+    { platform: "universal", re: /^\s*(?:\$|>)?\s*(npm install\s+.+)/ },
+    { platform: "universal", re: /^\s*(?:\$|>)?\s*(npx\s+.+)/ },
+    { platform: "universal", re: /^\s*(?:\$|>)?\s*(yarn add\s+.+)/ },
+    { platform: "universal", re: /^\s*(?:\$|>)?\s*(pnpm add\s+.+)/ },
+    { platform: "universal", re: /^\s*(?:\$|>)?\s*(cargo install\s+.+)/ },
+    { platform: "universal", re: /^\s*(?:\$|>)?\s*(go install\s+.+)/ },
+    { platform: "macos", re: /^\s*(?:\$|>)?\s*(brew install\s+.+)/ },
+    { platform: "universal", re: /^\s*(?:\$|>)?\s*(gem install\s+.+)/ },
+    { platform: "linux", re: /^\s*(?:\$|>)?\s*(apt(?:-get)?\s+install\s+.+)/ },
+    { platform: "universal", re: /^\s*(?:\$|>)?\s*(uv (?:add|pip install|tool install)\s+.+)/ },
+    { platform: "universal", re: /^\s*(?:\$|>)?\s*(uvx\s+.+)/ },
+    { platform: "windows", re: /^\s*(?:\$|>)?\s*(winget install\s+.+)/ },
+    { platform: "windows", re: /^\s*(?:\$|>)?\s*(choco install\s+.+)/ },
+    { platform: "windows", re: /^\s*(?:\$|>)?\s*(scoop install\s+.+)/ },
     { platform: "universal", re: /^\s*(?:\$|>)?\s*(curl\s+.+)/ },
     { platform: "universal", re: /^\s*(?:\$|>)?\s*(wget\s+.+)/ },
   ];

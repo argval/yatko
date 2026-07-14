@@ -11,12 +11,14 @@ export function DownloadSection({
   assets,
   tagName,
   publishedDate,
+  checksums,
 }: {
   owner: string;
   repo: string;
   assets: Asset[];
   tagName: string;
   publishedDate: string;
+  checksums: Record<string, string>;
 }) {
   const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
 
@@ -36,7 +38,7 @@ export function DownloadSection({
         {tagName} &middot; {publishedDate}
       </p>
       {selectedAsset && (
-        <AssetChecksum assets={assets} primaryAsset={selectedAsset} />
+        <AssetChecksum hash={checksums[selectedAsset.name] ?? null} />
       )}
     </div>
   );

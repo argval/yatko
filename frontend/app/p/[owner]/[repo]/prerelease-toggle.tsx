@@ -1,19 +1,20 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useReleases } from "./use-releases";
+import type { ReleaseSummary } from "./release-page";
 
 export function PrereleaseToggle({
   owner,
   repo,
   isCurrentPrerelease,
+  releases,
 }: {
   owner: string;
   repo: string;
   isCurrentPrerelease: boolean;
+  releases: ReleaseSummary[];
 }) {
   const router = useRouter();
-  const { releases } = useReleases(owner, repo);
 
   const hasPrereleases = releases.some((r) => r.prerelease);
   if (!hasPrereleases && !isCurrentPrerelease) return null;

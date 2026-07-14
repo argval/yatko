@@ -1,27 +1,28 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useReleases } from "./use-releases";
+import type { ReleaseSummary } from "./release-page";
 
 export function VersionSelector({
   owner,
   repo,
   currentTag,
   showPrereleases,
+  releases,
 }: {
   owner: string;
   repo: string;
   currentTag: string;
   showPrereleases: boolean;
+  releases: ReleaseSummary[];
 }) {
   const router = useRouter();
-  const { releases, loading } = useReleases(owner, repo);
 
   const visible = showPrereleases
     ? releases
     : releases.filter((r) => !r.prerelease);
 
-  if (loading || visible.length <= 1) return null;
+  if (visible.length <= 1) return null;
 
   function handleChange(tag: string) {
     if (tag === currentTag) return;

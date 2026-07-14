@@ -30,6 +30,15 @@ func (h *PageHandler) HandleVersioned(c *gin.Context) {
 }
 
 func (h *PageHandler) handle(c *gin.Context, owner, repo, version string) {
+	if c.Query("refresh") != "" {
+		key := cache.ReleaseKey(owner, repo)
+		if version != "" {
+			key = cache.ReleaseTagKey(owner, repo, version)
+		}
+		_ = h.cache.Invalidate(c.Request.Context(), key)
+		_ = h.cache.Invalidate(c.Request.Context(), cache.ReleasesKey(owner, repo))
+	}
+
 	release, err := h.redirect.getRelease(c, owner, repo, version)
 	if err != nil {
 		log.Printf("page: error fetching release %q for %s/%s: %v", version, owner, repo, err)

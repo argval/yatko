@@ -1,16 +1,24 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"os"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/yourusername/yoink/cache"
 	"github.com/yourusername/yoink/github"
 	"github.com/yourusername/yoink/handlers"
+	"github.com/yourusername/yoink/middleware"
 )
+
+// defaultRateLimitRPM is the per-IP request budget per minute, overridable
+// via RATE_LIMIT_RPM. No-ops without UPSTASH_REDIS_URL, same as caching.
+const defaultRateLimitRPM = 120
 
 func main() {
 	ghClient := github.NewClient()
@@ -23,6 +31,15 @@ func main() {
 	releasesHandler := handlers.NewReleasesHandler(ghClient, redisCache)
 
 	r := gin.Default()
+
+	// Fly-Client-IP is set by Fly.io's edge and can't be spoofed by clients,
+	// unlike X-Forwarded-For which Gin trusts from anyone by default.
+	// TODO: update when migrating off Fly.io - see gin.Platform* constants or SetTrustedProxies.
+	r.TrustedPlatform = gin.PlatformFlyIO
+	// Belt and suspenders: if Fly-Client-IP is ever absent, fall back to the
+	// raw socket address instead of Gin's default (trust X-Forwarded-For from
+	// anyone), which would let a client spoof its own rate-limit identity.
+	_ = r.SetTrustedProxies(nil)
 
 	frontendOrigin := os.Getenv("FRONTEND_ORIGIN") // e.g. https://yoink.vercel.app
 	r.Use(cors.New(cors.Config{
@@ -42,14 +59,27 @@ func main() {
 		AllowCredentials: false,
 	}))
 
-	r.GET("/dl/:owner/:repo", redirectHandler.Handle)
-	r.GET("/dl/:owner/:repo/:version", redirectHandler.HandleVersioned)
-	r.GET("/badge/:owner/:repo", badgeHandler.Handle)
-	r.GET("/api/release/:owner/:repo", pageHandler.Handle)
-	r.GET("/api/link/:owner/:repo", linkHandler.Handle)
-	r.GET("/api/link/:owner/:repo/:version", linkHandler.HandleVersioned)
-	r.GET("/api/release/:owner/:repo/:version", pageHandler.HandleVersioned)
-	r.GET("/api/releases/:owner/:repo", releasesHandler.Handle)
+	rateLimitRPM := defaultRateLimitRPM
+	if v := os.Getenv("RATE_LIMIT_RPM"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			rateLimitRPM = n
+		} else {
+			fmt.Fprintf(os.Stderr, "warning: invalid RATE_LIMIT_RPM=%q, using default %d\n", v, defaultRateLimitRPM)
+		}
+	}
+
+	// Rate-limited routes only - /health is exempt so hosting-platform
+	// probes (which hit it frequently from an internal IP) are never throttled.
+	limited := r.Group("/")
+	limited.Use(middleware.RateLimit(redisCache, rateLimitRPM, time.Minute))
+	limited.GET("/dl/:owner/:repo", redirectHandler.Handle)
+	limited.GET("/dl/:owner/:repo/:version", redirectHandler.HandleVersioned)
+	limited.GET("/badge/:owner/:repo", badgeHandler.Handle)
+	limited.GET("/api/release/:owner/:repo", pageHandler.Handle)
+	limited.GET("/api/link/:owner/:repo", linkHandler.Handle)
+	limited.GET("/api/link/:owner/:repo/:version", linkHandler.HandleVersioned)
+	limited.GET("/api/release/:owner/:repo/:version", pageHandler.HandleVersioned)
+	limited.GET("/api/releases/:owner/:repo", releasesHandler.Handle)
 
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "ok"})

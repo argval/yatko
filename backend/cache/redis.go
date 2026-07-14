@@ -163,6 +163,44 @@ func FetchCached[T any](ctx context.Context, c *Cache, key string, fetch Conditi
 	return result.(T), nil
 }
 
+// Allow reports whether a request identified by key is within limit for the
+// given fixed window, incrementing key's counter as a side effect. Always
+// allows (fails open) when Redis is unconfigured or unreachable, matching
+// the rest of Cache's no-op-without-Redis behavior - a Redis hiccup should
+// throttle nothing, not 500 the API.
+func (c *Cache) Allow(ctx context.Context, key string, limit int, window time.Duration) (allowed bool, retryAfter time.Duration, err error) {
+	if c.client == nil {
+		return true, 0, nil
+	}
+
+	rlKey := "ratelimit:" + key
+	pipe := c.client.Pipeline()
+	incr := pipe.Incr(ctx, rlKey)
+	pipe.ExpireNX(ctx, rlKey, window) // only takes effect on the first request in a window
+	if _, err := pipe.Exec(ctx); err != nil {
+		return true, 0, err
+	}
+
+	if incr.Val() > int64(limit) {
+		ttl, err := c.client.TTL(ctx, rlKey).Result()
+		if err != nil || ttl < 0 {
+			ttl = window
+		}
+		return false, ttl, nil
+	}
+	return true, 0, nil
+}
+
+// Invalidate deletes the cached entry for key, if any. No-op if Redis is
+// unconfigured. The next FetchCached call for key is a full cache miss (no
+// ETag to revalidate against) and re-fetches from origin.
+func (c *Cache) Invalidate(ctx context.Context, key string) error {
+	if c.client == nil {
+		return nil
+	}
+	return c.client.Del(ctx, key).Err()
+}
+
 func getEntry[T any](ctx context.Context, c *Cache, key string) (*entry[T], error) {
 	if c.client == nil {
 		return nil, nil

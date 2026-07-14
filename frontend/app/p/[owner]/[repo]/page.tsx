@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { ReleasePageBody, type ReleaseData, type ReleaseSummary } from "./release-page";
+import { ReleaseError } from "./release-error";
 import type { Asset } from "./platform-utils";
 
 const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:8080";
@@ -10,7 +11,15 @@ type Props = {
   params: Promise<{ owner: string; repo: string }>;
 };
 
-export async function getRelease(owner: string, repo: string, version?: string): Promise<ReleaseData> {
+export type ReleaseResult = { ok: true; data: ReleaseData } | { ok: false; message: string };
+
+// Returns a result instead of throwing for expected/recoverable failures:
+// Next.js redacts thrown Server Component error messages in production
+// (replaced with a generic "digest" page), so an inline result is the only
+// way to surface the specific message to the user. 404 still uses notFound()
+// - that's a framework control-flow signal, not a rendered error, and isn't
+// subject to the redaction above.
+export async function getRelease(owner: string, repo: string, version?: string): Promise<ReleaseResult> {
   const path = version
     ? `/api/release/${owner}/${repo}/${version}`
     : `/api/release/${owner}/${repo}`;
@@ -18,13 +27,17 @@ export async function getRelease(owner: string, repo: string, version?: string):
   try {
     res = await fetch(`${BACKEND_URL}${path}`, { next: { revalidate: 300 } });
   } catch {
-    throw new Error("Couldn't reach the download service. Try again in a moment.");
+    return { ok: false, message: "Couldn't reach the download service. Try again in a moment." };
   }
   if (res.status === 404) notFound();
-  if (res.status === 403) throw new Error("This repository is private or you don't have access.");
-  if (res.status === 429) throw new Error("GitHub API rate limit exceeded. Try again in a minute.");
-  if (!res.ok) throw new Error("Couldn't reach the download service. Try again in a moment.");
-  return res.json();
+  if (res.status === 403) return { ok: false, message: "This repository is private or you don't have access." };
+  if (res.status === 429) return { ok: false, message: "GitHub API rate limit exceeded. Try again in a minute." };
+  if (!res.ok) return { ok: false, message: "Couldn't reach the download service. Try again in a moment." };
+  try {
+    return { ok: true, data: await res.json() };
+  } catch {
+    return { ok: false, message: "Couldn't reach the download service. Try again in a moment." };
+  }
 }
 
 // Version list for the selector/pre-release toggle - non-critical, so a
@@ -77,12 +90,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function ReleasePage({ params }: Props) {
   const { owner, repo } = await params;
-  const release = await getRelease(owner, repo);
+  const result = await getRelease(owner, repo);
+  if (!result.ok) return <ReleaseError message={result.message} />;
   const [releases, checksums] = await Promise.all([
     getReleases(owner, repo),
-    getChecksums(release.assets),
+    getChecksums(result.data.assets),
   ]);
   return (
-    <ReleasePageBody owner={owner} repo={repo} release={release} releases={releases} checksums={checksums} />
+    <ReleasePageBody owner={owner} repo={repo} release={result.data} releases={releases} checksums={checksums} />
   );
 }

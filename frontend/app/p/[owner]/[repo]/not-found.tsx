@@ -1,25 +1,18 @@
+import { StatusCard, statusCardPrimaryAction, statusCardSecondaryAction } from "./status-card";
+
 export default function NotFound() {
   return (
-    <main className="flex-1 flex flex-col items-center justify-center px-4 py-20 text-center">
-      <p className="text-6xl mb-6">📦</p>
-      <h1 className="text-2xl font-bold mb-2">No releases found</h1>
-      <p className="text-foreground/50 mb-8">
-        This repo doesn&apos;t exist or hasn&apos;t published any releases yet.
-      </p>
-      <div className="flex gap-3">
-        <a
-          href="/"
-          className="px-4 py-2 rounded-lg bg-foreground text-background text-sm font-medium hover:opacity-80 transition-opacity"
-        >
-          Back to search
-        </a>
-        <a
-          href="https://github.com"
-          className="px-4 py-2 rounded-lg border border-foreground/10 text-sm font-medium hover:bg-foreground/5 transition-colors"
-        >
-          Open GitHub
-        </a>
-      </div>
-    </main>
+    <StatusCard
+      emoji="📦"
+      title="No releases found"
+      description="This repo doesn't exist or hasn't published any releases yet."
+    >
+      <a href="/" className={statusCardPrimaryAction}>
+        Back to search
+      </a>
+      <a href="https://github.com" className={statusCardSecondaryAction}>
+        Open GitHub
+      </a>
+    </StatusCard>
   );
 }

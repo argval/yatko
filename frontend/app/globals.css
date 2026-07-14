@@ -33,6 +33,10 @@
 
 html {
   scroll-behavior: smooth;
+  background-color: var(--background);
+  background-image:
+    radial-gradient(ellipse 80% 50% at 50% -20%, rgb(24 24 27 / 0.04), transparent 60%),
+    radial-gradient(ellipse 60% 40% at 100% 100%, rgb(24 24 27 / 0.03), transparent 50%);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -42,10 +46,6 @@ html {
 }
 
 body {
-  background-color: var(--background);
-  background-image:
-    radial-gradient(ellipse 80% 50% at 50% -20%, rgb(24 24 27 / 0.04), transparent 60%),
-    radial-gradient(ellipse 60% 40% at 100% 100%, rgb(24 24 27 / 0.03), transparent 50%);
   color: var(--foreground);
   font-family: var(--font-outfit), ui-sans-serif, system-ui, sans-serif;
   letter-spacing: -0.015em;
@@ -60,7 +60,7 @@ pre {
   letter-spacing: 0;
 }
 
-.dark body {
+html.dark {
   background-image:
     radial-gradient(ellipse 80% 50% at 50% -20%, rgb(250 250 250 / 0.04), transparent 60%),
     radial-gradient(ellipse 60% 40% at 0% 100%, rgb(250 250 250 / 0.03), transparent 50%);

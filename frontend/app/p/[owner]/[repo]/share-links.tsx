@@ -1,6 +1,7 @@
 "use client";
 
 import { useCopy } from "./use-copy";
+import { CollapsibleCard } from "./collapsible-card";
 
 type ShareLink = {
   label: string;
@@ -34,14 +35,13 @@ export function ShareLinks({ owner, repo }: { owner: string; repo: string }) {
   ];
 
   return (
-    <div className="border border-border rounded-xl bg-surface/60 p-6 sm:p-8">
-      <h2 className="text-lg font-semibold tracking-tight mb-4">Share</h2>
+    <CollapsibleCard title="Share">
       <ul className="space-y-4">
         {links.map((link) => (
           <ShareRow key={link.label} {...link} />
         ))}
       </ul>
-    </div>
+    </CollapsibleCard>
   );
 }
 

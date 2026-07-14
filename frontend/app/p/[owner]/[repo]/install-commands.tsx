@@ -1,27 +1,75 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { useCopy } from "./use-copy";
+import { CollapsibleCard } from "./collapsible-card";
+import { detectPlatform, type Platform } from "./platform-utils";
 
-export function InstallCommands({ commands }: { commands: string[] }) {
+export type InstallPlatform = "macos" | "windows" | "linux" | "universal";
+
+export type InstallCommand = {
+  command: string;
+  platform: InstallPlatform;
+};
+
+const platformLabels: Record<InstallPlatform, string> = {
+  macos: "macOS",
+  windows: "Windows",
+  linux: "Linux",
+  universal: "Universal",
+};
+
+export function InstallCommands({ commands }: { commands: InstallCommand[] }) {
+  const [platform, setPlatform] = useState<Platform>("windows");
+  const [filterEnabled, setFilterEnabled] = useState(false);
+
+  useEffect(() => {
+    setPlatform(detectPlatform());
+  }, []);
+
+  const visible = filterEnabled
+    ? commands.filter((c) => c.platform === "universal" || c.platform === platform)
+    : commands;
+
   return (
-    <div className="border border-border rounded-xl bg-surface/60 p-6 sm:p-8">
-      <h2 className="text-lg font-semibold tracking-tight mb-4">Quick Install</h2>
+    <CollapsibleCard title="CLI Installation">
+      <label className="flex items-center gap-2 text-xs text-muted cursor-pointer select-none hover:text-foreground transition-colors mb-4">
+        <input
+          type="checkbox"
+          checked={filterEnabled}
+          onChange={(e) => setFilterEnabled(e.target.checked)}
+          className="rounded border-foreground/20 accent-foreground"
+        />
+        My platform only
+      </label>
+
+      {visible.length === 0 && (
+        <p className="text-sm text-foreground/40 py-2">
+          No install commands found for {platformLabels[platform]}. Try unchecking the filter.
+        </p>
+      )}
+
       <div className="space-y-2">
-        {commands.map((cmd) => (
-          <CopyBlock key={cmd} command={cmd} />
+        {visible.map(({ command, platform: cmdPlatform }) => (
+          <CopyBlock key={command} command={command} platform={cmdPlatform} />
         ))}
       </div>
-    </div>
+    </CollapsibleCard>
   );
 }
 
-function CopyBlock({ command }: { command: string }) {
+function CopyBlock({ command, platform }: { command: string; platform: InstallPlatform }) {
   const [copied, copy] = useCopy();
 
   return (
     <div className="flex items-center gap-2 rounded-lg bg-foreground/5 px-4 py-3 font-mono text-sm group">
-      <span className="text-foreground/40 select-none">$</span>
-      <code className="flex-1 truncate">{command}</code>
+      <span className="text-foreground/40 select-none shrink-0">$</span>
+      <div className="flex-1 min-w-0 overflow-x-auto">
+        <code className="whitespace-pre">{command}</code>
+      </div>
+      <span className="shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-foreground/10 text-foreground/60 font-sans">
+        {platformLabels[platform]}
+      </span>
       <button
         onClick={() => copy(command)}
         className="shrink-0 p-1 rounded text-foreground/30 hover:text-foreground/60 transition-colors"

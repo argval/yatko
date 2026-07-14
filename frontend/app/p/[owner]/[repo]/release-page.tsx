@@ -3,12 +3,13 @@ import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeRaw from "rehype-raw";
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
-import { InstallCommands } from "./install-commands";
+import { InstallCommands, type InstallCommand, type InstallPlatform } from "./install-commands";
 import { DownloadSection } from "./download-section";
 import { VersionSelector } from "./version-selector";
 import { PrereleaseToggle } from "./prerelease-toggle";
 import { AllDownloads } from "./all-downloads";
 import { ShareLinks } from "./share-links";
+import { CollapsibleCard } from "./collapsible-card";
 import type { Asset } from "./platform-utils";
 
 export type ReleaseData = {
@@ -92,64 +93,45 @@ export function ReleasePageBody({ owner, repo, release }: { owner: string; repo:
           />
         </div>
 
-        {/* Quick Install */}
+        {/* CLI Installation */}
         {installCommands.length > 0 && (
           <InstallCommands commands={installCommands} />
         )}
 
         {/* About (README) */}
         {release.readme && (
-          <details className="border border-border rounded-xl bg-surface/60 group">
-            <summary className="px-6 sm:px-8 py-5 cursor-pointer font-semibold tracking-tight text-lg flex items-center justify-between select-none">
-              About
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 16 16"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="transition-transform group-open:rotate-180"
+          <CollapsibleCard title="About" defaultOpen={false}>
+            <div className={readmeProseClass}>
+              <Markdown
+                remarkPlugins={[remarkGfm]}
+                rehypePlugins={[
+                  rehypeRaw,
+                  [rehypeSanitize, {
+                    ...defaultSchema,
+                    attributes: {
+                      ...defaultSchema.attributes,
+                      img: [...(defaultSchema.attributes?.img ?? []), "src", "alt", "width", "height", "align"],
+                      svg: ["xmlns", "viewBox", "width", "height", "fill", "class", "style"],
+                      path: ["d", "fill", "stroke", "strokeWidth"],
+                    },
+                    tagNames: [...(defaultSchema.tagNames ?? []), "svg", "path", "circle", "rect", "g"],
+                  }],
+                ]}
+                urlTransform={(url) => resolveReadmeUrl(url, owner, repo)}
               >
-                <path d="M4 6l4 4 4-4" />
-              </svg>
-            </summary>
-            <div className="px-6 sm:px-8 pb-6 sm:pb-8">
-              <div className={readmeProseClass}>
-                <Markdown
-                  remarkPlugins={[remarkGfm]}
-                  rehypePlugins={[
-                    rehypeRaw,
-                    [rehypeSanitize, {
-                      ...defaultSchema,
-                      attributes: {
-                        ...defaultSchema.attributes,
-                        img: [...(defaultSchema.attributes?.img ?? []), "src", "alt", "width", "height", "align"],
-                        svg: ["xmlns", "viewBox", "width", "height", "fill", "class", "style"],
-                        path: ["d", "fill", "stroke", "strokeWidth"],
-                      },
-                      tagNames: [...(defaultSchema.tagNames ?? []), "svg", "path", "circle", "rect", "g"],
-                    }],
-                  ]}
-                  urlTransform={(url) => resolveReadmeUrl(url, owner, repo)}
-                >
-                  {release.readme}
-                </Markdown>
-              </div>
+                {release.readme}
+              </Markdown>
             </div>
-          </details>
+          </CollapsibleCard>
         )}
 
         {/* Release notes */}
         {release.body && (
-          <div className="border border-border rounded-xl bg-surface/60 p-6 sm:p-8">
-            <h2 className="text-lg font-semibold tracking-tight mb-4">Release Notes</h2>
+          <CollapsibleCard title="Release Notes">
             <div className={proseClass}>
               <Markdown remarkPlugins={[remarkGfm]}>{release.body}</Markdown>
             </div>
-          </div>
+          </CollapsibleCard>
         )}
 
         {/* All downloads */}
@@ -162,36 +144,38 @@ export function ReleasePageBody({ owner, repo, release }: { owner: string; repo:
   );
 }
 
-function extractInstallCommands(readme: string): string[] {
-  const commands = new Set<string>();
+function extractInstallCommands(readme: string): InstallCommand[] {
+  const commands = new Map<string, InstallPlatform>();
   const codeBlockRe = /```[^\n]*\n([\s\S]*?)```/g;
-  const patterns = [
-    /^\s*(?:\$|>)?\s*(pip install\s+\S+)/,
-    /^\s*(?:\$|>)?\s*(npm install\s+\S+)/,
-    /^\s*(?:\$|>)?\s*(yarn add\s+\S+)/,
-    /^\s*(?:\$|>)?\s*(pnpm add\s+\S+)/,
-    /^\s*(?:\$|>)?\s*(cargo install\s+\S+)/,
-    /^\s*(?:\$|>)?\s*(go install\s+\S+)/,
-    /^\s*(?:\$|>)?\s*(brew install\s+\S+)/,
-    /^\s*(?:\$|>)?\s*(gem install\s+\S+)/,
-    /^\s*(?:\$|>)?\s*(apt(?:-get)?\s+install\s+\S+)/,
-    /^\s*(?:\$|>)?\s*(uv (?:add|pip install)\s+\S+)/,
-    /^\s*(?:\$|>)?\s*(winget install\s+\S+)/,
-    /^\s*(?:\$|>)?\s*(choco install\s+\S+)/,
-    /^\s*(?:\$|>)?\s*(scoop install\s+\S+)/,
-    /^\s*(?:\$|>)?\s*(curl\s+.+)/,
-    /^\s*(?:\$|>)?\s*(wget\s+.+)/,
+  const patterns: { platform: InstallPlatform; re: RegExp }[] = [
+    { platform: "universal", re: /^\s*(?:\$|>)?\s*(pip install\s+\S+)/ },
+    { platform: "universal", re: /^\s*(?:\$|>)?\s*(npm install\s+\S+)/ },
+    { platform: "universal", re: /^\s*(?:\$|>)?\s*(npx\s+\S+.*)/ },
+    { platform: "universal", re: /^\s*(?:\$|>)?\s*(yarn add\s+\S+)/ },
+    { platform: "universal", re: /^\s*(?:\$|>)?\s*(pnpm add\s+\S+)/ },
+    { platform: "universal", re: /^\s*(?:\$|>)?\s*(cargo install\s+\S+)/ },
+    { platform: "universal", re: /^\s*(?:\$|>)?\s*(go install\s+\S+)/ },
+    { platform: "macos", re: /^\s*(?:\$|>)?\s*(brew install\s+\S+)/ },
+    { platform: "universal", re: /^\s*(?:\$|>)?\s*(gem install\s+\S+)/ },
+    { platform: "linux", re: /^\s*(?:\$|>)?\s*(apt(?:-get)?\s+install\s+\S+)/ },
+    { platform: "universal", re: /^\s*(?:\$|>)?\s*(uv (?:add|pip install|tool install)\s+\S+)/ },
+    { platform: "universal", re: /^\s*(?:\$|>)?\s*(uvx\s+\S+.*)/ },
+    { platform: "windows", re: /^\s*(?:\$|>)?\s*(winget install\s+\S+)/ },
+    { platform: "windows", re: /^\s*(?:\$|>)?\s*(choco install\s+\S+)/ },
+    { platform: "windows", re: /^\s*(?:\$|>)?\s*(scoop install\s+\S+)/ },
+    { platform: "universal", re: /^\s*(?:\$|>)?\s*(curl\s+.+)/ },
+    { platform: "universal", re: /^\s*(?:\$|>)?\s*(wget\s+.+)/ },
   ];
   let match;
   while ((match = codeBlockRe.exec(readme)) !== null) {
     for (const line of match[1].split("\n")) {
-      for (const pat of patterns) {
-        const m = line.match(pat);
-        if (m) commands.add(m[1].trim());
+      for (const { platform, re } of patterns) {
+        const m = line.match(re);
+        if (m) commands.set(m[1].trim(), platform);
       }
     }
   }
-  return [...commands];
+  return [...commands].map(([command, platform]) => ({ command, platform }));
 }
 
 function resolveReadmeUrl(url: string, owner: string, repo: string): string {

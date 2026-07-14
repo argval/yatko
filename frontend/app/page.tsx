@@ -44,7 +44,7 @@ export default function Home() {
             Yoink
           </h1>
           <p className="text-base sm:text-lg text-muted leading-relaxed max-w-md mx-auto tracking-normal">
-            Clean download links for any public GitHub repo so that you don't have to called a <a href="https://www.reddit.com/r/github/s/7YaS7nTVup" className="font-medium text-fg-brand hover:underline">"Smelly Nerd"</a> anymore
+            Clean download links for any public GitHub repo so that you don't have to called a <a target="_blank" rel="noopener noreferrer" href="https://www.reddit.com/r/github/s/7YaS7nTVup" className="font-medium text-fg-brand hover:underline">"Smelly Nerd"</a> anymore
           </p>
         </div>
 

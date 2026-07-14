@@ -29,7 +29,7 @@ export function detectArch(): Arch {
   return "";
 }
 
-const platformKeywords: Record<Platform, string[]> = {
+export const platformKeywords: Record<Platform, string[]> = {
   windows: ["windows", "win32", "win64", "win-"],
   macos: ["macos", "darwin", "osx", "mac-", "apple"],
   linux: ["linux", "ubuntu", "debian", "fedora", "appimage"],

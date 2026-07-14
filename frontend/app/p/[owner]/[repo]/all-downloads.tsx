@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { detectPlatform, assetPlatformLabel, formatSize, type Platform, type Asset } from "./platform-utils";
+import { CollapsibleCard } from "./collapsible-card";
 
 const platformMap: Record<Platform, string> = {
   windows: "Windows",
@@ -31,23 +32,22 @@ export function AllDownloads({ assets }: { assets: Asset[] }) {
     : assets;
 
   return (
-    <div className="border border-border rounded-xl bg-surface/60 p-6 sm:p-8">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-semibold tracking-tight">All Downloads</h2>
-        <label className="flex items-center gap-2 text-xs text-muted cursor-pointer select-none hover:text-foreground transition-colors">
-          <input
-            type="checkbox"
-            checked={filterEnabled}
-            onChange={(e) => setFilterEnabled(e.target.checked)}
-            className="rounded border-foreground/20 accent-foreground"
-          />
-          My platform only
-        </label>
-      </div>
+    <CollapsibleCard title="All Downloads">
+      <label className="flex items-center gap-2 text-xs text-muted cursor-pointer select-none hover:text-foreground transition-colors mb-4">
+        <input
+          type="checkbox"
+          checked={filterEnabled}
+          onChange={(e) => setFilterEnabled(e.target.checked)}
+          className="rounded border-foreground/20 accent-foreground"
+        />
+        My platform only
+      </label>
 
       {visible.length === 0 && (
         <p className="text-sm text-foreground/40 py-2">
-          No assets found for {platformMap[platform]}. Try unchecking the filter.
+          {filterEnabled
+            ? `No assets found for ${platformMap[platform]}. Try unchecking the filter.`
+            : "No downloads available for this release."}
         </p>
       )}
 
@@ -83,6 +83,6 @@ export function AllDownloads({ assets }: { assets: Asset[] }) {
           );
         })}
       </ul>
-    </div>
+    </CollapsibleCard>
   );
 }

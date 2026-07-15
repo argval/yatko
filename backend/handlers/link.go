@@ -5,7 +5,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/yourusername/yoink/picker"
+	"github.com/argval/yoink/picker"
 )
 
 // LinkHandler serves /api/link/:owner/:repo[/:version], returning JSON with the

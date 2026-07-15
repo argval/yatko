@@ -1,4 +1,4 @@
-module github.com/yourusername/yoink
+module github.com/argval/yoink
 
 go 1.25.1
 

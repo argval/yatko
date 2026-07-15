@@ -10,10 +10,10 @@ import (
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
-	"github.com/yourusername/yoink/cache"
-	"github.com/yourusername/yoink/github"
-	"github.com/yourusername/yoink/handlers"
-	"github.com/yourusername/yoink/middleware"
+	"github.com/argval/yoink/cache"
+	"github.com/argval/yoink/github"
+	"github.com/argval/yoink/handlers"
+	"github.com/argval/yoink/middleware"
 )
 
 // defaultRateLimitRPM is the per-IP request budget per minute, overridable

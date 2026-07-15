@@ -3,7 +3,7 @@ package picker
 import (
 	"strings"
 
-	"github.com/yourusername/yoink/github"
+	"github.com/argval/yoink/github"
 )
 
 type Platform string

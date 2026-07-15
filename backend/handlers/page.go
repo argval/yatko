@@ -6,8 +6,8 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/yourusername/yoink/cache"
-	"github.com/yourusername/yoink/github"
+	"github.com/argval/yoink/cache"
+	"github.com/argval/yoink/github"
 )
 
 type PageHandler struct {

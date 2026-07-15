@@ -13,4 +13,10 @@ frontend/node_modules/
 
 # OS
 .DS_Store
-EOF
+
+# Editors
+.vscode/
+.cursor/
+
+# graphify
+graphify-out/

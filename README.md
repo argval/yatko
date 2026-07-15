@@ -123,46 +123,6 @@ Every unique `owner/repo` (and `owner/repo@tag`) is cached independently, so tra
 
 Without `GITHUB_TOKEN`, GitHub allows 60 unauthenticated requests/hour **per IP** — easy to exhaust while testing multiple repos back-to-back. Setting `GITHUB_TOKEN` raises that to 5,000/hr, and thanks to the caching behavior above, that's enough headroom for a large number of actively-shared links, even at high traffic, as long as `UPSTASH_REDIS_URL` is configured in production (without it, caching silently no-ops and every request hits GitHub directly — fine for local dev, not for production).
 
-## Deploying
-
-### Backend (Fly.io)
-
-```bash
-cd backend
-fly launch        # first time
-fly deploy        # subsequent deploys
-fly secrets set GITHUB_TOKEN=ghp_... UPSTASH_REDIS_URL=rediss://...
-```
-
-### Frontend (Vercel)
-
-Push to `main` — Vercel auto-deploys. Set in the Vercel dashboard:
-
-```
-BACKEND_URL=https://your-backend.fly.dev
-NEXT_PUBLIC_BACKEND_URL=https://your-backend.fly.dev
-```
-
-## API examples
-
-```bash
-# Resolved download URL as JSON
-curl https://yoink.dev/api/link/cli/cli
-# {"url":"...","filename":"gh_2.x.x_macOS_arm64.zip","platform":"macos","arch":"arm64","version":"v2.x.x"}
-
-# Override platform and arch
-curl "https://yoink.dev/api/link/cli/cli?platform=linux&arch=amd64"
-
-# Specific version
-curl https://yoink.dev/api/link/cli/cli/v2.40.0
-
-# List recent releases
-curl https://yoink.dev/api/releases/cli/cli
-
-# Direct download (follows redirect)
-curl -L https://yoink.dev/dl/cli/cli -o gh.zip
-```
-
 ## Badge
 
 ```markdown

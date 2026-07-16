@@ -1,5 +1,3 @@
-<!-- deploy-gating test commit: confirms prod now triggers production, safe to ignore -->
-
 # Yatko
 
 **Clean download links for any public GitHub release.**

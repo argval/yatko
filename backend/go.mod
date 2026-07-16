@@ -4,7 +4,6 @@ go 1.25.1
 
 require (
 	github.com/alicebob/miniredis/v2 v2.38.0
-	github.com/gin-contrib/cors v1.7.7
 	github.com/gin-gonic/gin v1.12.0
 	github.com/redis/go-redis/v9 v9.21.0
 	golang.org/x/sync v0.22.0

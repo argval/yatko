@@ -5,10 +5,8 @@ import (
 	"log"
 	"os"
 	"strconv"
-	"strings"
 	"time"
 
-	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/argval/yatko/cache"
 	"github.com/argval/yatko/github"
@@ -32,32 +30,17 @@ func main() {
 
 	r := gin.Default()
 
-	// Fly-Client-IP is set by Fly.io's edge and can't be spoofed by clients,
-	// unlike X-Forwarded-For which Gin trusts from anyone by default.
-	// TODO: update when migrating off Fly.io - see gin.Platform* constants or SetTrustedProxies.
-	r.TrustedPlatform = gin.PlatformFlyIO
-	// Belt and suspenders: if Fly-Client-IP is ever absent, fall back to the
+	// X-Forwarded-For is set by Vercel's edge to the real client IP and
+	// can't be spoofed by clients - Vercel overwrites any client-supplied
+	// value. https://vercel.com/docs/headers/request-headers#x-forwarded-for
+	r.TrustedPlatform = "X-Forwarded-For"
+	// Belt and suspenders: if that header is ever absent, fall back to the
 	// raw socket address instead of Gin's default (trust X-Forwarded-For from
 	// anyone), which would let a client spoof its own rate-limit identity.
 	_ = r.SetTrustedProxies(nil)
 
-	frontendOrigin := os.Getenv("FRONTEND_ORIGIN") // e.g. https://yatko.vercel.app
-	r.Use(cors.New(cors.Config{
-		AllowOriginFunc: func(origin string) bool {
-			if origin == "http://localhost:3000" {
-				return true
-			}
-			if frontendOrigin != "" && origin == frontendOrigin {
-				return true
-			}
-			// Allow any *.vercel.app preview deployment
-			return strings.HasSuffix(origin, ".vercel.app")
-		},
-		AllowMethods:     []string{"GET"},
-		AllowHeaders:     []string{"Origin"},
-		ExposeHeaders:    []string{"Location"},
-		AllowCredentials: false,
-	}))
+	// Frontend and backend are Vercel services sharing one origin, so only
+	// same-origin requests ever reach this API - no CORS policy needed.
 
 	rateLimitRPM := defaultRateLimitRPM
 	if v := os.Getenv("RATE_LIMIT_RPM"); v != "" {

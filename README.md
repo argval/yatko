@@ -91,7 +91,6 @@ Optional environment variables:
 GITHUB_TOKEN=ghp_...           # Raises rate limit from 60 to 5000 req/hr
 UPSTASH_REDIS_URL=rediss://... # Redis cache (skipped if unset)
 CACHE_TTL_SECONDS=900          # How long a cached value is served before revalidating (default 15 min)
-FRONTEND_ORIGIN=https://...    # Extra CORS origin
 PORT=8080
 ```
 

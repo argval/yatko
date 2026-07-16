@@ -4,12 +4,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Yatko turns a GitHub repo into clean, permanent download links (`yatko.dev/dl/:owner/:repo`) that auto-detect the visitor's platform/arch and redirect to the right release asset. Two independently deployed services:
+Yatko turns a GitHub repo into clean, permanent download links (`yatko.dev/dl/:owner/:repo`) that auto-detect the visitor's platform/arch and redirect to the right release asset. One Vercel project, deployed as two [Services](https://vercel.com/docs/services) sharing a domain:
 
-- `backend/` — Go + Gin API, deployed on Fly.io
-- `frontend/` — Next.js 16 (App Router, React 19), deployed on Vercel
+- `backend/` — Go + Gin API, deployed as a container-image service (`backend/Dockerfile`)
+- `frontend/` — Next.js 16 (App Router, React 19), deployed as the default Node.js service
 
-See the root `README.md` for the full route table, feature list, and API examples — don't duplicate that here.
+Root-level `vercel.json` defines both services and the rewrites that route `/dl`, `/badge`, `/api`, `/health` to the backend and everything else to the frontend. See the root `README.md` for the full route table, feature list, and API examples — don't duplicate that here.
 
 ## Commands
 
@@ -28,7 +28,7 @@ go test ./cache/ -run TestName    # run a single test
 go build ./...                    # compile check
 ```
 
-Useful local env vars: `GITHUB_TOKEN` (raises GitHub rate limit from 60→5000 req/hr), `UPSTASH_REDIS_URL` (cache no-ops without it), `CACHE_TTL_SECONDS`, `FRONTEND_ORIGIN`, `PORT`.
+Useful local env vars: `GITHUB_TOKEN` (raises GitHub rate limit from 60→5000 req/hr), `UPSTASH_REDIS_URL` (cache no-ops without it), `CACHE_TTL_SECONDS`, `PORT`.
 
 ### Frontend (`frontend/`)
 
@@ -39,7 +39,7 @@ bun run build
 bun run start
 ```
 
-Requires `BACKEND_URL` (server-side) and `NEXT_PUBLIC_BACKEND_URL` (client-side) pointing at the backend.
+Requires `BACKEND_URL` (server-side only — every backend call in `frontend/` is server-side, there's no client-side fetch to it) pointing at the backend. In production this is injected automatically by the Vercel service binding declared in `vercel.json`; for local dev outside `./dev.sh`, set it to `http://localhost:8080`.
 
 There is no lint script and no test runner configured on the frontend.
 
@@ -52,7 +52,7 @@ Request flow for a download: `main.go` wires a single `github.Client` and `cache
 - **`picker/`** — pure platform/arch detection and asset-matching logic (User-Agent parsing → OS/arch → best-matching release asset). No I/O.
 - **`handlers/`** — Gin route handlers, one file per route family (`redirect`, `badge`, `link`, `page`, `releases`). Each handler fetches a release via `cache.FetchCached(ctx, cache, key, ghClientCall)`, then hands assets to `picker` if it needs to pick one.
 
-CORS in `main.go` allows `localhost:3000`, any `*.vercel.app` preview, and `FRONTEND_ORIGIN`, GET-only, no credentials.
+No CORS policy: frontend and backend are Vercel services sharing one origin, so only same-origin requests ever reach the API. `main.go` trusts the `X-Forwarded-For` header for the per-IP rate limiter's client identity — safe because Vercel's edge overwrites that header and never forwards a client-supplied value.
 
 ## Frontend architecture
 

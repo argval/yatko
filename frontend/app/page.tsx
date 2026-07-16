@@ -90,28 +90,28 @@ export default function Home() {
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="rounded-xl border border-border bg-surface/60 p-5 space-y-2">
               <p className="text-sm font-medium tracking-tight">Direct download</p>
-              <p className="text-xs text-muted/80 font-mono break-all">yatko.dev/dl/owner/repo</p>
+              <p className="text-xs text-muted/80 font-mono break-all">yatko.app/dl/owner/repo</p>
               <p className="text-xs text-muted leading-relaxed">
                 Detects the user&apos;s platform and redirects straight to the right binary.
               </p>
             </div>
             <div className="rounded-xl border border-border bg-surface/60 p-5 space-y-2">
               <p className="text-sm font-medium tracking-tight">Landing page</p>
-              <p className="text-xs text-muted/80 font-mono break-all">yatko.dev/p/owner/repo</p>
+              <p className="text-xs text-muted/80 font-mono break-all">yatko.app/p/owner/repo</p>
               <p className="text-xs text-muted leading-relaxed">
                 Clean download page with release notes, all assets, and a big download button.
               </p>
             </div>
             <div className="rounded-xl border border-border bg-surface/60 p-5 space-y-2">
               <p className="text-sm font-medium tracking-tight">Version badge</p>
-              <p className="text-xs text-muted/80 font-mono break-all">yatko.dev/badge/owner/repo</p>
+              <p className="text-xs text-muted/80 font-mono break-all">yatko.app/badge/owner/repo</p>
               <p className="text-xs text-muted leading-relaxed">
                 Dynamic SVG badge showing the current release version for your README.
               </p>
             </div>
             <div className="rounded-xl border border-border bg-surface/60 p-5 space-y-2">
               <p className="text-sm font-medium tracking-tight">Link API</p>
-              <p className="text-xs text-muted/80 font-mono break-all">yatko.dev/api/link/owner/repo</p>
+              <p className="text-xs text-muted/80 font-mono break-all">yatko.app/api/link/owner/repo</p>
               <p className="text-xs text-muted leading-relaxed">
                 Returns JSON with the resolved download URL - for CI pipelines and scripts.
               </p>

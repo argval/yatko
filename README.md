@@ -5,7 +5,7 @@
 Skip the releases page. Give users a one-click download that automatically detects their platform and architecture.
 
 ```
-https://yatko.dev/dl/cli/cli
+https://yatko.app/dl/cli/cli
 ```
 
 ---
@@ -37,16 +37,33 @@ Most GitHub projects bury downloads in a releases page with 15+ assets. Yatko so
 - **Share links** — copyable Yatko URLs for smart download, landing page, badge, and API
 - **Version badges** — embed in any README
 - **Dark mode** — system preference detection + manual toggle
-- **Redis cache** — ETag-revalidated cache via Upstash (see [Caching & GitHub rate limits](#caching--github-rate-limits)), graceful no-op fallback for local dev
+- **Redis cache** — ETag-revalidated cache via Upstash, graceful no-op fallback for local dev
+- **Per-IP rate limiting** — protects the API from abuse, independent of the GitHub cache
+
+See [Caching & GitHub rate limits](#caching--github-rate-limits) for how caching and rate limiting actually work.
 
 ## Stack
 
 | Layer | Tech |
 |-------|------|
-| Backend | Go + Gin, deployed on Fly.io |
-| Frontend | Next.js 16 (App Router, React 19), deployed on Vercel |
+| Backend | Go + Gin, deployed as a Vercel container-image Service |
+| Frontend | Next.js 16 (App Router, React 19), deployed as a Vercel Service |
 | Cache | Upstash Redis (serverless) |
 | Styling | Tailwind CSS v4 |
+
+Both services live in one Vercel project and share a domain — see [Deployment](#deployment).
+
+## Deployment
+
+One Vercel project, two [Services](https://vercel.com/docs/services) sharing the `yatko.app` domain:
+
+- `frontend/` — the Next.js app, Vercel's default Node.js runtime
+- `backend/` — the Go API, built as a container image (`backend/Dockerfile`)
+
+Root-level `vercel.json` defines both services and the rewrites that route `/dl`, `/badge`, `/api`, `/health` to the backend and everything else to the frontend.
+
+- **`prod`** is the production branch — only commits here deploy to `yatko.app`.
+- **`main`** is the default working branch — pushes here build Preview deployments only and never touch production. Fast-forward `main` into `prod` (or open a PR) to ship.
 
 ## Project structure
 
@@ -56,6 +73,7 @@ yatko/
 │   ├── github/       # GitHub API client (releases, README)
 │   ├── cache/        # Redis cache layer
 │   ├── picker/       # Platform + arch asset selection logic
+│   ├── middleware/   # Per-IP rate limiting
 │   ├── handlers/     # Gin route handlers
 │   └── main.go
 └── frontend/
@@ -63,6 +81,7 @@ yatko/
         ├── page.tsx                    # Homepage with search
         └── p/[owner]/[repo]/
             ├── page.tsx                # Release landing page
+            ├── release-page.tsx        # Shared landing-page layout
             ├── [version]/page.tsx      # Versioned landing page
             ├── download-button.tsx     # Platform-aware download button
             ├── download-section.tsx    # Button + checksum wrapper
@@ -72,11 +91,24 @@ yatko/
             ├── install-commands.tsx    # Copyable install commands
             ├── share-links.tsx         # Copyable Yatko URLs
             ├── asset-checksum.tsx      # SHA256 display
+            ├── status-card.tsx         # Release status/metadata card
+            ├── collapsible-card.tsx    # Shared collapsible section
+            ├── opengraph-image.tsx     # OG image generation
+            ├── twitter-image.tsx       # Twitter card image
             ├── use-releases.ts         # Shared releases hook
-            └── platform-utils.ts      # Platform/arch detection
+            ├── use-copy.ts             # Clipboard-copy hook
+            └── platform-utils.ts       # Platform/arch detection
 ```
 
 ## Running locally
+
+Run both services together:
+
+```bash
+./dev.sh
+```
+
+Or start each independently:
 
 ### Backend
 
@@ -91,6 +123,7 @@ Optional environment variables:
 GITHUB_TOKEN=ghp_...           # Raises rate limit from 60 to 5000 req/hr
 UPSTASH_REDIS_URL=rediss://... # Redis cache (skipped if unset)
 CACHE_TTL_SECONDS=900          # How long a cached value is served before revalidating (default 15 min)
+RATE_LIMIT_RPM=120             # Per-IP request budget per minute (also skipped if UPSTASH_REDIS_URL unset)
 PORT=8080
 ```
 
@@ -98,15 +131,14 @@ PORT=8080
 
 ```bash
 cd frontend
-npm install
-npm run dev
+bun install
+bun run dev
 ```
 
 Environment variables:
 
 ```env
-BACKEND_URL=http://localhost:8080            # Server-side fetch
-NEXT_PUBLIC_BACKEND_URL=http://localhost:8080 # Client-side fetch (version selector)
+BACKEND_URL=http://localhost:8080  # Server-side only — every backend call is server-side, there's no client-side fetch
 ```
 
 ## Caching & GitHub rate limits
@@ -122,8 +154,10 @@ Every unique `owner/repo` (and `owner/repo@tag`) is cached independently, so tra
 
 Without `GITHUB_TOKEN`, GitHub allows 60 unauthenticated requests/hour **per IP** — easy to exhaust while testing multiple repos back-to-back. Setting `GITHUB_TOKEN` raises that to 5,000/hr, and thanks to the caching behavior above, that's enough headroom for a large number of actively-shared links, even at high traffic, as long as `UPSTASH_REDIS_URL` is configured in production (without it, caching silently no-ops and every request hits GitHub directly — fine for local dev, not for production).
 
+This is separate from the **per-IP HTTP rate limit** (`RATE_LIMIT_RPM`, default 120 req/min) that protects the API itself from abuse — it also no-ops without `UPSTASH_REDIS_URL`.
+
 ## Badge
 
 ```markdown
-![version](https://yatko.dev/badge/owner/repo)
+![version](https://yatko.app/badge/owner/repo)
 ```

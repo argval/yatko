@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Yatko turns a GitHub repo into clean, permanent download links (`yatko.dev/dl/:owner/:repo`) that auto-detect the visitor's platform/arch and redirect to the right release asset. One Vercel project, deployed as two [Services](https://vercel.com/docs/services) sharing a domain:
+Yatko turns a GitHub repo into clean, permanent download links (`yatko.app/dl/:owner/:repo`) that auto-detect the visitor's platform/arch and redirect to the right release asset. One Vercel project, deployed as two [Services](https://vercel.com/docs/services) sharing a domain:
 
 - `backend/` — Go + Gin API, deployed as a container-image service (`backend/Dockerfile`)
 - `frontend/` — Next.js 16 (App Router, React 19), deployed as the default Node.js service

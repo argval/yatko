@@ -167,11 +167,45 @@ func mentionsArch(name string, arch Arch) bool {
 		return false
 	}
 	for _, kw := range keywords {
-		if strings.Contains(name, kw) {
+		if hasBoundedKeyword(name, kw) {
 			return true
 		}
 	}
 	return false
+}
+
+// hasBoundedKeyword reports whether kw occurs in name as a standalone token,
+// i.e. not glued onto an adjacent letter. Keywords like "win-" are meant to
+// match "app-win-x64.zip", but a naive strings.Contains also matches "win-"
+// inside "darwin-arm64" - the standard macOS release-asset naming convention -
+// which silently excluded every darwin asset from platform/arch matching.
+// A side is only checked when the keyword doesn't already end/start with its
+// own delimiter (e.g. "win-" already asserts its right edge via the hyphen).
+func hasBoundedKeyword(name, kw string) bool {
+	if kw == "" {
+		return false
+	}
+	kwStartsWithLetter := isLower(kw[0])
+	kwEndsWithLetter := isLower(kw[len(kw)-1])
+	start := 0
+	for {
+		rel := strings.Index(name[start:], kw)
+		if rel == -1 {
+			return false
+		}
+		idx := start + rel
+		beforeOK := !kwStartsWithLetter || idx == 0 || !isLower(name[idx-1])
+		afterIdx := idx + len(kw)
+		afterOK := !kwEndsWithLetter || afterIdx == len(name) || !isLower(name[afterIdx])
+		if beforeOK && afterOK {
+			return true
+		}
+		start = idx + 1
+	}
+}
+
+func isLower(b byte) bool {
+	return b >= 'a' && b <= 'z'
 }
 
 // isSource returns true if the filename looks like a source archive.
@@ -193,7 +227,7 @@ func mentionsOtherPlatform(name string, current Platform) bool {
 			continue
 		}
 		for _, kw := range keywords {
-			if strings.Contains(name, kw) {
+			if hasBoundedKeyword(name, kw) {
 				return true
 			}
 		}

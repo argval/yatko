@@ -6,6 +6,7 @@ import {
   detectArch,
   isSource,
   mentionsOtherPlatform,
+  hasBoundedKeyword,
   platformExtensions,
   platformKeywords,
   formatSize,
@@ -47,7 +48,7 @@ function pickAssets(assets: Asset[], platform: Platform, arch: Arch): Asset[] {
     if (extRank === -1) {
       // No recognized extension (e.g. bare goreleaser binaries) - fall back to
       // a platform keyword match, ranked below any extension match.
-      if (!keywords.some((kw) => name.includes(kw))) continue;
+      if (!keywords.some((kw) => hasBoundedKeyword(name, kw))) continue;
       extRank = exts.length;
     }
     results.push({ asset, extRank, archRank: archScore(name, arch) });

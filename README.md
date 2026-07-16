@@ -1,18 +1,18 @@
-# Yoink
+# Yatko
 
 **Clean download links for any public GitHub release.**
 
 Skip the releases page. Give users a one-click download that automatically detects their platform and architecture.
 
 ```
-https://yoink.dev/dl/cli/cli
+https://yatko.dev/dl/cli/cli
 ```
 
 ---
 
 ## What it does
 
-Most GitHub projects bury downloads in a releases page with 15+ assets. Yoink solves this with smart URLs that do the right thing automatically:
+Most GitHub projects bury downloads in a releases page with 15+ assets. Yatko solves this with smart URLs that do the right thing automatically:
 
 | URL | What it does |
 |-----|-------------|
@@ -34,7 +34,7 @@ Most GitHub projects bury downloads in a releases page with 15+ assets. Yoink so
 - **Quick Install** — extracts package manager commands from the README (`pip`, `npm`, `cargo`, `brew`, `winget`, `choco`, `scoop`, `apt`, and more)
 - **Platform filter** — "My platform only" toggle in the All Downloads list
 - **Download counts** — shows per-asset download counts from GitHub
-- **Share links** — copyable Yoink URLs for smart download, landing page, badge, and API
+- **Share links** — copyable Yatko URLs for smart download, landing page, badge, and API
 - **Version badges** — embed in any README
 - **Dark mode** — system preference detection + manual toggle
 - **Redis cache** — ETag-revalidated cache via Upstash (see [Caching & GitHub rate limits](#caching--github-rate-limits)), graceful no-op fallback for local dev
@@ -51,7 +51,7 @@ Most GitHub projects bury downloads in a releases page with 15+ assets. Yoink so
 ## Project structure
 
 ```
-yoink/
+yatko/
 ├── backend/
 │   ├── github/       # GitHub API client (releases, README)
 │   ├── cache/        # Redis cache layer
@@ -70,7 +70,7 @@ yoink/
             ├── prerelease-toggle.tsx   # Pre-release opt-in
             ├── all-downloads.tsx       # Filterable asset list
             ├── install-commands.tsx    # Copyable install commands
-            ├── share-links.tsx         # Copyable Yoink URLs
+            ├── share-links.tsx         # Copyable Yatko URLs
             ├── asset-checksum.tsx      # SHA256 display
             ├── use-releases.ts         # Shared releases hook
             └── platform-utils.ts      # Platform/arch detection
@@ -126,5 +126,5 @@ Without `GITHUB_TOKEN`, GitHub allows 60 unauthenticated requests/hour **per IP*
 ## Badge
 
 ```markdown
-![version](https://yoink.dev/badge/owner/repo)
+![version](https://yatko.dev/badge/owner/repo)
 ```

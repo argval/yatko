@@ -1,9 +1,9 @@
-# fly.toml app configuration file generated for yoink-backend on 2026-03-28T17:58:07+05:30
+# fly.toml app configuration file generated for yatko-backend on 2026-03-28T17:58:07+05:30
 #
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
 
-app = 'yoink-backend'
+app = 'yatko-backend'
 primary_region = 'bom'
 
 [build]

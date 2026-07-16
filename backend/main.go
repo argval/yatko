@@ -10,10 +10,10 @@ import (
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
-	"github.com/argval/yoink/cache"
-	"github.com/argval/yoink/github"
-	"github.com/argval/yoink/handlers"
-	"github.com/argval/yoink/middleware"
+	"github.com/argval/yatko/cache"
+	"github.com/argval/yatko/github"
+	"github.com/argval/yatko/handlers"
+	"github.com/argval/yatko/middleware"
 )
 
 // defaultRateLimitRPM is the per-IP request budget per minute, overridable
@@ -41,7 +41,7 @@ func main() {
 	// anyone), which would let a client spoof its own rate-limit identity.
 	_ = r.SetTrustedProxies(nil)
 
-	frontendOrigin := os.Getenv("FRONTEND_ORIGIN") // e.g. https://yoink.vercel.app
+	frontendOrigin := os.Getenv("FRONTEND_ORIGIN") // e.g. https://yatko.vercel.app
 	r.Use(cors.New(cors.Config{
 		AllowOriginFunc: func(origin string) bool {
 			if origin == "http://localhost:3000" {
@@ -90,7 +90,7 @@ func main() {
 		port = "8080"
 	}
 
-	log.Printf("yoink backend starting on :%s", port)
+	log.Printf("yatko backend starting on :%s", port)
 	if err := r.Run(":" + port); err != nil {
 		log.Fatalf("server failed: %v", err)
 	}

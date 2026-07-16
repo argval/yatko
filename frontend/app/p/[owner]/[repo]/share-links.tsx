@@ -10,7 +10,7 @@ type ShareLink = {
 };
 
 export function ShareLinks({ owner, repo }: { owner: string; repo: string }) {
-  const base = "https://yoink.dev";
+  const base = "https://yatko.dev";
   const links: ShareLink[] = [
     {
       label: "Smart download",
@@ -25,7 +25,7 @@ export function ShareLinks({ owner, repo }: { owner: string; repo: string }) {
     {
       label: "Version badge",
       url: `${base}/badge/${owner}/${repo}`,
-      description: "Embed in your README: ![version](https://yoink.dev/badge/owner/repo)",
+      description: "Embed in your README: ![version](https://yatko.dev/badge/owner/repo)",
     },
     {
       label: "Direct link API",

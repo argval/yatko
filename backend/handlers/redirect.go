@@ -6,9 +6,9 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/argval/yoink/cache"
-	"github.com/argval/yoink/github"
-	"github.com/argval/yoink/picker"
+	"github.com/argval/yatko/cache"
+	"github.com/argval/yatko/github"
+	"github.com/argval/yatko/picker"
 )
 
 type RedirectHandler struct {

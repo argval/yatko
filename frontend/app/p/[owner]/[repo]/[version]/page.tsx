@@ -10,7 +10,7 @@ type Props = {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { owner, repo, version } = await params;
   return {
-    title: `${repo} ${version} - Download | Yoink`,
+    title: `${repo} ${version} - Download | Yatko`,
     description: `Download ${owner}/${repo} version ${version}`,
   };
 }

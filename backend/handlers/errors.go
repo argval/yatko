@@ -4,7 +4,7 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/argval/yoink/github"
+	"github.com/argval/yatko/github"
 )
 
 // httpStatusFromError maps a GitHub APIError to an appropriate HTTP status code.

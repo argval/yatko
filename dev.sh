@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Runs the Yoink backend (Go) and frontend (Next.js) together for local dev.
+# Runs the Yatko backend (Go) and frontend (Next.js) together for local dev.
 # Ctrl+C stops both.
 
 set -euo pipefail

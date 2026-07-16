@@ -2,7 +2,7 @@ import { ImageResponse } from "next/og";
 
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
-export const alt = "Yoink download page preview";
+export const alt = "Yatko download page preview";
 
 const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:8080";
 
@@ -42,7 +42,7 @@ export default async function Image({ params }: Props) {
   const tagline =
     description && description.length > 140 ? description.slice(0, 140).trimEnd() + "…" : description || "Download the latest release";
 
-  const font = await loadOutfitFont(`yoink.dev${owner}/${repo}${tagline}`);
+  const font = await loadOutfitFont(`yatko.dev${owner}/${repo}${tagline}`);
 
   return new ImageResponse(
     (
@@ -60,7 +60,7 @@ export default async function Image({ params }: Props) {
           padding: "0 80px",
         }}
       >
-        <div style={{ display: "flex", fontSize: 28, color: "#a1a1aa", marginBottom: 28 }}>yoink.dev</div>
+        <div style={{ display: "flex", fontSize: 28, color: "#a1a1aa", marginBottom: 28 }}>yatko.dev</div>
         <div style={{ display: "flex", alignItems: "center", gap: 24 }}>
           {avatarUrl && (
             // eslint-disable-next-line @next/next/no-img-element

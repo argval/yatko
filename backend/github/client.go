@@ -47,7 +47,7 @@ type ReleaseSummary struct {
 	Prerelease  bool   `json:"prerelease"`
 }
 
-// Repo holds the subset of GitHub repo metadata Yoink needs.
+// Repo holds the subset of GitHub repo metadata Yatko needs.
 type Repo struct {
 	Description string `json:"description"`
 	Owner       struct {
@@ -110,7 +110,7 @@ func (c *Client) newRequest(ctx context.Context, url, accept, etag string) (*htt
 		return nil, err
 	}
 	req.Header.Set("Accept", accept)
-	req.Header.Set("User-Agent", "Yoink/1.0")
+	req.Header.Set("User-Agent", "Yatko/1.0")
 	if c.token != "" {
 		req.Header.Set("Authorization", "Bearer "+c.token)
 	}

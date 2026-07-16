@@ -5,14 +5,14 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/argval/yoink/picker"
+	"github.com/argval/yatko/picker"
 )
 
 // LinkHandler serves /api/link/:owner/:repo[/:version], returning JSON with the
 // resolved download URL rather than issuing a redirect. Useful for scripts and
 // CI pipelines that need the URL without following redirects:
 //
-//	curl -s yoink.dev/api/link/cli/cli | jq -r .url | xargs wget
+//	curl -s yatko.dev/api/link/cli/cli | jq -r .url | xargs wget
 //
 // Query params:
 //

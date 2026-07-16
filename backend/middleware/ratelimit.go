@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/argval/yoink/cache"
+	"github.com/argval/yatko/cache"
 )
 
 // RateLimit throttles requests per client IP to limit requests per window,

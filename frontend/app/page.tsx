@@ -41,7 +41,7 @@ export default function Home() {
         {/* Hero */}
         <div className="space-y-5">
           <h1 className="text-5xl sm:text-7xl font-semibold tracking-tighter leading-[1.05]">
-            Yoink
+            Yatko
           </h1>
           <p className="text-base sm:text-lg text-muted leading-relaxed max-w-md mx-auto tracking-normal">
             Clean download links for any public GitHub repo so that you don't have to called a <a target="_blank" rel="noopener noreferrer" href="https://www.reddit.com/r/github/s/7YaS7nTVup" className="font-medium text-fg-brand hover:underline">"Smelly Nerd"</a> anymore
@@ -97,28 +97,28 @@ export default function Home() {
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="rounded-xl border border-border bg-surface/60 p-5 space-y-2">
               <p className="text-sm font-medium tracking-tight">Direct download</p>
-              <p className="text-xs text-muted/80 font-mono break-all">yoink.dev/dl/owner/repo</p>
+              <p className="text-xs text-muted/80 font-mono break-all">yatko.dev/dl/owner/repo</p>
               <p className="text-xs text-muted leading-relaxed">
                 Detects the user&apos;s platform and redirects straight to the right binary.
               </p>
             </div>
             <div className="rounded-xl border border-border bg-surface/60 p-5 space-y-2">
               <p className="text-sm font-medium tracking-tight">Landing page</p>
-              <p className="text-xs text-muted/80 font-mono break-all">yoink.dev/p/owner/repo</p>
+              <p className="text-xs text-muted/80 font-mono break-all">yatko.dev/p/owner/repo</p>
               <p className="text-xs text-muted leading-relaxed">
                 Clean download page with release notes, all assets, and a big download button.
               </p>
             </div>
             <div className="rounded-xl border border-border bg-surface/60 p-5 space-y-2">
               <p className="text-sm font-medium tracking-tight">Version badge</p>
-              <p className="text-xs text-muted/80 font-mono break-all">yoink.dev/badge/owner/repo</p>
+              <p className="text-xs text-muted/80 font-mono break-all">yatko.dev/badge/owner/repo</p>
               <p className="text-xs text-muted leading-relaxed">
                 Dynamic SVG badge showing the current release version for your README.
               </p>
             </div>
             <div className="rounded-xl border border-border bg-surface/60 p-5 space-y-2">
               <p className="text-sm font-medium tracking-tight">Link API</p>
-              <p className="text-xs text-muted/80 font-mono break-all">yoink.dev/api/link/owner/repo</p>
+              <p className="text-xs text-muted/80 font-mono break-all">yatko.dev/api/link/owner/repo</p>
               <p className="text-xs text-muted leading-relaxed">
                 Returns JSON with the resolved download URL - for CI pipelines and scripts.
               </p>

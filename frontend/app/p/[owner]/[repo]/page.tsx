@@ -83,7 +83,7 @@ export async function getChecksums(assets: Asset[]): Promise<Record<string, stri
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { owner, repo } = await params;
   return {
-    title: `${repo} - Download | Yoink`,
+    title: `${repo} - Download | Yatko`,
     description: `Download the latest release of ${owner}/${repo}`,
   };
 }

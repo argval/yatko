@@ -16,7 +16,7 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Yoink - Clean downloads for GitHub releases",
+  title: "Yatko - Clean downloads for GitHub releases",
   description: "Clean download links for any public GitHub repo",
 };
 

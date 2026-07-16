@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Yoink turns a GitHub repo into clean, permanent download links (`yoink.dev/dl/:owner/:repo`) that auto-detect the visitor's platform/arch and redirect to the right release asset. Two independently deployed services:
+Yatko turns a GitHub repo into clean, permanent download links (`yatko.dev/dl/:owner/:repo`) that auto-detect the visitor's platform/arch and redirect to the right release asset. Two independently deployed services:
 
 - `backend/` — Go + Gin API, deployed on Fly.io
 - `frontend/` — Next.js 16 (App Router, React 19), deployed on Vercel

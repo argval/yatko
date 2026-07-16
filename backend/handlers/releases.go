@@ -6,8 +6,8 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/argval/yoink/cache"
-	"github.com/argval/yoink/github"
+	"github.com/argval/yatko/cache"
+	"github.com/argval/yatko/github"
 )
 
 // ReleasesHandler serves /api/releases/:owner/:repo — a lightweight list of

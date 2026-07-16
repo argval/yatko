@@ -51,6 +51,10 @@ body {
   letter-spacing: -0.015em;
 }
 
+button:not(:disabled) {
+  cursor: pointer;
+}
+
 .font-mono,
 code,
 kbd,

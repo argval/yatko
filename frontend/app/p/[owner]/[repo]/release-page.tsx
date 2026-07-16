@@ -72,6 +72,7 @@ export function ReleasePageBody({
             alt={`${owner} avatar`}
             width={64}
             height={64}
+            unoptimized
             className="rounded-2xl mx-auto"
           />
           <h1 className="text-4xl sm:text-5xl font-semibold tracking-tighter leading-none">{repo}</h1>

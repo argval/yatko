@@ -9,6 +9,12 @@ const nextConfig: NextConfig = {
         hostname: "github.com",
         pathname: "/*.png",
       },
+      {
+        // github.com/<owner>.png 302s here - Next won't follow a redirect
+        // to a host that isn't itself allow-listed.
+        protocol: "https",
+        hostname: "avatars.githubusercontent.com",
+      },
     ],
   },
 };

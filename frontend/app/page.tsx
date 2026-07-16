@@ -3,14 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-const EXAMPLES = [
-  "cli/cli",
-  "neovim/neovim",
-  "astral-sh/uv",
-  "BurntSushi/ripgrep",
-  "sharkdp/bat",
-  "casey/just",
-];
+const EXAMPLES = ["cli/cli", "neovim/neovim", "astral-sh/uv", "BurntSushi/ripgrep"];
 
 export default function Home() {
   const [input, setInput] = useState("");

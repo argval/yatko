@@ -97,9 +97,9 @@ export default function Home() {
             </div>
             <div className="rounded-xl border border-border bg-surface/60 p-5 space-y-2">
               <p className="text-sm font-medium tracking-tight">Landing page</p>
-              <p className="text-xs text-muted/80 font-mono break-all">yatko.app/p/owner/repo</p>
+              <p className="text-xs text-muted/80 font-mono break-all">yatko.app/owner/repo</p>
               <p className="text-xs text-muted leading-relaxed">
-                Clean download page with release notes, all assets, and a big download button.
+                Same shape as your GitHub URL — swap the domain and it just works.
               </p>
             </div>
             <div className="rounded-xl border border-border bg-surface/60 p-5 space-y-2">

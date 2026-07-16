@@ -37,6 +37,8 @@ html {
   background-image:
     radial-gradient(ellipse 80% 50% at 50% -20%, rgb(24 24 27 / 0.04), transparent 60%),
     radial-gradient(ellipse 60% 40% at 100% 100%, rgb(24 24 27 / 0.03), transparent 50%);
+  background-repeat: no-repeat;
+  background-attachment: fixed;
 }
 
 @media (prefers-reduced-motion: reduce) {

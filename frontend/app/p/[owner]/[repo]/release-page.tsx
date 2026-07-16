@@ -91,7 +91,9 @@ export function ReleasePageBody({
         {/* Download section */}
         <div className="flex flex-col items-center gap-3">
           {release.description && (
-            <p className="text-center text-muted leading-relaxed max-w-md">{release.description}</p>
+            <div className="text-center text-muted leading-relaxed max-w-md [&_p]:m-0 [&_a]:text-blue-500 [&_a:hover]:underline">
+              <Markdown remarkPlugins={[remarkGfm]}>{release.description}</Markdown>
+            </div>
           )}
           <DownloadSection
             owner={owner}

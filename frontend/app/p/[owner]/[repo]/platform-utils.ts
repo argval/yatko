@@ -45,23 +45,50 @@ export function isSource(name: string): boolean {
   return name.includes("source") || name.includes("src");
 }
 
+function isLower(ch: string | undefined): boolean {
+  return !!ch && ch >= "a" && ch <= "z";
+}
+
+// hasBoundedKeyword reports whether kw occurs in name as a standalone token,
+// not glued onto an adjacent letter. Keywords like "win-" are meant to match
+// "app-win-x64.zip", but plain String#includes also matches "win-" inside
+// "darwin-arm64" - the standard macOS release-asset naming convention - which
+// silently excluded every darwin asset from platform matching. A side is only
+// checked when the keyword doesn't already end/start with its own delimiter
+// (e.g. "win-" already asserts its right edge via the hyphen).
+export function hasBoundedKeyword(name: string, kw: string): boolean {
+  if (!kw) return false;
+  const kwStartsWithLetter = isLower(kw[0]);
+  const kwEndsWithLetter = isLower(kw[kw.length - 1]);
+  let start = 0;
+  for (;;) {
+    const idx = name.indexOf(kw, start);
+    if (idx === -1) return false;
+    const beforeOK = !kwStartsWithLetter || idx === 0 || !isLower(name[idx - 1]);
+    const afterIdx = idx + kw.length;
+    const afterOK = !kwEndsWithLetter || afterIdx === name.length || !isLower(name[afterIdx]);
+    if (beforeOK && afterOK) return true;
+    start = idx + 1;
+  }
+}
+
 export function mentionsOtherPlatform(name: string, current: Platform): boolean {
   for (const [p, keywords] of Object.entries(platformKeywords) as [Platform, string[]][]) {
     if (p === current) continue;
-    if (keywords.some((kw) => name.includes(kw))) return true;
+    if (keywords.some((kw) => hasBoundedKeyword(name, kw))) return true;
   }
   return false;
 }
 
 export function assetPlatformLabel(name: string): string | null {
   const lower = name.toLowerCase();
-  if (platformKeywords.windows.some((kw) => lower.includes(kw)) || lower.endsWith(".exe") || lower.endsWith(".msi")) {
+  if (platformKeywords.windows.some((kw) => hasBoundedKeyword(lower, kw)) || lower.endsWith(".exe") || lower.endsWith(".msi")) {
     return "Windows";
   }
-  if (platformKeywords.macos.some((kw) => lower.includes(kw)) || lower.endsWith(".dmg") || lower.endsWith(".pkg")) {
+  if (platformKeywords.macos.some((kw) => hasBoundedKeyword(lower, kw)) || lower.endsWith(".dmg") || lower.endsWith(".pkg")) {
     return "macOS";
   }
-  if (platformKeywords.linux.some((kw) => lower.includes(kw)) || lower.endsWith(".deb") || lower.endsWith(".rpm")) {
+  if (platformKeywords.linux.some((kw) => hasBoundedKeyword(lower, kw)) || lower.endsWith(".deb") || lower.endsWith(".rpm")) {
     return "Linux";
   }
   return null;

@@ -42,7 +42,7 @@ export default async function Image({ params }: Props) {
   const tagline =
     description && description.length > 140 ? description.slice(0, 140).trimEnd() + "…" : description || "Download the latest release";
 
-  const font = await loadOutfitFont(`yatko.dev${owner}/${repo}${tagline}`);
+  const font = await loadOutfitFont(`yatko.app${owner}/${repo}${tagline}`);
 
   return new ImageResponse(
     (
@@ -60,7 +60,7 @@ export default async function Image({ params }: Props) {
           padding: "0 80px",
         }}
       >
-        <div style={{ display: "flex", fontSize: 28, color: "#a1a1aa", marginBottom: 28 }}>yatko.dev</div>
+        <div style={{ display: "flex", fontSize: 28, color: "#a1a1aa", marginBottom: 28 }}>yatko.app</div>
         <div style={{ display: "flex", alignItems: "center", gap: 24 }}>
           {avatarUrl && (
             // eslint-disable-next-line @next/next/no-img-element

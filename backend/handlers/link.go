@@ -12,7 +12,7 @@ import (
 // resolved download URL rather than issuing a redirect. Useful for scripts and
 // CI pipelines that need the URL without following redirects:
 //
-//	curl -s yatko.dev/api/link/cli/cli | jq -r .url | xargs wget
+//	curl -s yatko.app/api/link/cli/cli | jq -r .url | xargs wget
 //
 // Query params:
 //

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Outfit, JetBrains_Mono } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
 import { ThemeToggle } from "@/components/theme-toggle";
 import "./globals.css";
 
@@ -40,6 +41,7 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col">
         <ThemeToggle />
         {children}
+        <Analytics />
       </body>
     </html>
   );

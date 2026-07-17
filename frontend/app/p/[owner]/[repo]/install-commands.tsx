@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useCopy } from "./use-copy";
 import { CollapsibleCard } from "./collapsible-card";
-import { usePlatform } from "./platform-utils";
+import { usePlatform, platformLabels as basePlatformLabels } from "./platform-utils";
 
 export type InstallPlatform = "macos" | "windows" | "linux" | "universal";
 
@@ -13,9 +13,7 @@ export type InstallCommand = {
 };
 
 const platformLabels: Record<InstallPlatform, string> = {
-  macos: "macOS",
-  windows: "Windows",
-  linux: "Linux",
+  ...basePlatformLabels,
   universal: "Universal",
 };
 

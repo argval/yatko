@@ -105,6 +105,57 @@ export function mentionsOtherPlatform(name: string, current: Platform): boolean 
   return false;
 }
 
+// archScore ranks how well an asset filename matches the requested arch:
+// 0 = explicit match, 1 = no arch signal, 2 = explicit wrong arch.
+function archScore(name: string, arch: Arch): number {
+  if (!arch) return 0;
+  const isArm = name.includes("arm64") || name.includes("aarch64");
+  const isAmd = name.includes("amd64") || name.includes("x86_64") || name.includes("x64");
+  if (arch === "arm64") {
+    if (isArm) return 0;
+    if (isAmd) return 2;
+    return 1;
+  }
+  if (isAmd) return 0;
+  if (isArm) return 2;
+  return 1;
+}
+
+// pickBestAsset selects the single best release asset for a platform/arch,
+// mirroring the Go backend's picker.PickAssetForArch so the download button and
+// the /dl redirect always resolve to the same binary. Arch is a HARD filter:
+// when any asset explicitly matches the requested arch, only those are ranked by
+// extension - otherwise a wrong-arch asset with a nicer extension would win.
+// Returns null when nothing matches the platform.
+export function pickBestAsset(assets: Asset[], platform: Platform, arch: Arch): Asset | null {
+  const exts = platformExtensions[platform];
+  const keywords = platformKeywords[platform];
+  const results: { asset: Asset; extRank: number; archRank: number }[] = [];
+  for (const asset of assets) {
+    const name = asset.name.toLowerCase();
+    if (isSource(name)) continue;
+    if (mentionsOtherPlatform(name, platform)) continue;
+
+    let extRank = exts.findIndex((ext) => name.endsWith(ext));
+    if (extRank === -1) {
+      // No recognized extension (e.g. bare goreleaser binaries) - fall back to
+      // a platform keyword match, ranked below any extension match.
+      if (!keywords.some((kw) => hasBoundedKeyword(name, kw))) continue;
+      extRank = exts.length;
+    }
+    results.push({ asset, extRank, archRank: archScore(name, arch) });
+  }
+  if (results.length === 0) return null;
+
+  // Hard arch filter first, then lowest extension rank (archRank tiebreak only
+  // matters in the no-exact-match fallback, preferring arch-neutral assets over
+  // explicitly-wrong-arch ones).
+  const archMatches = arch ? results.filter((r) => r.archRank === 0) : [];
+  const pool = archMatches.length > 0 ? archMatches : results;
+  pool.sort((a, b) => a.extRank - b.extRank || a.archRank - b.archRank);
+  return pool[0].asset;
+}
+
 export function assetPlatformLabel(name: string): string | null {
   const lower = name.toLowerCase();
   if (platformKeywords.windows.some((kw) => hasBoundedKeyword(lower, kw)) || lower.endsWith(".exe") || lower.endsWith(".msi")) {

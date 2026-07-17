@@ -227,7 +227,13 @@ function extractInstallCommands(readme: string): InstallCommand[] {
 
 function resolveReadmeUrl(url: string, owner: string, repo: string): string {
   if (!url) return url;
-  if (url.startsWith("http://") || url.startsWith("https://") || url.startsWith("data:")) return url;
-  const path = url.replace(/^\.\//, "");
-  return `https://raw.githubusercontent.com/${owner}/${repo}/HEAD/${path}`;
+  if (url.startsWith("http://") || url.startsWith("https://")) return url;
+  // In-page anchors and mail/other schemes are left for rehype-sanitize to
+  // vet; only resolve repo-relative paths against the raw content root.
+  if (url.startsWith("#") || url.includes(":")) return url;
+  try {
+    return new URL(url, `https://raw.githubusercontent.com/${owner}/${repo}/HEAD/`).toString();
+  } catch {
+    return url;
+  }
 }

@@ -4,11 +4,10 @@ import { useState } from "react";
 import { usePlatform, assetPlatformLabel, platformLabels, formatSize, type Asset } from "./platform-utils";
 import { CollapsibleCard } from "./collapsible-card";
 
-function formatDownloadCount(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
-  return `${n}`;
-}
+const compactCount = new Intl.NumberFormat("en", {
+  notation: "compact",
+  maximumFractionDigits: 1,
+});
 
 export function AllDownloads({ assets }: { assets: Asset[] }) {
   const [platform] = usePlatform();
@@ -58,7 +57,7 @@ export function AllDownloads({ assets }: { assets: Asset[] }) {
                 <span className="flex items-center gap-3 shrink-0">
                   {asset.download_count > 0 && (
                     <span className="text-xs text-foreground/30 hidden sm:inline">
-                      {formatDownloadCount(asset.download_count)}↓
+                      {compactCount.format(asset.download_count)}↓
                     </span>
                   )}
                   <span className="text-xs text-foreground/40">

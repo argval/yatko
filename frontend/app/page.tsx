@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type FormEvent, type KeyboardEvent } from "react";
 import { useRouter } from "next/navigation";
 
 const EXAMPLES = ["cli/cli", "neovim/neovim", "astral-sh/uv", "BurntSushi/ripgrep"];
@@ -17,10 +17,20 @@ export default function Home() {
     router.push(`/p/${owner}/${repo}`);
   }
 
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  function go() {
     const match = parseInput(input);
     if (match) navigate(match[1], match[2]);
+  }
+
+  function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    go();
+  }
+
+  function handleKeyDown(e: KeyboardEvent<HTMLInputElement>) {
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    go();
   }
 
   const parsedHint = parseInput(input);
@@ -47,6 +57,8 @@ export default function Home() {
                 type="text"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                enterKeyHint="go"
                 placeholder="owner/repo or github.com/owner/repo"
                 className="flex-1 px-4 py-3 rounded-xl border border-border bg-surface text-base placeholder:text-muted/60 focus:outline-none focus:ring-2 focus:ring-foreground/15 transition-[box-shadow,border-color] duration-200"
               />
@@ -59,7 +71,7 @@ export default function Home() {
             </div>
             {hintSlug && (
               <p className="text-xs text-muted text-left pl-1">
-                Press Go to view downloads for <span className="font-mono">{hintSlug}</span>
+                Press Enter or Go to view downloads for <span className="font-mono">{hintSlug}</span>
               </p>
             )}
           </form>

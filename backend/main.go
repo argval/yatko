@@ -23,7 +23,6 @@ func main() {
 	redisCache := cache.New()
 
 	redirectHandler := handlers.NewRedirectHandler(ghClient, redisCache)
-	badgeHandler := handlers.NewBadgeHandler(redirectHandler)
 	pageHandler := handlers.NewPageHandler(redirectHandler, ghClient, redisCache)
 	linkHandler := handlers.NewLinkHandler(redirectHandler)
 	releasesHandler := handlers.NewReleasesHandler(ghClient, redisCache)
@@ -57,7 +56,6 @@ func main() {
 	limited.Use(middleware.RateLimit(redisCache, rateLimitRPM, time.Minute))
 	limited.GET("/dl/:owner/:repo", redirectHandler.Handle)
 	limited.GET("/dl/:owner/:repo/:version", redirectHandler.HandleVersioned)
-	limited.GET("/badge/:owner/:repo", badgeHandler.Handle)
 	limited.GET("/api/release/:owner/:repo", pageHandler.Handle)
 	limited.GET("/api/link/:owner/:repo", linkHandler.Handle)
 	limited.GET("/api/link/:owner/:repo/:version", linkHandler.HandleVersioned)

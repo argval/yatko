@@ -9,7 +9,7 @@ Yatko turns a GitHub repo into clean, permanent download links (`yatko.app/dl/:o
 - `backend/` — Go + Gin API, deployed as a container-image service (`backend/Dockerfile`)
 - `frontend/` — Next.js 16 (App Router, React 19), deployed as the default Node.js service
 
-Root-level `vercel.json` defines both services and the rewrites that route `/dl`, `/badge`, `/api`, `/health` to the backend and everything else to the frontend. See the root `README.md` for the public route table and feature list — don't duplicate that here.
+Root-level `vercel.json` defines both services and the rewrites that route `/dl`, `/api`, `/health` to the backend and everything else to the frontend. See the root `README.md` for the public route table and feature list — don't duplicate that here.
 
 ## Commands
 
@@ -56,7 +56,7 @@ Request flow for a download: `main.go` wires a single `github.Client` and `cache
   - **Stale-while-error**: if GitHub is unreachable or rate-limited, serve the last known-good value when one exists.
   - **Rate-limit budget guard**: the GitHub client refuses new requests once `X-RateLimit-Remaining` drops below a reserve (200), so bursts of cold repos fail fast with 429 instead of starving already-cached ones.
 - **`picker/`** — pure platform/arch detection and asset-matching logic (User-Agent parsing → OS/arch → best-matching release asset). No I/O.
-- **`handlers/`** — Gin route handlers, one file per route family (`redirect`, `badge`, `link`, `page`, `releases`). Each handler fetches a release via `cache.FetchCached(ctx, cache, key, ghClientCall)`, then hands assets to `picker` if it needs to pick one.
+- **`handlers/`** — Gin route handlers, one file per route family (`redirect`, `link`, `page`, `releases`). Each handler fetches a release via `cache.FetchCached(ctx, cache, key, ghClientCall)`, then hands assets to `picker` if it needs to pick one.
 - **`middleware/`** — per-IP HTTP rate limit (`RATE_LIMIT_RPM`, default 120/min); also no-ops without `UPSTASH_REDIS_URL`. Separate from the GitHub cache/rate-limit budget above.
 
 No CORS policy: frontend and backend are Vercel services sharing one origin, so only same-origin requests ever reach the API. `main.go` trusts the `X-Forwarded-For` header for the per-IP rate limiter's client identity — safe because Vercel's edge overwrites that header and never forwards a client-supplied value.

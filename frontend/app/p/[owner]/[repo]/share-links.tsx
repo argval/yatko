@@ -23,11 +23,6 @@ export function ShareLinks({ owner, repo }: { owner: string; repo: string }) {
       description: "Shareable download page with release notes and all assets",
     },
     {
-      label: "Version badge",
-      url: `${base}/badge/${owner}/${repo}`,
-      description: "Embed in your README: ![version](https://yatko.app/badge/owner/repo)",
-    },
-    {
       label: "Direct link API",
       url: `${base}/api/link/${owner}/${repo}`,
       description: "Returns JSON with the resolved download URL - for CI/scripts",

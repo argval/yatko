@@ -26,7 +26,6 @@ Most GitHub projects bury downloads in a releases page with 15+ assets. Yatko gi
 | `/p/:owner/:repo/:version` | Landing page for a specific release tag |
 | `/dl/:owner/:repo` | Detects platform + arch, redirects straight to the right binary |
 | `/dl/:owner/:repo/:version` | Same, but for a specific release tag |
-| `/badge/:owner/:repo` | Dynamic SVG version badge for READMEs |
 | `/api/link/:owner/:repo` | JSON with resolved download URL — for CI/scripts |
 | `/api/releases/:owner/:repo` | List of recent releases (tag, date, prerelease flag) |
 
@@ -40,12 +39,5 @@ Most GitHub projects bury downloads in a releases page with 15+ assets. Yatko gi
 - **Quick Install** — extracts package manager commands from the README (`pip`, `npm`, `cargo`, `brew`, `winget`, `choco`, `scoop`, `apt`, and more)
 - **Platform filter** — "My platform only" toggle in the All Downloads list
 - **Download counts** — shows per-asset download counts from GitHub
-- **Share links** — copyable Yatko URLs for smart download, landing page, badge, and API
-- **Version badges** — embed in any README
+- **Share links** — copyable Yatko URLs for smart download, landing page, and API
 - **Dark mode** — system preference detection + manual toggle
-
-## Badge
-
-```markdown
-![version](https://yatko.app/badge/owner/repo)
-```

@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import Image from "next/image";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -45,14 +46,14 @@ export function ReleasePageBody({
   owner,
   repo,
   release,
-  releases,
-  checksums,
+  releasesPromise,
+  checksumsPromise,
 }: {
   owner: string;
   repo: string;
   release: ReleaseData;
-  releases: ReleaseSummary[];
-  checksums: Record<string, string>;
+  releasesPromise: Promise<ReleaseSummary[]>;
+  checksumsPromise: Promise<Record<string, string>>;
 }) {
   const publishedDate = new Date(release.published_at).toLocaleDateString("en-US", {
     year: "numeric",
@@ -101,21 +102,17 @@ export function ReleasePageBody({
             assets={release.assets}
             tagName={release.tag_name}
             publishedDate={publishedDate}
-            checksums={checksums}
+            checksumsPromise={checksumsPromise}
           />
-          <VersionSelector
-            owner={owner}
-            repo={repo}
-            currentTag={release.tag_name}
-            showPrereleases={release.prerelease}
-            releases={releases}
-          />
-          <PrereleaseToggle
-            owner={owner}
-            repo={repo}
-            isCurrentPrerelease={release.prerelease}
-            releases={releases}
-          />
+          <Suspense fallback={null}>
+            <ReleaseVersionControls
+              owner={owner}
+              repo={repo}
+              currentTag={release.tag_name}
+              prerelease={release.prerelease}
+              releasesPromise={releasesPromise}
+            />
+          </Suspense>
         </div>
 
         {/* CLI Installation */}
@@ -166,6 +163,28 @@ export function ReleasePageBody({
         <ShareLinks owner={owner} repo={repo} />
       </div>
     </main>
+  );
+}
+
+async function ReleaseVersionControls({
+  owner,
+  repo,
+  currentTag,
+  prerelease,
+  releasesPromise,
+}: {
+  owner: string;
+  repo: string;
+  currentTag: string;
+  prerelease: boolean;
+  releasesPromise: Promise<ReleaseSummary[]>;
+}) {
+  const releases = await releasesPromise;
+  return (
+    <>
+      <VersionSelector owner={owner} repo={repo} currentTag={currentTag} showPrereleases={prerelease} releases={releases} />
+      <PrereleaseToggle owner={owner} repo={repo} isCurrentPrerelease={prerelease} releases={releases} />
+    </>
   );
 }
 

@@ -92,11 +92,17 @@ export default async function ReleasePage({ params }: Props) {
   const { owner, repo } = await params;
   const result = await getRelease(owner, repo);
   if (!result.ok) return <ReleaseError message={result.message} />;
-  const [releases, checksums] = await Promise.all([
-    getReleases(owner, repo),
-    getChecksums(result.data.assets),
-  ]);
+  // Start these, but don't await - the header/button/notes paint from
+  // result.data immediately, and these stream in separately (see release-page.tsx).
+  const releasesPromise = getReleases(owner, repo);
+  const checksumsPromise = getChecksums(result.data.assets);
   return (
-    <ReleasePageBody owner={owner} repo={repo} release={result.data} releases={releases} checksums={checksums} />
+    <ReleasePageBody
+      owner={owner}
+      repo={repo}
+      release={result.data}
+      releasesPromise={releasesPromise}
+      checksumsPromise={checksumsPromise}
+    />
   );
 }

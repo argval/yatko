@@ -78,7 +78,12 @@ export function ReleasePageBody({
           />
           <h1 className="text-4xl sm:text-5xl font-semibold tracking-tighter leading-none">{repo}</h1>
           <p className="text-muted text-base sm:text-lg">
-            <a href={`https://github.com/${owner}/${repo}`} className="hover:text-foreground transition-colors">
+            <a
+              href={`https://github.com/${owner}/${repo}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-foreground transition-colors"
+            >
               {owner}/{repo}
             </a>
           </p>

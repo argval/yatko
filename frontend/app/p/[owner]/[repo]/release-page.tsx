@@ -202,8 +202,6 @@ function extractInstallCommands(readme: string): InstallCommand[] {
     { platform: "macos", re: /^\s*(?:\$|>)?\s*(brew install\s+.+)/ },
     { platform: "universal", re: /^\s*(?:\$|>)?\s*(gem install\s+.+)/ },
     { platform: "linux", re: /^\s*(?:\$|>)?\s*(apt(?:-get)?\s+install\s+.+)/ },
-    { platform: "universal", re: /^\s*(?:\$|>)?\s*(uv (?:add|pip install|tool install)\s+.+)/ },
-    { platform: "universal", re: /^\s*(?:\$|>)?\s*(uvx\s+.+)/ },
     { platform: "windows", re: /^\s*(?:\$|>)?\s*(winget install\s+.+)/ },
     { platform: "windows", re: /^\s*(?:\$|>)?\s*(choco install\s+.+)/ },
     { platform: "windows", re: /^\s*(?:\$|>)?\s*(scoop install\s+.+)/ },

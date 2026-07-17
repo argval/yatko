@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { StatusCard, statusCardPrimaryAction, statusCardSecondaryAction } from "./status-card";
 
 export function ErrorState({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
@@ -9,12 +10,12 @@ export function ErrorState({ error, reset }: { error: Error & { digest?: string 
       title="Something went wrong"
       description={error.message || "Couldn't load release info. The backend may be unavailable."}
     >
-      <button onClick={reset} className={statusCardPrimaryAction}>
+      <button type="button" onClick={reset} className={statusCardPrimaryAction}>
         Try again
       </button>
-      <a href="/" className={statusCardSecondaryAction}>
+      <Link href="/" className={statusCardSecondaryAction}>
         Back to search
-      </a>
+      </Link>
     </StatusCard>
   );
 }

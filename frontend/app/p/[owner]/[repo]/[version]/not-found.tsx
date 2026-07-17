@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { StatusCard, statusCardPrimaryAction } from "../status-card";
 
 export default function NotFound() {
@@ -7,9 +8,9 @@ export default function NotFound() {
       title="Release not found"
       description="This version tag doesn't exist or hasn't been published."
     >
-      <a href="/" className={statusCardPrimaryAction}>
+      <Link href="/" className={statusCardPrimaryAction}>
         Back to search
-      </a>
+      </Link>
     </StatusCard>
   );
 }

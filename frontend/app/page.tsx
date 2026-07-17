@@ -5,24 +5,22 @@ import { useRouter } from "next/navigation";
 
 const EXAMPLES = ["cli/cli", "neovim/neovim", "astral-sh/uv", "BurntSushi/ripgrep"];
 
+function parseInput(value: string) {
+  return value.match(/(?:github\.com\/)?([a-zA-Z0-9._-]+)\/([a-zA-Z0-9._-]+)\/?$/);
+}
+
 export default function Home() {
   const [input, setInput] = useState("");
   const router = useRouter();
 
-  function parseInput(value: string) {
-    return value.match(/(?:github\.com\/)?([a-zA-Z0-9._-]+)\/([a-zA-Z0-9._-]+)\/?$/);
-  }
-
-  function navigate(slug: string) {
-    const match = slug.match(/([a-zA-Z0-9._-]+)\/([a-zA-Z0-9._-]+)/);
-    if (!match) return;
-    router.push(`/p/${match[1]}/${match[2]}`);
+  function navigate(owner: string, repo: string) {
+    router.push(`/p/${owner}/${repo}`);
   }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const match = parseInput(input);
-    if (match) navigate(`${match[1]}/${match[2]}`);
+    if (match) navigate(match[1], match[2]);
   }
 
   const parsedHint = parseInput(input);
@@ -74,7 +72,7 @@ export default function Home() {
                 <button
                   key={slug}
                   type="button"
-                  onClick={() => navigate(slug)}
+                  onClick={() => navigate(...(slug.split("/") as [string, string]))}
                   className="px-3 py-1.5 rounded-lg text-sm bg-foreground/[0.04] hover:bg-foreground/[0.08] active:scale-[0.98] transition-[background-color,transform] duration-150 font-mono"
                 >
                   {slug}

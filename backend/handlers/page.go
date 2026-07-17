@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/argval/yatko/cache"
 	"github.com/argval/yatko/github"
+	"golang.org/x/sync/errgroup"
 )
 
 type PageHandler struct {
@@ -39,15 +40,32 @@ func (h *PageHandler) handle(c *gin.Context, owner, repo, version string) {
 		_ = h.cache.Invalidate(c.Request.Context(), cache.ReleasesKey(owner, repo))
 	}
 
-	release, err := h.redirect.getRelease(c, owner, repo, version)
-	if err != nil {
+	// Release, README, and repo metadata are independent lookups (each its own
+	// cache.FetchCached call) - run them concurrently instead of paying three
+	// sequential GitHub round trips on a cold cache. c.Copy() is gin's documented
+	// way to pass a *gin.Context into a goroutine.
+	var release *github.Release
+	var readme string
+	var meta repoMeta
+	var g errgroup.Group
+	g.Go(func() error {
+		var err error
+		release, err = h.redirect.getRelease(c.Copy(), owner, repo, version)
+		return err
+	})
+	g.Go(func() error {
+		readme = h.getREADME(c.Copy(), owner, repo)
+		return nil
+	})
+	g.Go(func() error {
+		meta = h.getRepoMeta(c.Copy(), owner, repo)
+		return nil
+	})
+	if err := g.Wait(); err != nil {
 		log.Printf("page: error fetching release %q for %s/%s: %v", version, owner, repo, err)
 		c.JSON(httpStatusFromError(err), gin.H{"error": err.Error()})
 		return
 	}
-
-	readme := h.getREADME(c, owner, repo)
-	meta := h.getRepoMeta(c, owner, repo)
 
 	c.JSON(http.StatusOK, gin.H{
 		"owner":        owner,

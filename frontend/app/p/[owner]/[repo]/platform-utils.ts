@@ -1,3 +1,9 @@
+// ponytail: the filename-matching helpers below (hasBoundedKeyword,
+// mentionsOtherPlatform, isSource, platformExtensions) mirror
+// backend/picker/asset.go so the browser can pick/label assets without a
+// round trip. Keep both in sync when changing either.
+import { useSyncExternalStore } from "react";
+
 export type Platform = "windows" | "macos" | "linux";
 export type Arch = "amd64" | "arm64" | "";
 
@@ -7,6 +13,25 @@ export type Asset = {
   size: number;
   download_count: number;
 };
+
+export const platformLabels: Record<Platform, string> = {
+  windows: "Windows",
+  macos: "macOS",
+  linux: "Linux",
+};
+
+// A value that never changes after the first client read: subscribe is a no-op.
+const noopSubscribe = () => () => {};
+
+// usePlatform detects the visitor's platform/arch client-side (via navigator,
+// unavailable during SSR). getServerSnapshot returns the SSR/hydration default;
+// getSnapshot returns the real value once hydrated. No mount effect, so the
+// consuming component stays eligible for React Compiler memoization.
+export function usePlatform(): [Platform, Arch] {
+  const platform = useSyncExternalStore(noopSubscribe, detectPlatform, () => "windows" as Platform);
+  const arch = useSyncExternalStore(noopSubscribe, detectArch, () => "" as Arch);
+  return [platform, arch];
+}
 
 export function detectPlatform(): Platform {
   if (typeof navigator === "undefined") return "windows";

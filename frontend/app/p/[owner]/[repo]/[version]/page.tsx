@@ -19,11 +19,15 @@ export default async function VersionedReleasePage({ params }: Props) {
   const { owner, repo, version } = await params;
   const result = await getRelease(owner, repo, version);
   if (!result.ok) return <ReleaseError message={result.message} />;
-  const [releases, checksums] = await Promise.all([
-    getReleases(owner, repo),
-    getChecksums(result.data.assets),
-  ]);
+  const releasesPromise = getReleases(owner, repo);
+  const checksumsPromise = getChecksums(result.data.assets);
   return (
-    <ReleasePageBody owner={owner} repo={repo} release={result.data} releases={releases} checksums={checksums} />
+    <ReleasePageBody
+      owner={owner}
+      repo={repo}
+      release={result.data}
+      releasesPromise={releasesPromise}
+      checksumsPromise={checksumsPromise}
+    />
   );
 }

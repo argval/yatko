@@ -1,14 +1,17 @@
+"use client";
+
+import Link from "next/link";
 import { StatusCard, statusCardPrimaryAction, statusCardSecondaryAction } from "./status-card";
 
 export function ReleaseError({ message }: { message: string }) {
   return (
     <StatusCard emoji="⚠️" title="Something went wrong" description={message}>
-      <a href="" className={statusCardPrimaryAction}>
+      <button type="button" onClick={() => window.location.reload()} className={statusCardPrimaryAction}>
         Try again
-      </a>
-      <a href="/" className={statusCardSecondaryAction}>
+      </button>
+      <Link href="/" className={statusCardSecondaryAction}>
         Back to search
-      </a>
+      </Link>
     </StatusCard>
   );
 }

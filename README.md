@@ -1,6 +1,6 @@
 # Yatko
 
-**Clean download links for any public GitHub release.**
+**Clean download links for any public GitHub release so that you don't have to be called a <a target="_blank" rel="noopener noreferrer" href="https://www.reddit.com/r/github/s/7YaS7nTVup" className="font-medium text-fg-brand hover:underline">"Smelly Nerd"</a> anymore.**
 
 Swap the domain — that's it. Same `owner/repo` path as GitHub, one click to the right binary for your users' platform and architecture.
 

@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useCopy } from "./use-copy";
 import { CollapsibleCard } from "./collapsible-card";
-import { detectPlatform, type Platform } from "./platform-utils";
+import { usePlatform } from "./platform-utils";
 
 export type InstallPlatform = "macos" | "windows" | "linux" | "universal";
 
@@ -20,12 +20,8 @@ const platformLabels: Record<InstallPlatform, string> = {
 };
 
 export function InstallCommands({ commands }: { commands: InstallCommand[] }) {
-  const [platform, setPlatform] = useState<Platform>("windows");
+  const [platform] = usePlatform();
   const [filterEnabled, setFilterEnabled] = useState(false);
-
-  useEffect(() => {
-    setPlatform(detectPlatform());
-  }, []);
 
   const visible = filterEnabled
     ? commands.filter((c) => c.platform === "universal" || c.platform === platform)
@@ -71,6 +67,7 @@ function CopyBlock({ command, platform }: { command: string; platform: InstallPl
         {platformLabels[platform]}
       </span>
       <button
+        type="button"
         onClick={() => copy(command)}
         className="shrink-0 p-1 rounded text-foreground/30 hover:text-foreground/60 transition-colors"
         aria-label="Copy to clipboard"

@@ -1,14 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { detectPlatform, assetPlatformLabel, formatSize, type Platform, type Asset } from "./platform-utils";
+import { useState } from "react";
+import { usePlatform, assetPlatformLabel, platformLabels, formatSize, type Asset } from "./platform-utils";
 import { CollapsibleCard } from "./collapsible-card";
-
-const platformMap: Record<Platform, string> = {
-  windows: "Windows",
-  macos: "macOS",
-  linux: "Linux",
-};
 
 function formatDownloadCount(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
@@ -17,18 +11,11 @@ function formatDownloadCount(n: number): string {
 }
 
 export function AllDownloads({ assets }: { assets: Asset[] }) {
-  const [platform, setPlatform] = useState<Platform>("windows");
+  const [platform] = usePlatform();
   const [filterEnabled, setFilterEnabled] = useState(false);
 
-  useEffect(() => {
-    setPlatform(detectPlatform());
-  }, []);
-
   const visible = filterEnabled
-    ? assets.filter((a) => {
-        const label = assetPlatformLabel(a.name);
-        return label === platformMap[platform];
-      })
+    ? assets.filter((a) => assetPlatformLabel(a.name) === platformLabels[platform])
     : assets;
 
   return (
@@ -46,7 +33,7 @@ export function AllDownloads({ assets }: { assets: Asset[] }) {
       {visible.length === 0 && (
         <p className="text-sm text-foreground/40 py-2">
           {filterEnabled
-            ? `No assets found for ${platformMap[platform]}. Try unchecking the filter.`
+            ? `No assets found for ${platformLabels[platform]}. Try unchecking the filter.`
             : "No downloads available for this release."}
         </p>
       )}

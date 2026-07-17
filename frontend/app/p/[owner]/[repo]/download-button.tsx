@@ -1,92 +1,20 @@
 "use client";
 
-import { useMemo, useState, useEffect } from "react";
-import {
-  detectPlatform,
-  detectArch,
-  isSource,
-  mentionsOtherPlatform,
-  hasBoundedKeyword,
-  platformExtensions,
-  platformKeywords,
-  formatSize,
-  type Platform,
-  type Arch,
-  type Asset,
-} from "./platform-utils";
-
-const platformLabels: Record<Platform, string> = {
-  windows: "Windows",
-  macos: "macOS",
-  linux: "Linux",
-};
-
-function archScore(name: string, arch: Arch): number {
-  if (!arch) return 0;
-  const isArm = name.includes("arm64") || name.includes("aarch64");
-  const isAmd = name.includes("amd64") || name.includes("x86_64") || name.includes("x64");
-  if (arch === "arm64") {
-    if (isArm) return 0;
-    if (isAmd) return 2;
-    return 1;
-  }
-  if (isAmd) return 0;
-  if (isArm) return 2;
-  return 1;
-}
-
-function pickAssets(assets: Asset[], platform: Platform, arch: Arch): Asset[] {
-  const exts = platformExtensions[platform];
-  const keywords = platformKeywords[platform];
-  const results: { asset: Asset; extRank: number; archRank: number }[] = [];
-  for (const asset of assets) {
-    const name = asset.name.toLowerCase();
-    if (isSource(name)) continue;
-    if (mentionsOtherPlatform(name, platform)) continue;
-
-    let extRank = exts.findIndex((ext) => name.endsWith(ext));
-    if (extRank === -1) {
-      // No recognized extension (e.g. bare goreleaser binaries) - fall back to
-      // a platform keyword match, ranked below any extension match.
-      if (!keywords.some((kw) => hasBoundedKeyword(name, kw))) continue;
-      extRank = exts.length;
-    }
-    results.push({ asset, extRank, archRank: archScore(name, arch) });
-  }
-  results.sort((a, b) => a.extRank - b.extRank || a.archRank - b.archRank);
-  return results.map((r) => r.asset);
-}
+import { platformLabels, formatSize, type Platform, type Asset } from "./platform-utils";
 
 export function DownloadButton({
   owner,
   repo,
-  assets,
-  onPrimaryAsset,
+  platform,
+  primaryAsset,
+  hasAssets,
 }: {
   owner: string;
   repo: string;
-  assets: Asset[];
-  onPrimaryAsset?: (asset: Asset | null) => void;
+  platform: Platform;
+  primaryAsset: Asset | null;
+  hasAssets: boolean;
 }) {
-  const [platform, setPlatform] = useState<Platform>("windows");
-  const [arch, setArch] = useState<Arch>("");
-
-  useEffect(() => {
-    setPlatform(detectPlatform());
-    setArch(detectArch());
-  }, []);
-
-  const primaryAssets = useMemo(
-    () => pickAssets(assets, platform, arch),
-    [assets, platform, arch]
-  );
-  const primaryAsset = primaryAssets[0] ?? null;
-
-  useEffect(() => {
-    onPrimaryAsset?.(primaryAsset);
-  }, [primaryAsset, onPrimaryAsset]);
-
-  const hasAssets = assets.length > 0;
   const primaryHref =
     primaryAsset?.browser_download_url ??
     `https://github.com/${owner}/${repo}/releases/latest`;

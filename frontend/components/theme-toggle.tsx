@@ -1,24 +1,41 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
+
+// The <html> `.dark` class (set pre-paint by the inline script in layout.tsx) is the
+// single source of truth for theme. Read it via useSyncExternalStore so ThemeToggle
+// has no init effect and stays React-Compiler-eligible.
+const themeListeners = new Set<() => void>();
+function onStorage(e: StorageEvent) {
+  if (e.key !== "theme") return;
+  // A storage event only means localStorage changed in another tab - this
+  // tab's own <html> class is untouched, so apply it here before notifying,
+  // or getIsDark() would just re-read the same (stale) local class.
+  document.documentElement.classList.toggle("dark", e.newValue === "dark");
+  themeListeners.forEach((cb) => cb());
+}
+function subscribeTheme(cb: () => void) {
+  themeListeners.add(cb);
+  window.addEventListener("storage", onStorage);
+  return () => {
+    themeListeners.delete(cb);
+    window.removeEventListener("storage", onStorage);
+  };
+}
+function getIsDark() {
+  return document.documentElement.classList.contains("dark");
+}
+function setTheme(next: boolean) {
+  document.documentElement.classList.toggle("dark", next);
+  localStorage.setItem("theme", next ? "dark" : "light");
+  themeListeners.forEach((cb) => cb()); // same-tab notify (storage event won't)
+}
 
 export function ThemeToggle() {
-  const [dark, setDark] = useState(false);
-
-  useEffect(() => {
-    const stored = localStorage.getItem("theme");
-    const isDark =
-      stored === "dark" ||
-      (!stored && window.matchMedia("(prefers-color-scheme: dark)").matches);
-    setDark(isDark);
-    document.documentElement.classList.toggle("dark", isDark);
-  }, []);
+  const dark = useSyncExternalStore(subscribeTheme, getIsDark, () => false);
 
   function toggle() {
-    const next = !dark;
-    setDark(next);
-    document.documentElement.classList.toggle("dark", next);
-    localStorage.setItem("theme", next ? "dark" : "light");
+    setTheme(!dark);
   }
 
   return (
@@ -34,6 +51,7 @@ export function ThemeToggle() {
         <GitHubIcon />
       </a>
       <button
+        type="button"
         onClick={toggle}
         className="p-2 rounded-lg border border-border bg-surface/80 backdrop-blur-sm hover:bg-foreground/5 active:scale-[0.98] transition-[background-color,transform] duration-150"
         aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}

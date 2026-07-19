@@ -4,10 +4,11 @@ import (
 	"context"
 	"log"
 	"net/http"
+	"os"
 
-	"github.com/gin-gonic/gin"
 	"github.com/argval/yatko/cache"
 	"github.com/argval/yatko/github"
+	"github.com/gin-gonic/gin"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -31,7 +32,10 @@ func (h *PageHandler) HandleVersioned(c *gin.Context) {
 }
 
 func (h *PageHandler) handle(c *gin.Context, owner, repo, version string) {
-	if c.Query("refresh") != "" {
+	// Cache bust is gated on CACHE_REFRESH_SECRET so unauthenticated
+	// ?refresh=1 can't force GitHub re-fetches. When the secret is unset,
+	// refresh is ignored (no public escape hatch).
+	if secret := os.Getenv("CACHE_REFRESH_SECRET"); secret != "" && c.Query("refresh") == secret {
 		key := cache.ReleaseKey(owner, repo)
 		if version != "" {
 			key = cache.ReleaseTagKey(owner, repo, version)

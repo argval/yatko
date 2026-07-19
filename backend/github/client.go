@@ -62,6 +62,10 @@ type Client struct {
 	// first response tells us. Read/written atomically since handlers hit
 	// this concurrently.
 	remaining int32
+	// resetAt is the Unix timestamp from X-RateLimit-Reset for the current
+	// GitHub rate-limit window. 0 until first recorded. Used so checkBudget
+	// can recover after a window ends instead of refusing until process restart.
+	resetAt int64
 }
 
 const (
@@ -88,18 +92,32 @@ func NewClient() *Client {
 
 // checkBudget refuses a new request once observed rate-limit headroom is
 // below rateLimitReserve. Unknown budget (before the first response) is
-// treated as fine.
+// treated as fine. Once the X-RateLimit-Reset timestamp has passed, the
+// observed budget is cleared so a probe request can refresh it — otherwise
+// the guard would stick until process restart (no further responses update
+// remaining while every call is refused).
 func (c *Client) checkBudget() error {
-	if remaining := atomic.LoadInt32(&c.remaining); remaining >= 0 && remaining < rateLimitReserve {
-		return &APIError{StatusCode: http.StatusTooManyRequests, Message: "GitHub rate limit nearly exhausted, refusing new request"}
+	remaining := atomic.LoadInt32(&c.remaining)
+	if remaining < 0 || remaining >= rateLimitReserve {
+		return nil
 	}
-	return nil
+	if resetAt := atomic.LoadInt64(&c.resetAt); resetAt > 0 && time.Now().Unix() >= resetAt {
+		atomic.StoreInt32(&c.remaining, -1)
+		atomic.StoreInt64(&c.resetAt, 0)
+		return nil
+	}
+	return &APIError{StatusCode: http.StatusTooManyRequests, Message: "GitHub rate limit nearly exhausted, refusing new request"}
 }
 
 func (c *Client) recordRateLimit(h http.Header) {
 	if v := h.Get("X-RateLimit-Remaining"); v != "" {
 		if n, err := strconv.Atoi(v); err == nil {
 			atomic.StoreInt32(&c.remaining, int32(n))
+		}
+	}
+	if v := h.Get("X-RateLimit-Reset"); v != "" {
+		if n, err := strconv.ParseInt(v, 10, 64); err == nil {
+			atomic.StoreInt64(&c.resetAt, n)
 		}
 	}
 }

@@ -28,7 +28,7 @@ go test ./cache/ -run TestName    # run a single test
 go build ./...                    # compile check
 ```
 
-Useful local env vars: `GITHUB_TOKEN` (raises GitHub rate limit from 60→5000 req/hr), `UPSTASH_REDIS_URL` (cache no-ops without it), `CACHE_TTL_SECONDS`, `PORT`.
+Useful local env vars: `GITHUB_TOKEN` (raises GitHub rate limit from 60→5000 req/hr), `UPSTASH_REDIS_URL` (cache no-ops without it), `CACHE_TTL_SECONDS`, `CACHE_REFRESH_SECRET` (required value for `?refresh=` cache bust on `/api/release/...`; ignored when unset), `RATE_LIMIT_RPM`, `PORT`.
 
 ### Frontend (`frontend/`)
 
@@ -54,7 +54,7 @@ Request flow for a download: `main.go` wires a single `github.Client` and `cache
   - **Hard TTL** (24h): how long a stale entry (and its ETag) is kept so revalidation stays possible.
   - **Request coalescing**: concurrent misses for the same key are deduplicated via `singleflight`.
   - **Stale-while-error**: if GitHub is unreachable or rate-limited, serve the last known-good value when one exists.
-  - **Rate-limit budget guard**: the GitHub client refuses new requests once `X-RateLimit-Remaining` drops below a reserve (200), so bursts of cold repos fail fast with 429 instead of starving already-cached ones.
+  - **Rate-limit budget guard**: the GitHub client refuses new requests once `X-RateLimit-Remaining` drops below a reserve (200), so bursts of cold repos fail fast with 429 instead of starving already-cached ones. Tracks `X-RateLimit-Reset` and clears the observed budget once that window ends so the guard doesn't stick until process restart.
 - **`picker/`** — pure platform/arch detection and asset-matching logic (User-Agent parsing → OS/arch → best-matching release asset). No I/O.
 - **`handlers/`** — Gin route handlers, one file per route family (`redirect`, `link`, `page`, `releases`). Each handler fetches a release via `cache.FetchCached(ctx, cache, key, ghClientCall)`, then hands assets to `picker` if it needs to pick one.
 - **`middleware/`** — per-IP HTTP rate limit (`RATE_LIMIT_RPM`, default 120/min); also no-ops without `UPSTASH_REDIS_URL`. Separate from the GitHub cache/rate-limit budget above.

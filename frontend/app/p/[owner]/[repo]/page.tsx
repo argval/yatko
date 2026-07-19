@@ -31,7 +31,26 @@ export async function getRelease(owner: string, repo: string, version?: string):
   }
   if (res.status === 404) notFound();
   if (res.status === 403) return { ok: false, message: "This repository is private or you don't have access." };
-  if (res.status === 429) return { ok: false, message: "GitHub API rate limit exceeded. Try again in a minute." };
+  if (res.status === 429) {
+    // Distinguish per-IP HTTP throttle vs GitHub quota using the backend
+    // error body; fall back to a neutral message when the body isn't usable.
+    let message = "Too many requests. Try again in a minute.";
+    try {
+      const body: unknown = await res.json();
+      if (
+        typeof body === "object" &&
+        body !== null &&
+        "error" in body &&
+        typeof body.error === "string" &&
+        body.error.toLowerCase().includes("github")
+      ) {
+        message = "GitHub API rate limit exceeded. Try again in a minute.";
+      }
+    } catch {
+      // keep neutral message
+    }
+    return { ok: false, message };
+  }
   if (!res.ok) return { ok: false, message: "Couldn't reach the download service. Try again in a moment." };
   try {
     return { ok: true, data: await res.json() };

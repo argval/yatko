@@ -50,3 +50,50 @@ func TestMentionsOtherPlatform_DarwinHyphenBoundary(t *testing.T) {
 		t.Error("win- filename should still be recognised as another platform")
 	}
 }
+
+// TestPickAssetForArch_PrefersVanillaOverProfile guards against preferring
+// secondary builds (profile/debug/baseline) when a vanilla asset exists.
+// Bun ships both bun-darwin-aarch64.zip and bun-darwin-aarch64-profile.zip;
+// the profile build sorts first alphabetically ("-" < ".") and was wrongly
+// picked as the default despite ~600× fewer downloads.
+func TestPickAssetForArch_PrefersVanillaOverProfile(t *testing.T) {
+	assets := []github.Asset{
+		{Name: "bun-darwin-aarch64-profile.zip"},
+		{Name: "bun-darwin-aarch64.zip"},
+		{Name: "bun-darwin-x64-baseline-profile.zip"},
+		{Name: "bun-darwin-x64-baseline.zip"},
+		{Name: "bun-darwin-x64-profile.zip"},
+		{Name: "bun-darwin-x64.zip"},
+	}
+
+	got := PickAssetForArch(assets, MacOS, ARM64)
+	if got == nil {
+		t.Fatal("expected a macOS arm64 asset, got nil")
+	}
+	if got.Name != "bun-darwin-aarch64.zip" {
+		t.Fatalf("expected bun-darwin-aarch64.zip, got %s", got.Name)
+	}
+
+	got = PickAssetForArch(assets, MacOS, AMD64)
+	if got == nil {
+		t.Fatal("expected a macOS amd64 asset, got nil")
+	}
+	if got.Name != "bun-darwin-x64.zip" {
+		t.Fatalf("expected bun-darwin-x64.zip, got %s", got.Name)
+	}
+}
+
+func TestPickAssetForArch_FallsBackToVariantWhenOnlyOption(t *testing.T) {
+	assets := []github.Asset{
+		{Name: "tool-darwin-arm64-profile.zip"},
+		{Name: "tool-linux-amd64.tar.gz"},
+	}
+
+	got := PickAssetForArch(assets, MacOS, ARM64)
+	if got == nil {
+		t.Fatal("expected the profile asset when it is the only macOS match")
+	}
+	if got.Name != "tool-darwin-arm64-profile.zip" {
+		t.Fatalf("expected tool-darwin-arm64-profile.zip, got %s", got.Name)
+	}
+}

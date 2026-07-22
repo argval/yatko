@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@plugin "@tailwindcss/typography";
 
 @source "../components";
 @source ".";
@@ -79,4 +80,40 @@ html.dark {
 
 .dark ::selection {
   background: rgb(250 250 250 / 0.16);
+}
+
+/* GFM extras that Typography doesn't cover */
+.prose :where(table) {
+  display: block;
+  overflow-x: auto;
+}
+
+.prose :where(ul):has(> li > input[type="checkbox"]) {
+  list-style: none;
+  padding-inline-start: 0;
+}
+
+.prose :where(details) {
+  margin-block: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  padding: 0.5rem 1rem;
+}
+
+.prose :where(summary) {
+  cursor: pointer;
+  font-weight: 500;
+  user-select: none;
+}
+
+.prose :where(section.footnotes, section[data-footnotes]) {
+  margin-top: 1.5rem;
+  border-top: 1px solid var(--border);
+  padding-top: 1rem;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.prose :where(section.footnotes h2, section[data-footnotes] h2) {
+  @apply sr-only;
 }

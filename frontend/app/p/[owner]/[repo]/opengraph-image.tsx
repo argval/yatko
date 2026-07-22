@@ -1,24 +1,11 @@
 import { ImageResponse } from "next/og";
+import { getRelease } from "./backend";
 
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 export const alt = "Yatko download page preview";
 
-const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:8080";
-
 type Props = { params: Promise<{ owner: string; repo: string }> };
-
-type RepoMeta = { description?: string; avatar_url?: string };
-
-async function fetchRepoMeta(owner: string, repo: string): Promise<RepoMeta> {
-  try {
-    const res = await fetch(`${BACKEND_URL}/api/release/${owner}/${repo}`, { next: { revalidate: 300 } });
-    if (!res.ok) return {};
-    return res.json();
-  } catch {
-    return {};
-  }
-}
 
 // Fetches only the glyphs this image actually uses from Google Fonts, so the
 // card matches the site's Outfit typeface instead of falling back to a
@@ -38,9 +25,13 @@ async function loadOutfitFont(text: string): Promise<ArrayBuffer | null> {
 
 export default async function Image({ params }: Props) {
   const { owner, repo } = await params;
-  const { description, avatar_url: avatarUrl } = await fetchRepoMeta(owner, repo);
+  const result = await getRelease(owner, repo);
+  const description = result.ok ? result.data.description : undefined;
+  const avatarUrl = result.ok ? result.data.avatar_url : undefined;
   const tagline =
-    description && description.length > 140 ? description.slice(0, 140).trimEnd() + "…" : description || "Download the latest release";
+    description && description.length > 140
+      ? description.slice(0, 140).trimEnd() + "…"
+      : description || "Download the latest release";
 
   const font = await loadOutfitFont(`yatko.app${owner}/${repo}${tagline}`);
 
@@ -79,6 +70,6 @@ export default async function Image({ params }: Props) {
     {
       ...size,
       fonts: font ? [{ name: "Outfit", data: font, style: "normal", weight: 600 }] : [],
-    }
+    },
   );
 }

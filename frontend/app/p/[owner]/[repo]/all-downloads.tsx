@@ -4,6 +4,7 @@ import { useState } from "react";
 import { assetPlatformLabel, platformLabels, formatSize, type Asset, type Platform } from "./platform-utils";
 import { usePlatform } from "./use-platform";
 import { CollapsibleCard } from "./collapsible-card";
+import { PlatformFilterToggle } from "./platform-filter-toggle";
 
 const compactCount = new Intl.NumberFormat("en", {
   notation: "compact",
@@ -26,15 +27,7 @@ export function AllDownloads({
 
   return (
     <CollapsibleCard title="All Downloads">
-      <label className="flex items-center gap-2 text-xs text-muted cursor-pointer select-none hover:text-foreground transition-colors mb-4">
-        <input
-          type="checkbox"
-          checked={filterEnabled}
-          onChange={(e) => setFilterEnabled(e.target.checked)}
-          className="rounded border-foreground/20 accent-foreground"
-        />
-        My platform only
-      </label>
+      <PlatformFilterToggle checked={filterEnabled} onChange={setFilterEnabled} />
 
       {visible.length === 0 && (
         <p className="text-sm text-foreground/40 py-2">
@@ -67,9 +60,7 @@ export function AllDownloads({
                       {compactCount.format(asset.download_count)}↓
                     </span>
                   )}
-                  <span className="text-xs text-foreground/40">
-                    {formatSize(asset.size)}
-                  </span>
+                  <span className="text-xs text-foreground/40">{formatSize(asset.size)}</span>
                 </span>
               </a>
             </li>

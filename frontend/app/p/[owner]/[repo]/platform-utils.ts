@@ -121,6 +121,19 @@ function archScore(name: string, arch: Arch): number {
   return 1;
 }
 
+// Secondary-build markers (profiling, debug symbols, CPU-feature fallbacks).
+// Prefer the vanilla asset when both exist — e.g. bun-darwin-aarch64.zip over
+// bun-darwin-aarch64-profile.zip. Keep in sync with backend/picker/asset.go.
+const variantKeywords = ["profile", "debug", "symbols", "dbg", "baseline"];
+
+function variantPenalty(name: string): number {
+  let penalty = 0;
+  for (const kw of variantKeywords) {
+    if (hasBoundedKeyword(name, kw)) penalty++;
+  }
+  return penalty;
+}
+
 // pickBestAsset selects the single best release asset for a platform/arch,
 // mirroring the Go backend's picker.PickAssetForArch so the download button and
 // the /dl redirect always resolve to the same binary. Arch is a HARD filter:
@@ -130,7 +143,7 @@ function archScore(name: string, arch: Arch): number {
 export function pickBestAsset(assets: Asset[], platform: Platform, arch: Arch): Asset | null {
   const exts = platformExtensions[platform];
   const keywords = platformKeywords[platform];
-  const results: { asset: Asset; extRank: number; archRank: number }[] = [];
+  const results: { asset: Asset; extRank: number; archRank: number; variant: number }[] = [];
   for (const asset of assets) {
     const name = asset.name.toLowerCase();
     if (isSource(name)) continue;
@@ -143,16 +156,23 @@ export function pickBestAsset(assets: Asset[], platform: Platform, arch: Arch): 
       if (!keywords.some((kw) => hasBoundedKeyword(name, kw))) continue;
       extRank = exts.length;
     }
-    results.push({ asset, extRank, archRank: archScore(name, arch) });
+    results.push({
+      asset,
+      extRank,
+      archRank: archScore(name, arch),
+      variant: variantPenalty(name),
+    });
   }
   if (results.length === 0) return null;
 
-  // Hard arch filter first, then lowest extension rank (archRank tiebreak only
-  // matters in the no-exact-match fallback, preferring arch-neutral assets over
-  // explicitly-wrong-arch ones).
+  // Hard arch filter first, then lowest extension rank, then vanilla (non-
+  // profile/debug/baseline) builds. archRank tiebreak only matters in the
+  // no-exact-match fallback, preferring arch-neutral assets over wrong-arch ones.
   const archMatches = arch ? results.filter((r) => r.archRank === 0) : [];
   const pool = archMatches.length > 0 ? archMatches : results;
-  pool.sort((a, b) => a.extRank - b.extRank || a.archRank - b.archRank);
+  pool.sort(
+    (a, b) => a.extRank - b.extRank || a.variant - b.variant || a.archRank - b.archRank,
+  );
   return pool[0].asset;
 }
 

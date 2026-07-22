@@ -27,7 +27,7 @@ const (
 
 // archKeywords maps each Arch to the substrings that identify it in asset filenames.
 var archKeywords = map[Arch][]string{
-	AMD64: {"amd64", "x86_64", "x86-64"},
+	AMD64: {"amd64", "x86_64", "x86-64", "x64"},
 	ARM64: {"arm64", "aarch64"},
 	ARM:   {"armv7", "armv6", "armhf", "arm-"},
 	X86:   {"i386", "i686", "x86_32", "386"},
@@ -90,6 +90,23 @@ var platformExtensions = map[Platform][]string{
 	Linux:   {".AppImage", ".deb", ".rpm", ".tar.gz", ".tar.xz", ".zip"},
 }
 
+// variantKeywords are filename tokens that mark secondary builds (profiling,
+// debug symbols, CPU-feature fallbacks). Prefer the vanilla asset when both
+// exist — e.g. bun-darwin-aarch64.zip over bun-darwin-aarch64-profile.zip.
+var variantKeywords = []string{"profile", "debug", "symbols", "dbg", "baseline"}
+
+// variantPenalty counts how many secondary-build markers appear in name.
+// Lower is better; 0 means a vanilla release asset.
+func variantPenalty(name string) int {
+	penalty := 0
+	for _, kw := range variantKeywords {
+		if hasBoundedKeyword(name, kw) {
+			penalty++
+		}
+	}
+	return penalty
+}
+
 // PickAssetForArch selects the best matching release asset for the given platform and
 // CPU architecture. When arch is UnknownArch, architecture is ignored and the
 // function behaves identically to PickAsset.
@@ -100,8 +117,9 @@ func PickAssetForArch(assets []github.Asset, platform Platform, arch Arch) *gith
 
 	type scored struct {
 		asset    github.Asset
-		extRank  int // lower = better extension match
+		extRank  int  // lower = better extension match
 		archHit  bool // true when the asset explicitly matches the requested arch
+		variant  int  // lower = fewer secondary-build markers (profile/debug/…)
 	}
 
 	exts, ok := platformExtensions[platform]
@@ -123,7 +141,12 @@ func PickAssetForArch(assets []github.Asset, platform Platform, arch Arch) *gith
 		for rank, ext := range exts {
 			if strings.HasSuffix(name, strings.ToLower(ext)) {
 				archHit := arch != UnknownArch && mentionsArch(name, arch)
-				candidates = append(candidates, scored{asset: asset, extRank: rank, archHit: archHit})
+				candidates = append(candidates, scored{
+					asset:   asset,
+					extRank: rank,
+					archHit: archHit,
+					variant: variantPenalty(name),
+				})
 				break
 			}
 		}
@@ -150,10 +173,10 @@ func PickAssetForArch(assets []github.Asset, platform Platform, arch Arch) *gith
 		}
 	}
 
-	// Pick the candidate with the best (lowest) extension rank.
+	// Prefer better extension, then vanilla (non-profile/debug/baseline) builds.
 	best := candidates[0]
 	for _, c := range candidates[1:] {
-		if c.extRank < best.extRank {
+		if c.extRank < best.extRank || (c.extRank == best.extRank && c.variant < best.variant) {
 			best = c
 		}
 	}

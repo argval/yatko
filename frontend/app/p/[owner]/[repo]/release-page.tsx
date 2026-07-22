@@ -210,6 +210,15 @@ function extractInstallCommands(readme: string): InstallCommand[] {
     { platform: "windows", re: /^\s*(?:\$|>)?\s*(winget install\s+.+)/ },
     { platform: "windows", re: /^\s*(?:\$|>)?\s*(choco install\s+.+)/ },
     { platform: "windows", re: /^\s*(?:\$|>)?\s*(scoop install\s+.+)/ },
+    // PowerShell one-liners: `powershell -c "irm …|iex"`, bare `irm …|iex`, etc.
+    {
+      platform: "windows",
+      re: /^\s*(?:\$|>)?\s*((?:powershell|pwsh)(?:\.exe)?\s+(?:-c|-command)\s+.+)/i,
+    },
+    {
+      platform: "windows",
+      re: /^\s*(?:\$|>)?\s*((?:irm|iwr|Invoke-RestMethod|Invoke-WebRequest)\s+.+)/i,
+    },
     { platform: "universal", re: /^\s*(?:\$|>)?\s*(curl\s+.+)/ },
     { platform: "universal", re: /^\s*(?:\$|>)?\s*(wget\s+.+)/ },
   ];

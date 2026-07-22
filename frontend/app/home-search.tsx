@@ -107,6 +107,7 @@ export function HomeSearchForm({
                       alt=""
                       width={32}
                       height={32}
+                      unoptimized
                       className="mt-0.5 size-8 rounded-lg bg-foreground/[0.06] shrink-0"
                     />
                     <span className="min-w-0 flex-1 space-y-0.5">

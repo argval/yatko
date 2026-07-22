@@ -27,3 +27,7 @@ Homepage repo typeahead: normalize query, reuse shorter warm cache prefixes whil
 ## Install Command
 
 A shell one-liner scraped from README fences, tagged with an install platform (`macos` / `windows` / `linux` / `universal`). Types and extraction live in the pure Install Command module; the client card is a presentation adapter that imports downward.
+
+## Checksum Map
+
+Filename → hash map parsed from a release checksum manifest. Pure module (`parse-checksums.ts`); `getChecksums` is the fetch adapter. Display (`AssetChecksum`) only truncates and copies.

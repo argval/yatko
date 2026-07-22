@@ -2,9 +2,10 @@ import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import type { ReleaseData, ReleaseSummary } from "./release-page";
 import { detectArchFromUA, detectPlatformFromUA, type Arch, type Asset, type Platform } from "./platform-utils";
+import { findChecksumAsset, parseChecksumText } from "./parse-checksums";
 
 const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:8080";
-const CHECKSUM_RE = /checksum|sha256sums|sha512sums|md5sums/i;
+
 
 export type ReleaseResult = { ok: true; data: ReleaseData } | { ok: false; message: string };
 
@@ -82,29 +83,16 @@ export async function getReadme(owner: string, repo: string): Promise<string> {
   }
 }
 
-// Resolves the release's checksum file (if any) into a filename -> hash map,
-// so the client can do a plain lookup instead of fetching it itself.
+// Resolves the release's checksum file (if any) into a filename -> hash map.
+// Selection + parse live in parse-checksums.ts; this adapter only fetches.
 export async function getChecksums(assets: Asset[]): Promise<Record<string, string>> {
-  const checksumAsset = assets.find(
-    (a) =>
-      CHECKSUM_RE.test(a.name) ||
-      a.name.endsWith(".sha256") ||
-      a.name.endsWith(".sha512") ||
-      a.name.endsWith(".md5"),
-  );
+  const checksumAsset = findChecksumAsset(assets);
   if (!checksumAsset) return {};
 
   try {
     const res = await fetch(checksumAsset.browser_download_url, { next: { revalidate: 300 } });
     if (!res.ok) return {};
-    const map: Record<string, string> = {};
-    for (const line of (await res.text()).split("\n")) {
-      const parts = line.trim().split(/\s+/);
-      if (parts.length >= 2) {
-        map[parts[parts.length - 1].replace(/^\*/, "")] = parts[0];
-      }
-    }
-    return map;
+    return parseChecksumText(await res.text());
   } catch {
     return {};
   }

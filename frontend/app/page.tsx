@@ -12,8 +12,11 @@ import {
 import { useRouter } from "next/navigation";
 
 const EXAMPLES = ["cli/cli", "neovim/neovim", "astral-sh/uv", "BurntSushi/ripgrep"];
-const SEARCH_DEBOUNCE_MS = 250;
+// Keep debounce short — GitHub Search latency dominates; we optimistic-filter
+// cached prefix results while the network request is in flight.
+const SEARCH_DEBOUNCE_MS = 100;
 const SEARCH_MIN_LEN = 2;
+const CLIENT_CACHE_MAX = 40;
 
 type SearchItem = {
   owner: string;
@@ -33,6 +36,21 @@ function formatStars(n: number): string {
   return String(n);
 }
 
+function normalizeQuery(q: string) {
+  return q.trim().toLowerCase();
+}
+
+function matchesQuery(item: SearchItem, q: string) {
+  const slug = `${item.owner}/${item.repo}`.toLowerCase();
+  return slug.includes(q) || item.repo.toLowerCase().includes(q) || item.owner.toLowerCase().includes(q);
+}
+
+/** Filter a previous result set to items that still match the longer query. */
+function optimisticFilter(items: SearchItem[], q: string) {
+  if (!q) return [];
+  return items.filter((item) => matchesQuery(item, q));
+}
+
 export default function Home() {
   const [input, setInput] = useState("");
   const [suggestions, setSuggestions] = useState<SearchItem[]>([]);
@@ -43,6 +61,19 @@ export default function Home() {
   const listId = useId();
   const blurTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const cacheRef = useRef<Map<string, SearchItem[]>>(new Map());
+  const suggestionsRef = useRef<SearchItem[]>([]);
+
+  function cacheSet(query: string, items: SearchItem[]) {
+    const cache = cacheRef.current;
+    if (cache.has(query)) cache.delete(query);
+    cache.set(query, items);
+    while (cache.size > CLIENT_CACHE_MAX) {
+      const oldest = cache.keys().next().value;
+      if (oldest === undefined) break;
+      cache.delete(oldest);
+    }
+  }
 
   function navigate(owner: string, repo: string) {
     router.push(`/p/${owner}/${repo}`);
@@ -63,14 +94,34 @@ export default function Home() {
     go();
   }
 
+  function applySuggestions(items: SearchItem[], show = true) {
+    suggestionsRef.current = items;
+    setSuggestions(items);
+    setActiveIndex(-1);
+    if (show) setOpen(true);
+  }
+
   const runSearch = useEffectEvent(async (query: string) => {
     abortRef.current?.abort();
-    const trimmed = query.trim();
+    const trimmed = normalizeQuery(query);
     if (trimmed.length < SEARCH_MIN_LEN) {
-      setSuggestions([]);
+      applySuggestions([], false);
       setLoading(false);
-      setActiveIndex(-1);
+      setOpen(false);
       return;
+    }
+
+    const cached = cacheRef.current.get(trimmed);
+    if (cached) {
+      applySuggestions(cached);
+      setLoading(false);
+      return;
+    }
+
+    // Instant feedback: narrow whatever we already have while the request runs.
+    const optimistic = optimisticFilter(suggestionsRef.current, trimmed);
+    if (optimistic.length > 0) {
+      applySuggestions(optimistic);
     }
 
     const ctrl = new AbortController();
@@ -81,24 +132,39 @@ export default function Home() {
         signal: ctrl.signal,
       });
       if (!res.ok) {
-        setSuggestions([]);
-        setActiveIndex(-1);
+        // Keep optimistic/previous suggestions on transient failures.
         return;
       }
       const data = (await res.json()) as { items?: SearchItem[] };
-      setSuggestions(Array.isArray(data.items) ? data.items : []);
-      setActiveIndex(-1);
-      setOpen(true);
+      const items = Array.isArray(data.items) ? data.items : [];
+      cacheSet(trimmed, items);
+      applySuggestions(items);
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") return;
-      setSuggestions([]);
-      setActiveIndex(-1);
+      // Keep whatever is on screen.
     } finally {
       if (abortRef.current === ctrl) setLoading(false);
     }
   });
 
   useEffect(() => {
+    const q = normalizeQuery(input);
+    // Synchronous cache hit — no debounce wait.
+    if (q.length >= SEARCH_MIN_LEN) {
+      const cached = cacheRef.current.get(q);
+      if (cached) {
+        applySuggestions(cached);
+        setLoading(false);
+        return;
+      }
+      const optimistic = optimisticFilter(suggestionsRef.current, q);
+      if (optimistic.length > 0) applySuggestions(optimistic);
+    } else if (q.length < SEARCH_MIN_LEN) {
+      applySuggestions([], false);
+      setOpen(false);
+      setLoading(false);
+    }
+
     const t = setTimeout(() => {
       void runSearch(input);
     }, SEARCH_DEBOUNCE_MS);
@@ -167,35 +233,42 @@ export default function Home() {
           <form onSubmit={handleSubmit} className="space-y-2">
             <div className="relative">
               <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={input}
-                  onChange={(e) => {
-                    setInput(e.target.value);
-                    setOpen(true);
-                  }}
-                  onKeyDown={handleKeyDown}
-                  onFocus={() => {
-                    if (blurTimer.current) clearTimeout(blurTimer.current);
-                    if (suggestions.length > 0) setOpen(true);
-                  }}
-                  onBlur={() => {
-                    // Delay so a mousedown on a suggestion can fire first.
-                    blurTimer.current = setTimeout(() => setOpen(false), 120);
-                  }}
-                  enterKeyHint="go"
-                  role="combobox"
-                  aria-expanded={showList}
-                  aria-controls={listId}
-                  aria-autocomplete="list"
-                  aria-activedescendant={
-                    activeIndex >= 0 ? `${listId}-opt-${activeIndex}` : undefined
-                  }
-                  placeholder="Search repos or paste owner/repo"
-                  autoComplete="off"
-                  spellCheck={false}
-                  className="flex-1 px-4 py-3 rounded-xl border border-border bg-surface text-base placeholder:text-muted/60 focus:outline-none focus:ring-2 focus:ring-foreground/15 transition-[box-shadow,border-color] duration-200"
-                />
+                <div className="relative flex-1">
+                  <input
+                    type="text"
+                    value={input}
+                    onChange={(e) => {
+                      setInput(e.target.value);
+                      setOpen(true);
+                    }}
+                    onKeyDown={handleKeyDown}
+                    onFocus={() => {
+                      if (blurTimer.current) clearTimeout(blurTimer.current);
+                      if (suggestions.length > 0) setOpen(true);
+                    }}
+                    onBlur={() => {
+                      blurTimer.current = setTimeout(() => setOpen(false), 120);
+                    }}
+                    enterKeyHint="go"
+                    role="combobox"
+                    aria-expanded={showList}
+                    aria-controls={listId}
+                    aria-autocomplete="list"
+                    aria-activedescendant={
+                      activeIndex >= 0 ? `${listId}-opt-${activeIndex}` : undefined
+                    }
+                    placeholder="Search repos or paste owner/repo"
+                    autoComplete="off"
+                    spellCheck={false}
+                    className="w-full px-4 py-3 pr-10 rounded-xl border border-border bg-surface text-base placeholder:text-muted/60 focus:outline-none focus:ring-2 focus:ring-foreground/15 transition-[box-shadow,border-color] duration-200"
+                  />
+                  {loading && (
+                    <span
+                      aria-hidden
+                      className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 rounded-full border-2 border-muted/30 border-t-muted animate-spin"
+                    />
+                  )}
+                </div>
                 <button
                   type="submit"
                   className="px-6 py-3 rounded-xl bg-foreground text-background font-medium text-base hover:opacity-90 active:scale-[0.98] transition-[opacity,transform] duration-150"

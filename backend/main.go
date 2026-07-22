@@ -26,6 +26,7 @@ func main() {
 	pageHandler := handlers.NewPageHandler(redirectHandler, ghClient, redisCache)
 	linkHandler := handlers.NewLinkHandler(redirectHandler)
 	releasesHandler := handlers.NewReleasesHandler(ghClient, redisCache)
+	searchHandler := handlers.NewSearchHandler(ghClient, redisCache)
 
 	r := gin.Default()
 
@@ -61,6 +62,7 @@ func main() {
 	limited.GET("/api/link/:owner/:repo/:version", linkHandler.HandleVersioned)
 	limited.GET("/api/release/:owner/:repo/:version", pageHandler.HandleVersioned)
 	limited.GET("/api/releases/:owner/:repo", releasesHandler.Handle)
+	limited.GET("/api/search", searchHandler.Handle)
 
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "ok"})

@@ -83,6 +83,11 @@ func DescriptionKey(owner, repo string) string {
 	return fmt.Sprintf("description:%s/%s", owner, repo)
 }
 
+// SearchKey builds the cache key for a normalized GitHub repo search query.
+func SearchKey(query string) string {
+	return fmt.Sprintf("search:%s", query)
+}
+
 // entry is what's actually persisted in Redis: the value, the ETag GitHub
 // returned for it (used for conditional revalidation), and when it was last
 // confirmed fresh.

@@ -1,8 +1,11 @@
 package github
 
 import (
+	"context"
 	"errors"
 	"net/http"
+	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -82,3 +85,86 @@ func TestRecordRateLimit(t *testing.T) {
 		t.Fatalf("missing header changed resetAt to %d, want unchanged 1700000000", c.resetAt)
 	}
 }
+
+func TestSearchRepositories(t *testing.T) {
+	var sawIfNoneMatch string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/search/repositories" {
+			t.Errorf("unexpected path %s", r.URL.Path)
+		}
+		if r.URL.Query().Get("q") != "ripgrep" {
+			t.Errorf("unexpected q %q", r.URL.Query().Get("q"))
+		}
+		sawIfNoneMatch = r.Header.Get("If-None-Match")
+		if sawIfNoneMatch == `"abc"` {
+			w.WriteHeader(http.StatusNotModified)
+			return
+		}
+		w.Header().Set("ETag", `"abc"`)
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{
+			"items": [{
+				"name": "ripgrep",
+				"full_name": "BurntSushi/ripgrep",
+				"description": "regex search",
+				"stargazers_count": 42000,
+				"owner": {"login": "BurntSushi", "avatar_url": "https://avatars.example/bs"}
+			}, {
+				"name": "",
+				"owner": {"login": "skip-me"}
+			}]
+		}`))
+	}))
+	defer srv.Close()
+
+	c := &Client{
+		httpClient: &http.Client{
+			Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+				req.URL.Scheme = "http"
+				req.URL.Host = strings.TrimPrefix(srv.URL, "http://")
+				return http.DefaultTransport.RoundTrip(req)
+			}),
+		},
+		remaining: -1,
+	}
+
+	items, etag, notMod, err := c.SearchRepositories(context.Background(), "ripgrep", "")
+	if err != nil {
+		t.Fatalf("SearchRepositories: %v", err)
+	}
+	if notMod {
+		t.Fatal("expected modified on first fetch")
+	}
+	if etag != `"abc"` {
+		t.Fatalf("etag = %q, want \"abc\"", etag)
+	}
+	if len(items) != 1 {
+		t.Fatalf("len(items)=%d, want 1 (empty name skipped)", len(items))
+	}
+	if items[0].Owner != "BurntSushi" || items[0].Repo != "ripgrep" || items[0].Stars != 42000 {
+		t.Fatalf("unexpected item %+v", items[0])
+	}
+	if items[0].Description != "regex search" || items[0].AvatarURL != "https://avatars.example/bs" {
+		t.Fatalf("unexpected description/avatar %+v", items[0])
+	}
+
+	// Core rate-limit budget must stay untouched by search responses.
+	if got := atomic.LoadInt32(&c.remaining); got != -1 {
+		t.Fatalf("search poisoned core remaining: got %d", got)
+	}
+
+	_, _, notMod, err = c.SearchRepositories(context.Background(), "ripgrep", `"abc"`)
+	if err != nil {
+		t.Fatalf("revalidate: %v", err)
+	}
+	if !notMod {
+		t.Fatal("expected notModified on etag match")
+	}
+	if sawIfNoneMatch != `"abc"` {
+		t.Fatalf("If-None-Match = %q, want \"abc\"", sawIfNoneMatch)
+	}
+}
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }

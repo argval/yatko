@@ -1,4 +1,12 @@
-import type { InstallCommand, InstallPlatform } from "./install-commands";
+// Install Command module — types + README fence extraction.
+// Presentation (InstallCommands) imports downward from here; do not reverse that seam.
+
+export type InstallPlatform = "macos" | "windows" | "linux" | "universal";
+
+export type InstallCommand = {
+  command: string;
+  platform: InstallPlatform;
+};
 
 export function extractInstallCommands(readme: string): InstallCommand[] {
   const commands = new Map<string, InstallPlatform>();

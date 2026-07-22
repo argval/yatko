@@ -1,18 +1,17 @@
 "use client";
 
 import { useState } from "react";
+import {
+  type InstallCommand,
+  type InstallPlatform,
+} from "./extract-install-commands";
 import { platformLabels as basePlatformLabels, type Platform } from "./platform-utils";
 import { usePlatform } from "./use-platform";
 import { CollapsibleCard } from "./collapsible-card";
 import { CopyButton } from "./copy-button";
 import { PlatformFilterToggle } from "./platform-filter-toggle";
 
-export type InstallPlatform = "macos" | "windows" | "linux" | "universal";
-
-export type InstallCommand = {
-  command: string;
-  platform: InstallPlatform;
-};
+export type { InstallCommand, InstallPlatform } from "./extract-install-commands";
 
 const platformLabels: Record<InstallPlatform, string> = {
   ...basePlatformLabels,

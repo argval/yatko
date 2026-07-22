@@ -1,6 +1,7 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
+import { chromeIconButton } from "./chrome";
 
 // The <html> `.dark` class (set pre-paint by the inline script in layout.tsx) is the
 // single source of truth for theme. Read it via useSyncExternalStore so ThemeToggle
@@ -44,7 +45,7 @@ export function ThemeToggle() {
         href="https://github.com/argval/yatko"
         target="_blank"
         rel="noopener noreferrer"
-        className="p-2 rounded-lg border border-border bg-surface/80 backdrop-blur-sm hover:bg-foreground/5 active:scale-[0.98] transition-[background-color,transform] duration-150"
+        className={chromeIconButton}
         aria-label="View source on GitHub"
         title="View source on GitHub"
       >
@@ -53,7 +54,7 @@ export function ThemeToggle() {
       <button
         type="button"
         onClick={toggle}
-        className="p-2 rounded-lg border border-border bg-surface/80 backdrop-blur-sm hover:bg-foreground/5 active:scale-[0.98] transition-[background-color,transform] duration-150"
+        className={chromeIconButton}
         aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}
         title={dark ? "Switch to light mode" : "Switch to dark mode"}
       >

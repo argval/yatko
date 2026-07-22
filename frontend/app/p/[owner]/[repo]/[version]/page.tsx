@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { ReleasePageBody } from "../release-page";
-import { getRelease, getReleases, getReadme, getChecksums, platformFromRequest } from "../page";
+import { getChecksums, getReadme, getRelease, getReleases, platformFromRequest } from "../backend";
 import { ReleaseError } from "../release-error";
 
 type Props = {

@@ -1,7 +1,7 @@
 "use client";
 
-import { useCopy } from "./use-copy";
 import { CollapsibleCard } from "./collapsible-card";
+import { CopyButton } from "./copy-button";
 
 type ShareLink = {
   label: string;
@@ -41,19 +41,11 @@ export function ShareLinks({ owner, repo }: { owner: string; repo: string }) {
 }
 
 function ShareRow({ label, url, description }: ShareLink) {
-  const [copied, copy] = useCopy();
-
   return (
     <li className="space-y-1.5">
       <div className="flex items-center justify-between gap-4">
         <span className="text-sm font-medium">{label}</span>
-        <button
-          type="button"
-          onClick={() => copy(url)}
-          className="shrink-0 text-xs text-muted hover:text-foreground transition-colors"
-        >
-          {copied ? "Copied!" : "Copy"}
-        </button>
+        <CopyButton text={url} label={`Copy ${label}`} />
       </div>
       <div className="flex items-center gap-2 rounded-lg bg-foreground/5 px-3 py-2">
         <code className="flex-1 text-xs font-mono truncate text-muted">{url}</code>

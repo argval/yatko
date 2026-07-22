@@ -16,7 +16,7 @@ func newTestCache(t *testing.T, softTTL time.Duration) *Cache {
 	mr := miniredis.RunT(t)
 	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
 	t.Cleanup(func() { _ = client.Close() })
-	return &Cache{client: client, softTTL: softTTL, hardTTL: HardTTL}
+	return &Cache{client: client, softTTL: softTTL, hardTTL: HardTTL, l1: newL1(l1MaxEntries)}
 }
 
 func TestFetchCached_PopulatesOnMiss(t *testing.T) {
@@ -180,5 +180,59 @@ func TestFetchCached_CoalescesConcurrentMisses(t *testing.T) {
 	}
 	if calls != 1 {
 		t.Fatalf("expected concurrent misses to be coalesced into 1 fetch, got %d", calls)
+	}
+}
+
+func TestFetchCached_L1ServesWithoutRedisRoundTrip(t *testing.T) {
+	c := newTestCache(t, time.Hour)
+	ctx := context.Background()
+	var calls int32
+
+	fetch := func(_ context.Context, etag string) (string, string, bool, error) {
+		atomic.AddInt32(&calls, 1)
+		return "v1", "etag-1", false, nil
+	}
+	if _, err := FetchCached(ctx, c, "hot", fetch); err != nil {
+		t.Fatalf("populate: %v", err)
+	}
+
+	// Drop Redis contents — L1 should still serve.
+	if err := c.client.FlushAll(ctx).Err(); err != nil {
+		t.Fatalf("flush: %v", err)
+	}
+
+	got, err := FetchCached(ctx, c, "hot", fetch)
+	if err != nil {
+		t.Fatalf("L1 hit: %v", err)
+	}
+	if got != "v1" {
+		t.Fatalf("got %q, want v1", got)
+	}
+	if calls != 1 {
+		t.Fatalf("expected no origin fetch after L1 hit, got %d calls", calls)
+	}
+}
+
+func TestFetchCached_L1WorksWithoutRedis(t *testing.T) {
+	c := &Cache{softTTL: time.Hour, hardTTL: HardTTL, l1: newL1(16)}
+	ctx := context.Background()
+	var calls int32
+
+	fetch := func(_ context.Context, etag string) (string, string, bool, error) {
+		atomic.AddInt32(&calls, 1)
+		return "local", "e1", false, nil
+	}
+	if _, err := FetchCached(ctx, c, "k", fetch); err != nil {
+		t.Fatalf("first: %v", err)
+	}
+	got, err := FetchCached(ctx, c, "k", fetch)
+	if err != nil {
+		t.Fatalf("second: %v", err)
+	}
+	if got != "local" {
+		t.Fatalf("got %q", got)
+	}
+	if calls != 1 {
+		t.Fatalf("expected L1-only second hit, got %d calls", calls)
 	}
 }

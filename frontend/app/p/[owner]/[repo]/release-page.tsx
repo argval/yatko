@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeRaw from "rehype-raw";
@@ -8,8 +9,7 @@ import { InstallCommands, type InstallCommand, type InstallPlatform } from "./in
 import { DownloadSection } from "./download-section";
 import { VersionSelector } from "./version-selector";
 import { PrereleaseToggle } from "./prerelease-toggle";
-import { AllDownloads } from "./all-downloads";
-import { ShareLinks } from "./share-links";
+import { BelowFoldSections } from "./below-fold";
 import { CollapsibleCard } from "./collapsible-card";
 import { ReleaseNavShell } from "./release-nav-shell";
 import type { Arch, Asset, Platform } from "./platform-utils";
@@ -71,6 +71,14 @@ export function ReleasePageBody({
 
   return (
     <ReleaseNavShell>
+      <Link
+        href="/"
+        className="fixed top-4 left-4 z-50 inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-border bg-surface/80 backdrop-blur-sm text-sm text-muted hover:text-foreground hover:bg-foreground/5 active:scale-[0.98] transition-[color,background-color,transform] duration-150"
+        aria-label="Back to Yatko homepage"
+      >
+        <BackIcon />
+        Yatko
+      </Link>
       <main className="flex-1 flex flex-col items-center px-4 py-12 sm:py-20">
         <div className="w-full max-w-2xl space-y-8">
           {/* Header */}
@@ -118,7 +126,14 @@ export function ReleasePageBody({
               initialArch={initialArch}
               checksumsPromise={checksumsPromise}
             />
-            <Suspense fallback={null}>
+            <Suspense
+              fallback={
+                <div className="flex flex-col items-center gap-2 w-full max-w-xs">
+                  <div className="h-9 w-36 rounded-lg bg-foreground/[0.06] animate-pulse" />
+                  <div className="h-4 w-40 rounded bg-foreground/[0.04] animate-pulse" />
+                </div>
+              }
+            >
               <ReleaseVersionControls
                 owner={owner}
                 repo={repo}
@@ -130,7 +145,13 @@ export function ReleasePageBody({
           </div>
 
           {/* Install commands + About — stream in with the README */}
-          <Suspense fallback={null}>
+          <Suspense
+            fallback={
+              <div className="space-y-3">
+                <div className="h-14 rounded-xl border border-border bg-surface/40 animate-pulse" />
+              </div>
+            }
+          >
             <ReadmeSections
               owner={owner}
               repo={repo}
@@ -148,11 +169,13 @@ export function ReleasePageBody({
             </CollapsibleCard>
           )}
 
-          {/* All downloads */}
-          <AllDownloads assets={release.assets} initialPlatform={initialPlatform} />
-
-          {/* Share */}
-          <ShareLinks owner={owner} repo={repo} />
+          {/* Below-fold client islands — code-split + mount when near viewport */}
+          <BelowFoldSections
+            owner={owner}
+            repo={repo}
+            assets={release.assets}
+            initialPlatform={initialPlatform}
+          />
         </div>
       </main>
     </ReleaseNavShell>
@@ -282,4 +305,18 @@ function resolveReadmeUrl(url: string, owner: string, repo: string): string {
   } catch {
     return url;
   }
+}
+
+function BackIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
+      <path
+        d="M10 3 5 8l5 5"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
 }

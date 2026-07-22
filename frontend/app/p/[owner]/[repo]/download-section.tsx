@@ -41,7 +41,11 @@ export function DownloadSection({
         {tagName} &middot; {publishedDate}
       </p>
       {primaryAsset && (
-        <Suspense fallback={null}>
+        <Suspense
+          fallback={
+            <div className="h-4 w-48 rounded bg-foreground/[0.06] animate-pulse" aria-hidden />
+          }
+        >
           <AssetChecksumSlot checksumsPromise={checksumsPromise} assetName={primaryAsset.name} />
         </Suspense>
       )}

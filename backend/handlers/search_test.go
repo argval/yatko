@@ -8,9 +8,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/gin-gonic/gin"
 	"github.com/argval/yatko/cache"
 	"github.com/argval/yatko/github"
+	"github.com/argval/yatko/search"
+	"github.com/gin-gonic/gin"
 )
 
 func init() {
@@ -18,7 +19,7 @@ func init() {
 }
 
 func TestSearchHandler_Validation(t *testing.T) {
-	h := NewSearchHandler(github.NewClient(), cache.New())
+	h := NewSearchHandler(search.NewAutocomplete(github.NewClient(), cache.New()))
 	r := gin.New()
 	r.GET("/api/search", h.Handle)
 
@@ -40,12 +41,6 @@ func TestSearchHandler_Validation(t *testing.T) {
 				t.Fatalf("status = %d, want %d; body=%s", w.Code, tc.want, w.Body.String())
 			}
 		})
-	}
-}
-
-func TestNormalizeSearchQuery(t *testing.T) {
-	if got := normalizeSearchQuery("  RipGrep  "); got != "ripgrep" {
-		t.Fatalf("got %q, want ripgrep", got)
 	}
 }
 

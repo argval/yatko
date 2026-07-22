@@ -12,6 +12,7 @@ import (
 	"github.com/argval/yatko/handlers"
 	"github.com/argval/yatko/middleware"
 	"github.com/argval/yatko/ratelimit"
+	"github.com/argval/yatko/search"
 	"github.com/gin-gonic/gin"
 )
 
@@ -28,7 +29,7 @@ func main() {
 	pageHandler := handlers.NewPageHandler(redirectHandler, ghClient, redisCache)
 	linkHandler := handlers.NewLinkHandler(redirectHandler)
 	releasesHandler := handlers.NewReleasesHandler(ghClient, redisCache)
-	searchHandler := handlers.NewSearchHandler(ghClient, redisCache)
+	searchHandler := handlers.NewSearchHandler(search.NewAutocomplete(ghClient, redisCache))
 
 	r := gin.Default()
 

@@ -1,0 +1,108 @@
+{
+  "cases": [
+    {
+      "name": "darwin-not-misdetected-as-windows",
+      "platform": "macos",
+      "arch": "arm64",
+      "assets": [
+        "Logseq-darwin-arm64-2.0.1.dmg",
+        "Logseq-darwin-x64-2.0.1.dmg",
+        "Logseq-win-arm64-2.0.1-nsis.exe",
+        "Logseq-linux-x86_64-2.0.1.AppImage"
+      ],
+      "expected": "Logseq-darwin-arm64-2.0.1.dmg"
+    },
+    {
+      "name": "windows-still-detected",
+      "platform": "windows",
+      "arch": "arm64",
+      "assets": [
+        "Logseq-darwin-arm64-2.0.1.dmg",
+        "Logseq-win-arm64-2.0.1-nsis.exe"
+      ],
+      "expected": "Logseq-win-arm64-2.0.1-nsis.exe"
+    },
+    {
+      "name": "prefers-vanilla-over-profile-arm64",
+      "platform": "macos",
+      "arch": "arm64",
+      "assets": [
+        "bun-darwin-aarch64-profile.zip",
+        "bun-darwin-aarch64.zip",
+        "bun-darwin-x64-baseline-profile.zip",
+        "bun-darwin-x64-baseline.zip",
+        "bun-darwin-x64-profile.zip",
+        "bun-darwin-x64.zip"
+      ],
+      "expected": "bun-darwin-aarch64.zip"
+    },
+    {
+      "name": "prefers-vanilla-over-profile-amd64",
+      "platform": "macos",
+      "arch": "amd64",
+      "assets": [
+        "bun-darwin-aarch64-profile.zip",
+        "bun-darwin-aarch64.zip",
+        "bun-darwin-x64-baseline-profile.zip",
+        "bun-darwin-x64-baseline.zip",
+        "bun-darwin-x64-profile.zip",
+        "bun-darwin-x64.zip"
+      ],
+      "expected": "bun-darwin-x64.zip"
+    },
+    {
+      "name": "falls-back-to-variant-when-only-option",
+      "platform": "macos",
+      "arch": "arm64",
+      "assets": [
+        "tool-darwin-arm64-profile.zip",
+        "tool-linux-amd64.tar.gz"
+      ],
+      "expected": "tool-darwin-arm64-profile.zip"
+    },
+    {
+      "name": "hard-arch-filter-prefers-matching-over-better-ext",
+      "platform": "linux",
+      "arch": "amd64",
+      "assets": [
+        "tool-linux-arm64.AppImage",
+        "tool-linux-amd64.deb"
+      ],
+      "expected": "tool-linux-amd64.deb"
+    },
+    {
+      "name": "no-extension-no-keyword-fallback",
+      "platform": "linux",
+      "arch": "amd64",
+      "assets": ["mytool-linux-amd64", "mytool-linux-amd64.tar.gz"],
+      "expected": "mytool-linux-amd64.tar.gz"
+    },
+    {
+      "name": "bare-binary-without-extension-is-ignored",
+      "platform": "linux",
+      "arch": "amd64",
+      "assets": ["mytool-linux-amd64"],
+      "expected": null
+    },
+    {
+      "name": "unknown-arch-uses-extension-rank-only",
+      "platform": "macos",
+      "arch": "",
+      "assets": [
+        "app-darwin-arm64.zip",
+        "app-darwin-x64.dmg"
+      ],
+      "expected": "app-darwin-x64.dmg"
+    },
+    {
+      "name": "skips-source-archives",
+      "platform": "linux",
+      "arch": "amd64",
+      "assets": [
+        "tool-linux-amd64-source.tar.gz",
+        "tool-linux-amd64.tar.gz"
+      ],
+      "expected": "tool-linux-amd64.tar.gz"
+    }
+  ]
+}

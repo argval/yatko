@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useCopy } from "./use-copy";
 import { CollapsibleCard } from "./collapsible-card";
-import { usePlatform, platformLabels as basePlatformLabels } from "./platform-utils";
+import { usePlatform, platformLabels as basePlatformLabels, type Platform } from "./platform-utils";
 
 export type InstallPlatform = "macos" | "windows" | "linux" | "universal";
 
@@ -17,8 +17,14 @@ const platformLabels: Record<InstallPlatform, string> = {
   universal: "Universal",
 };
 
-export function InstallCommands({ commands }: { commands: InstallCommand[] }) {
-  const [platform] = usePlatform();
+export function InstallCommands({
+  commands,
+  initialPlatform,
+}: {
+  commands: InstallCommand[];
+  initialPlatform?: Platform;
+}) {
+  const [platform] = usePlatform(initialPlatform);
   const [filterEnabled, setFilterEnabled] = useState(false);
 
   const visible = filterEnabled

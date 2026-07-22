@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { ReleasePageBody } from "../release-page";
-import { getRelease, getReleases, getChecksums } from "../page";
+import { getRelease, getReleases, getReadme, getChecksums, platformFromRequest } from "../page";
 import { ReleaseError } from "../release-error";
 
 type Props = {
@@ -19,13 +19,20 @@ export default async function VersionedReleasePage({ params }: Props) {
   const { owner, repo, version } = await params;
   const result = await getRelease(owner, repo, version);
   if (!result.ok) return <ReleaseError message={result.message} />;
-  const releasesPromise = getReleases(owner, repo);
+  const [platform, arch] = await platformFromRequest();
+  const readmePromise = getReadme(owner, repo);
+  const releasesPromise = Array.isArray(result.data.releases)
+    ? Promise.resolve(result.data.releases)
+    : getReleases(owner, repo);
   const checksumsPromise = getChecksums(result.data.assets);
   return (
     <ReleasePageBody
       owner={owner}
       repo={repo}
       release={result.data}
+      initialPlatform={platform}
+      initialArch={arch}
+      readmePromise={readmePromise}
       releasesPromise={releasesPromise}
       checksumsPromise={checksumsPromise}
     />

@@ -106,15 +106,14 @@ type ConditionalFetch[T any] func(ctx context.Context, etag string) (value T, ne
 // with `fetch` once the soft TTL has elapsed.
 //
 //   - Fresh cache (within soft TTL): returned immediately, no network call.
-//   - Stale cache: revalidated via a conditional request. A 304 response
-//     extends freshness for free (doesn't count against GitHub's rate limit)
-//     without needing a new value from the caller.
+//   - Stale cache: returned immediately (stale-while-revalidate). A background
+//     goroutine revalidates via a conditional request; a 304 extends freshness
+//     for free (doesn't count against GitHub's rate limit). Concurrent
+//     revalidations for the same key are coalesced via singleflight.
 //   - No cache entry: a normal fetch populates the cache with the returned
-//     value and ETag.
-//   - Concurrent requests for the same key are coalesced via singleflight, so
-//     a stampede of cache misses only triggers one origin fetch.
-//   - If the origin fetch fails and a (possibly stale) cached value exists,
-//     that value is served instead of propagating the error.
+//     value and ETag (blocking; coalesced via singleflight).
+//   - If a blocking origin fetch fails and a (possibly stale) cached value
+//     exists, that value is served instead of propagating the error.
 func FetchCached[T any](ctx context.Context, c *Cache, key string, fetch ConditionalFetch[T]) (T, error) {
 	var zero T
 
@@ -127,45 +126,73 @@ func FetchCached[T any](ctx context.Context, c *Cache, key string, fetch Conditi
 		return existing.Value, nil
 	}
 
-	etag := ""
+	// Soft TTL elapsed but we still have a value: serve it and refresh off the
+	// request path so callers never wait on GitHub when Redis is warm.
 	if existing != nil {
-		etag = existing.ETag
+		go revalidateInBackground(c, key, *existing, fetch)
+		return existing.Value, nil
 	}
 
 	result, err, _ := c.sf.Do(key, func() (interface{}, error) {
-		value, newETag, notModified, ferr := fetch(ctx, etag)
-		if ferr != nil {
-			return nil, ferr
-		}
-
-		next := entry[T]{CachedAt: time.Now()}
-		if notModified {
-			if existing == nil {
-				return nil, fmt.Errorf("origin reported not-modified but no cached value exists for %s", key)
-			}
-			next.Value = existing.Value
-			next.ETag = existing.ETag
-		} else {
-			next.Value = value
-			next.ETag = newETag
-		}
-
-		if setErr := setEntry(ctx, c, key, next); setErr != nil {
-			log.Printf("cache write error (%s): %v", key, setErr)
-		}
-
-		return next.Value, nil
+		return loadAndStore(ctx, c, key, "", nil, fetch)
 	})
 
 	if err != nil {
-		if existing != nil {
-			log.Printf("origin fetch failed for %s, serving stale cache: %v", key, err)
-			return existing.Value, nil
-		}
 		return zero, err
 	}
 
 	return result.(T), nil
+}
+
+// revalidateInBackground refreshes a stale entry without blocking the caller.
+// Uses a detached timeout context because the request context is canceled when
+// the HTTP handler returns.
+func revalidateInBackground[T any](c *Cache, key string, existing entry[T], fetch ConditionalFetch[T]) {
+	_, _, _ = c.sf.Do(key, func() (interface{}, error) {
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+		value, err := loadAndStore(ctx, c, key, existing.ETag, &existing, fetch)
+		if err != nil {
+			// Keep serving the stale value we already returned to callers.
+			log.Printf("background revalidation failed for %s: %v", key, err)
+			return nil, err
+		}
+		return value, nil
+	})
+}
+
+// loadAndStore runs fetch and persists the result. When notModified is true,
+// existing must be non-nil — its value/ETag are retained and CachedAt is bumped.
+func loadAndStore[T any](
+	ctx context.Context,
+	c *Cache,
+	key string,
+	etag string,
+	existing *entry[T],
+	fetch ConditionalFetch[T],
+) (T, error) {
+	var zero T
+	value, newETag, notModified, ferr := fetch(ctx, etag)
+	if ferr != nil {
+		return zero, ferr
+	}
+
+	next := entry[T]{CachedAt: time.Now()}
+	if notModified {
+		if existing == nil {
+			return zero, fmt.Errorf("origin reported not-modified but no cached value exists for %s", key)
+		}
+		next.Value = existing.Value
+		next.ETag = existing.ETag
+	} else {
+		next.Value = value
+		next.ETag = newETag
+	}
+
+	if setErr := setEntry(ctx, c, key, next); setErr != nil {
+		log.Printf("cache write error (%s): %v", key, setErr)
+	}
+	return next.Value, nil
 }
 
 // Allow reports whether a request identified by key is within limit for the

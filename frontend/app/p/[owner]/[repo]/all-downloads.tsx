@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { usePlatform, assetPlatformLabel, platformLabels, formatSize, type Asset } from "./platform-utils";
+import { usePlatform, assetPlatformLabel, platformLabels, formatSize, type Asset, type Platform } from "./platform-utils";
 import { CollapsibleCard } from "./collapsible-card";
 
 const compactCount = new Intl.NumberFormat("en", {
@@ -9,8 +9,14 @@ const compactCount = new Intl.NumberFormat("en", {
   maximumFractionDigits: 1,
 });
 
-export function AllDownloads({ assets }: { assets: Asset[] }) {
-  const [platform] = usePlatform();
+export function AllDownloads({
+  assets,
+  initialPlatform,
+}: {
+  assets: Asset[];
+  initialPlatform?: Platform;
+}) {
+  const [platform] = usePlatform(initialPlatform);
   const [filterEnabled, setFilterEnabled] = useState(false);
 
   const visible = filterEnabled

@@ -67,10 +67,10 @@ func TestFetchCached_ServesFreshValueWithoutFetching(t *testing.T) {
 	}
 }
 
-func TestFetchCached_RevalidatesWithETagAfterSoftTTL(t *testing.T) {
+func TestFetchCached_ServesStaleAndRevalidatesInBackground(t *testing.T) {
 	c := newTestCache(t, time.Millisecond) // expires almost immediately
 	ctx := context.Background()
-	var sawETag string
+	var sawETag atomic.Value
 
 	if _, err := FetchCached(ctx, c, "k", func(_ context.Context, etag string) (string, string, bool, error) {
 		return "v1", "etag-1", false, nil
@@ -80,19 +80,31 @@ func TestFetchCached_RevalidatesWithETagAfterSoftTTL(t *testing.T) {
 
 	time.Sleep(5 * time.Millisecond) // let the soft TTL lapse
 
+	start := time.Now()
 	got, err := FetchCached(ctx, c, "k", func(_ context.Context, etag string) (string, string, bool, error) {
-		sawETag = etag
-		return "", "", true, nil // simulate GitHub responding 304 Not Modified
+		sawETag.Store(etag)
+		time.Sleep(50 * time.Millisecond) // slow origin — caller must not wait
+		return "", "", true, nil          // simulate GitHub responding 304 Not Modified
 	})
+	elapsed := time.Since(start)
 	if err != nil {
 		t.Fatalf("second call: %v", err)
 	}
-	if sawETag != "etag-1" {
-		t.Fatalf("expected revalidation to send previous etag %q, got %q", "etag-1", sawETag)
-	}
 	if got != "v1" {
-		t.Fatalf("expected stale value to be kept on 304, got %q", got)
+		t.Fatalf("expected stale value immediately, got %q", got)
 	}
+	if elapsed > 25*time.Millisecond {
+		t.Fatalf("stale hit blocked for %s; want immediate return", elapsed)
+	}
+
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		if v, ok := sawETag.Load().(string); ok && v == "etag-1" {
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	t.Fatalf("expected background revalidation to send etag %q", "etag-1")
 }
 
 func TestFetchCached_StaleWhileError(t *testing.T) {
@@ -107,6 +119,7 @@ func TestFetchCached_StaleWhileError(t *testing.T) {
 
 	time.Sleep(5 * time.Millisecond)
 
+	// Soft-TTL expiry serves stale immediately; background revalidation fails.
 	got, err := FetchCached(ctx, c, "k", func(_ context.Context, etag string) (string, string, bool, error) {
 		return "", "", false, errors.New("github is down")
 	})
@@ -116,6 +129,8 @@ func TestFetchCached_StaleWhileError(t *testing.T) {
 	if got != "good-value" {
 		t.Fatalf("got %q, want stale value %q", got, "good-value")
 	}
+	// Let the background attempt finish so it doesn't race test teardown.
+	time.Sleep(20 * time.Millisecond)
 }
 
 func TestFetchCached_PropagatesErrorWithNoCachedValue(t *testing.T) {

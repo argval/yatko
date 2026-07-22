@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, use } from "react";
-import { usePlatform, pickBestAsset, type Asset } from "./platform-utils";
+import { usePlatform, pickBestAsset, type Arch, type Asset, type Platform } from "./platform-utils";
 import { DownloadButton } from "./download-button";
 import { AssetChecksum } from "./asset-checksum";
 
@@ -11,6 +11,8 @@ export function DownloadSection({
   assets,
   tagName,
   publishedDate,
+  initialPlatform,
+  initialArch,
   checksumsPromise,
 }: {
   owner: string;
@@ -18,9 +20,11 @@ export function DownloadSection({
   assets: Asset[];
   tagName: string;
   publishedDate: string;
+  initialPlatform: Platform;
+  initialArch: Arch;
   checksumsPromise: Promise<Record<string, string>>;
 }) {
-  const [platform, arch] = usePlatform();
+  const [platform, arch] = usePlatform(initialPlatform, initialArch);
   const primaryAsset = pickBestAsset(assets, platform, arch);
 
   return (

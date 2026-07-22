@@ -10,6 +10,8 @@ import {
   type KeyboardEvent,
 } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { ReleaseLoading } from "./p/[owner]/[repo]/release-loading";
 
 const EXAMPLES = ["cli/cli", "neovim/neovim", "astral-sh/uv", "BurntSushi/ripgrep"];
 // Keep debounce short — GitHub Search latency dominates; we optimistic-filter
@@ -56,6 +58,7 @@ export default function Home() {
   const [suggestions, setSuggestions] = useState<SearchItem[]>([]);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [navigating, setNavigating] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
   const router = useRouter();
   const listId = useId();
@@ -76,8 +79,23 @@ export default function Home() {
   }
 
   function navigate(owner: string, repo: string) {
+    // Paint loading UI on this page immediately — route loading.tsx only
+    // appears after the soft navigation flight starts, which can lag a beat.
+    setNavigating(true);
     router.push(`/p/${owner}/${repo}`);
   }
+
+  // Prefetch the highlighted suggestion (and typed owner/repo) so Enter/Go
+  // often hits a warm RSC payload.
+  useEffect(() => {
+    if (activeIndex >= 0 && activeIndex < suggestions.length) {
+      const item = suggestions[activeIndex];
+      router.prefetch(`/p/${item.owner}/${item.repo}`);
+      return;
+    }
+    const match = parseInput(input);
+    if (match) router.prefetch(`/p/${match[1]}/${match[2]}`);
+  }, [activeIndex, suggestions, input, router]);
 
   function go() {
     if (activeIndex >= 0 && activeIndex < suggestions.length) {
@@ -206,6 +224,10 @@ export default function Home() {
   const hintSlug = parsedHint ? `${parsedHint[1]}/${parsedHint[2]}` : null;
   const showList = open && (suggestions.length > 0 || loading);
 
+  if (navigating) {
+    return <ReleaseLoading />;
+  }
+
   return (
     <main className="flex-1 flex flex-col items-center justify-center px-4 py-20 min-h-[100dvh]">
       <div className="w-full max-w-xl space-y-14 text-center">
@@ -291,14 +313,15 @@ export default function Home() {
                     const active = i === activeIndex;
                     return (
                       <li key={slug} role="option" aria-selected={active} id={`${listId}-opt-${i}`}>
-                        <button
-                          type="button"
+                        <Link
+                          href={`/p/${item.owner}/${item.repo}`}
+                          prefetch
                           className={`w-full flex items-start gap-3 px-4 py-3 text-left transition-colors duration-100 ${
                             active ? "bg-foreground/[0.08]" : "hover:bg-foreground/[0.04]"
                           }`}
                           onMouseEnter={() => setActiveIndex(i)}
                           onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => navigate(item.owner, item.repo)}
+                          onClick={() => setNavigating(true)}
                         >
                           <img
                             src={item.avatar_url || `https://github.com/${item.owner}.png?size=64`}
@@ -320,7 +343,7 @@ export default function Home() {
                           <span className="shrink-0 text-xs text-muted tabular-nums pt-0.5">
                             ★ {formatStars(item.stars)}
                           </span>
-                        </button>
+                        </Link>
                       </li>
                     );
                   })}
@@ -339,16 +362,20 @@ export default function Home() {
           <div className="space-y-2.5 text-left">
             <p className="text-xs text-muted font-medium">Try one</p>
             <div className="flex flex-wrap gap-2">
-              {EXAMPLES.map((slug) => (
-                <button
-                  key={slug}
-                  type="button"
-                  onClick={() => navigate(...(slug.split("/") as [string, string]))}
-                  className="px-3 py-1.5 rounded-lg text-sm bg-foreground/[0.04] hover:bg-foreground/[0.08] active:scale-[0.98] transition-[background-color,transform] duration-150 font-mono"
-                >
-                  {slug}
-                </button>
-              ))}
+              {EXAMPLES.map((slug) => {
+                const [owner, repo] = slug.split("/") as [string, string];
+                return (
+                  <Link
+                    key={slug}
+                    href={`/p/${owner}/${repo}`}
+                    prefetch
+                    onClick={() => setNavigating(true)}
+                    className="px-3 py-1.5 rounded-lg text-sm bg-foreground/[0.04] hover:bg-foreground/[0.08] active:scale-[0.98] transition-[background-color,transform] duration-150 font-mono"
+                  >
+                    {slug}
+                  </Link>
+                );
+              })}
             </div>
           </div>
         </div>

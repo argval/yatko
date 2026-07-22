@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeRaw from "rehype-raw";
@@ -8,10 +9,10 @@ import { InstallCommands, type InstallCommand, type InstallPlatform } from "./in
 import { DownloadSection } from "./download-section";
 import { VersionSelector } from "./version-selector";
 import { PrereleaseToggle } from "./prerelease-toggle";
-import { AllDownloads } from "./all-downloads";
-import { ShareLinks } from "./share-links";
+import { BelowFoldSections } from "./below-fold";
 import { CollapsibleCard } from "./collapsible-card";
-import type { Asset } from "./platform-utils";
+import { ReleaseNavShell } from "./release-nav-shell";
+import type { Arch, Asset, Platform } from "./platform-utils";
 
 export type ReleaseData = {
   owner: string;
@@ -25,7 +26,8 @@ export type ReleaseData = {
   html_url: string;
   prerelease: boolean;
   assets: Asset[];
-  readme: string;
+  /** Embedded by /api/release so the page skips a second round-trip. */
+  releases?: ReleaseSummary[];
 };
 
 export type ReleaseSummary = {
@@ -46,12 +48,18 @@ export function ReleasePageBody({
   owner,
   repo,
   release,
+  initialPlatform,
+  initialArch,
+  readmePromise,
   releasesPromise,
   checksumsPromise,
 }: {
   owner: string;
   repo: string;
   release: ReleaseData;
+  initialPlatform: Platform;
+  initialArch: Arch;
+  readmePromise: Promise<string>;
   releasesPromise: Promise<ReleaseSummary[]>;
   checksumsPromise: Promise<Record<string, string>>;
 }) {
@@ -61,113 +69,116 @@ export function ReleasePageBody({
     day: "numeric",
   });
 
-  const installCommands = release.readme ? extractInstallCommands(release.readme) : [];
-
   return (
-    <main className="flex-1 flex flex-col items-center px-4 py-12 sm:py-20">
-      <div className="w-full max-w-2xl space-y-8">
-        {/* Header */}
-        <div className="text-center space-y-4">
-          <Image
-            src={`https://github.com/${owner}.png?size=96`}
-            alt={`${owner} avatar`}
-            width={64}
-            height={64}
-            unoptimized
-            className="rounded-2xl mx-auto"
-          />
-          <h1 className="text-4xl sm:text-5xl font-semibold tracking-tighter leading-none">{repo}</h1>
-          <p className="text-muted text-base sm:text-lg">
-            <a
-              href={`https://github.com/${owner}/${repo}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hover:text-foreground transition-colors"
-            >
-              {owner}/{repo}
-            </a>
-          </p>
-          {release.prerelease && (
-            <span className="inline-block text-xs font-medium px-2.5 py-1 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
-              Pre-release
-            </span>
-          )}
-        </div>
+    <ReleaseNavShell>
+      <Link
+        href="/"
+        className="fixed top-4 left-4 z-50 inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-border bg-surface/80 backdrop-blur-sm text-sm text-muted hover:text-foreground hover:bg-foreground/5 active:scale-[0.98] transition-[color,background-color,transform] duration-150"
+        aria-label="Back to Yatko homepage"
+      >
+        <BackIcon />
+        Yatko
+      </Link>
+      <main className="flex-1 flex flex-col items-center px-4 py-12 sm:py-20">
+        <div className="w-full max-w-2xl space-y-8">
+          {/* Header */}
+          <div className="text-center space-y-4">
+            <Image
+              src={`https://github.com/${owner}.png?size=96`}
+              alt={`${owner} avatar`}
+              width={64}
+              height={64}
+              unoptimized
+              className="rounded-2xl mx-auto"
+            />
+            <h1 className="text-4xl sm:text-5xl font-semibold tracking-tighter leading-none">{repo}</h1>
+            <p className="text-muted text-base sm:text-lg">
+              <a
+                href={`https://github.com/${owner}/${repo}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-foreground transition-colors"
+              >
+                {owner}/{repo}
+              </a>
+            </p>
+            {release.prerelease && (
+              <span className="inline-block text-xs font-medium px-2.5 py-1 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                Pre-release
+              </span>
+            )}
+          </div>
 
-        {/* Download section */}
-        <div className="flex flex-col items-center gap-3">
-          {release.description && (
-            <div className="text-center text-muted leading-relaxed max-w-md [&_p]:m-0 [&_a]:text-blue-500 [&_a:hover]:underline">
-              <Markdown remarkPlugins={[remarkGfm]}>{release.description}</Markdown>
-            </div>
+          {/* Download section */}
+          <div className="flex flex-col items-center gap-3">
+            {release.description && (
+              <div className="text-center text-muted leading-relaxed max-w-md [&_p]:m-0 [&_a]:text-blue-500 [&_a:hover]:underline">
+                <Markdown remarkPlugins={[remarkGfm]}>{release.description}</Markdown>
+              </div>
+            )}
+            <DownloadSection
+              owner={owner}
+              repo={repo}
+              assets={release.assets}
+              tagName={release.tag_name}
+              publishedDate={publishedDate}
+              initialPlatform={initialPlatform}
+              initialArch={initialArch}
+              checksumsPromise={checksumsPromise}
+            />
+            <Suspense
+              fallback={
+                <div className="flex flex-col items-center gap-2 w-full max-w-xs">
+                  <div className="h-9 w-36 rounded-lg bg-foreground/[0.06] animate-pulse" />
+                  <div className="h-4 w-40 rounded bg-foreground/[0.04] animate-pulse" />
+                </div>
+              }
+            >
+              <ReleaseVersionControls
+                owner={owner}
+                repo={repo}
+                currentTag={release.tag_name}
+                prerelease={release.prerelease}
+                releasesPromise={releasesPromise}
+              />
+            </Suspense>
+          </div>
+
+          {/* Install commands + About — stream in with the README */}
+          <Suspense
+            fallback={
+              <div className="space-y-3">
+                <div className="h-14 rounded-xl border border-border bg-surface/40 animate-pulse" />
+              </div>
+            }
+          >
+            <ReadmeSections
+              owner={owner}
+              repo={repo}
+              readmePromise={readmePromise}
+              initialPlatform={initialPlatform}
+            />
+          </Suspense>
+
+          {/* Release notes */}
+          {release.body && (
+            <CollapsibleCard title="Release Notes">
+              <div className={proseClass}>
+                <Markdown remarkPlugins={[remarkGfm]}>{release.body}</Markdown>
+              </div>
+            </CollapsibleCard>
           )}
-          <DownloadSection
+
+          {/* Below-fold client islands — code-split + mount when near viewport */}
+          <BelowFoldSections
             owner={owner}
             repo={repo}
             assets={release.assets}
-            tagName={release.tag_name}
-            publishedDate={publishedDate}
-            checksumsPromise={checksumsPromise}
+            initialPlatform={initialPlatform}
           />
-          <Suspense fallback={null}>
-            <ReleaseVersionControls
-              owner={owner}
-              repo={repo}
-              currentTag={release.tag_name}
-              prerelease={release.prerelease}
-              releasesPromise={releasesPromise}
-            />
-          </Suspense>
         </div>
-
-        {/* CLI Installation */}
-        {installCommands.length > 0 && (
-          <InstallCommands commands={installCommands} />
-        )}
-
-        {/* About (README) */}
-        {release.readme && (
-          <CollapsibleCard title="About" defaultOpen={false}>
-            <div className={readmeProseClass}>
-              <Markdown
-                remarkPlugins={[remarkGfm]}
-                rehypePlugins={[
-                  rehypeRaw,
-                  [rehypeSanitize, {
-                    ...defaultSchema,
-                    attributes: {
-                      ...defaultSchema.attributes,
-                      img: [...(defaultSchema.attributes?.img ?? []), "src", "alt", "width", "height", "align"],
-                      svg: ["xmlns", "viewBox", "width", "height", "fill", "class", "style"],
-                      path: ["d", "fill", "stroke", "strokeWidth"],
-                    },
-                    tagNames: [...(defaultSchema.tagNames ?? []), "svg", "path", "circle", "rect", "g"],
-                  }],
-                ]}
-                urlTransform={(url) => resolveReadmeUrl(url, owner, repo)}
-              >
-                {release.readme}
-              </Markdown>
-            </div>
-          </CollapsibleCard>
-        )}
-
-        {/* Release notes */}
-        {release.body && (
-          <CollapsibleCard title="Release Notes">
-            <div className={proseClass}>
-              <Markdown remarkPlugins={[remarkGfm]}>{release.body}</Markdown>
-            </div>
-          </CollapsibleCard>
-        )}
-
-        {/* All downloads */}
-        <AllDownloads assets={release.assets} />
-
-        {/* Share */}
-        <ShareLinks owner={owner} repo={repo} />
-      </div>
-    </main>
+      </main>
+    </ReleaseNavShell>
   );
 }
 
@@ -189,6 +200,55 @@ async function ReleaseVersionControls({
     <>
       <VersionSelector owner={owner} repo={repo} currentTag={currentTag} showPrereleases={prerelease} releases={releases} />
       <PrereleaseToggle owner={owner} repo={repo} isCurrentPrerelease={prerelease} releases={releases} />
+    </>
+  );
+}
+
+async function ReadmeSections({
+  owner,
+  repo,
+  readmePromise,
+  initialPlatform,
+}: {
+  owner: string;
+  repo: string;
+  readmePromise: Promise<string>;
+  initialPlatform: Platform;
+}) {
+  const readme = await readmePromise;
+  if (!readme) return null;
+  const installCommands = extractInstallCommands(readme);
+  return (
+    <>
+      {installCommands.length > 0 && (
+        <InstallCommands commands={installCommands} initialPlatform={initialPlatform} />
+      )}
+      <CollapsibleCard title="About" defaultOpen={false}>
+        <div className={readmeProseClass}>
+          <Markdown
+            remarkPlugins={[remarkGfm]}
+            rehypePlugins={[
+              rehypeRaw,
+              [
+                rehypeSanitize,
+                {
+                  ...defaultSchema,
+                  attributes: {
+                    ...defaultSchema.attributes,
+                    img: [...(defaultSchema.attributes?.img ?? []), "src", "alt", "width", "height", "align"],
+                    svg: ["xmlns", "viewBox", "width", "height", "fill", "class", "style"],
+                    path: ["d", "fill", "stroke", "strokeWidth"],
+                  },
+                  tagNames: [...(defaultSchema.tagNames ?? []), "svg", "path", "circle", "rect", "g"],
+                },
+              ],
+            ]}
+            urlTransform={(url) => resolveReadmeUrl(url, owner, repo)}
+          >
+            {readme}
+          </Markdown>
+        </div>
+      </CollapsibleCard>
     </>
   );
 }
@@ -245,4 +305,18 @@ function resolveReadmeUrl(url: string, owner: string, repo: string): string {
   } catch {
     return url;
   }
+}
+
+function BackIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
+      <path
+        d="M10 3 5 8l5 5"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
 }

@@ -61,6 +61,7 @@ func main() {
 	limited.GET("/api/link/:owner/:repo", linkHandler.Handle)
 	limited.GET("/api/link/:owner/:repo/:version", linkHandler.HandleVersioned)
 	limited.GET("/api/release/:owner/:repo/:version", pageHandler.HandleVersioned)
+	limited.GET("/api/readme/:owner/:repo", pageHandler.HandleREADME)
 	limited.GET("/api/releases/:owner/:repo", releasesHandler.Handle)
 	limited.GET("/api/search", searchHandler.Handle)
 

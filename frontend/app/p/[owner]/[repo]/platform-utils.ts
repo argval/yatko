@@ -2,7 +2,6 @@
 // mentionsOtherPlatform, isSource, platformExtensions) mirror
 // backend/picker/asset.go so the browser can pick/label assets without a
 // round trip. Keep both in sync when changing either.
-import { useSyncExternalStore } from "react";
 
 export type Platform = "windows" | "macos" | "linux";
 export type Arch = "amd64" | "arm64" | "";
@@ -20,31 +19,31 @@ export const platformLabels: Record<Platform, string> = {
   linux: "Linux",
 };
 
-// A value that never changes after the first client read: subscribe is a no-op.
-const noopSubscribe = () => () => {};
+export function detectPlatformFromUA(userAgent: string): Platform {
+  const ua = userAgent.toLowerCase();
+  if (ua.includes("macintosh") || ua.includes("mac os") || ua.includes("darwin")) return "macos";
+  if (ua.includes("linux") || ua.includes("ubuntu") || ua.includes("fedora") || ua.includes("debian")) {
+    return "linux";
+  }
+  return "windows";
+}
 
-// usePlatform detects the visitor's platform/arch client-side (via navigator,
-// unavailable during SSR). getServerSnapshot returns the SSR/hydration default;
-// getSnapshot returns the real value once hydrated. No mount effect, so the
-// consuming component stays eligible for React Compiler memoization.
-export function usePlatform(): [Platform, Arch] {
-  const platform = useSyncExternalStore(noopSubscribe, detectPlatform, () => "windows" as Platform);
-  const arch = useSyncExternalStore(noopSubscribe, detectArch, () => "" as Arch);
-  return [platform, arch];
+export function detectArchFromUA(userAgent: string): Arch {
+  const ua = userAgent.toLowerCase();
+  if (ua.includes("arm64") || ua.includes("aarch64")) return "arm64";
+  if (ua.includes("x86_64") || ua.includes("amd64") || ua.includes("win64")) return "amd64";
+  return "";
 }
 
 export function detectPlatform(): Platform {
   if (typeof navigator === "undefined") return "windows";
-  const ua = navigator.userAgent.toLowerCase();
-  if (ua.includes("macintosh") || ua.includes("mac os") || ua.includes("darwin")) return "macos";
-  if (ua.includes("linux")) return "linux";
-  return "windows";
+  return detectPlatformFromUA(navigator.userAgent);
 }
 
 export function detectArch(): Arch {
   if (typeof navigator === "undefined") return "";
-  const ua = navigator.userAgent.toLowerCase();
-  if (ua.includes("arm64") || ua.includes("aarch64")) return "arm64";
+  const fromUA = detectArchFromUA(navigator.userAgent);
+  if (fromUA) return fromUA;
   const uad = (navigator as Navigator & { userAgentData?: { architecture?: string } }).userAgentData;
   if (uad?.architecture) {
     const arch = uad.architecture.toLowerCase();

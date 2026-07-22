@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { ReleasePageBody, type ReleaseData, type ReleaseSummary } from "./release-page";
 import { ReleaseError } from "./release-error";
-import type { Asset } from "./platform-utils";
+import { detectArchFromUA, detectPlatformFromUA, type Arch, type Asset, type Platform } from "./platform-utils";
 
 const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:8080";
 const CHECKSUM_RE = /checksum|sha256sums|sha512sums|md5sums/i;
@@ -71,6 +72,22 @@ export async function getReleases(owner: string, repo: string): Promise<ReleaseS
   }
 }
 
+// README is fetched separately so /api/release (download CTA) isn't blocked by
+// a large document. Empty string on any failure — install commands / About just hide.
+export async function getReadme(owner: string, repo: string): Promise<string> {
+  try {
+    const res = await fetch(`${BACKEND_URL}/api/readme/${owner}/${repo}`, { next: { revalidate: 300 } });
+    if (!res.ok) return "";
+    const body: unknown = await res.json();
+    if (typeof body === "object" && body !== null && "readme" in body && typeof body.readme === "string") {
+      return body.readme;
+    }
+    return "";
+  } catch {
+    return "";
+  }
+}
+
 // Resolves the release's checksum file (if any) into a filename -> hash map,
 // so the client can do a plain lookup instead of fetching it itself.
 export async function getChecksums(assets: Asset[]): Promise<Record<string, string>> {
@@ -99,6 +116,11 @@ export async function getChecksums(assets: Asset[]): Promise<Record<string, stri
   }
 }
 
+export async function platformFromRequest(): Promise<[Platform, Arch]> {
+  const ua = (await headers()).get("user-agent") ?? "";
+  return [detectPlatformFromUA(ua), detectArchFromUA(ua)];
+}
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { owner, repo } = await params;
   return {
@@ -111,15 +133,22 @@ export default async function ReleasePage({ params }: Props) {
   const { owner, repo } = await params;
   const result = await getRelease(owner, repo);
   if (!result.ok) return <ReleaseError message={result.message} />;
-  // Start these, but don't await - the header/button/notes paint from
-  // result.data immediately, and these stream in separately (see release-page.tsx).
-  const releasesPromise = getReleases(owner, repo);
+  const [platform, arch] = await platformFromRequest();
+  // README streams in separately; releases are usually already on the release
+  // payload (backend embeds them). Checksums stay non-blocking via Suspense.
+  const readmePromise = getReadme(owner, repo);
+  const releasesPromise = Array.isArray(result.data.releases)
+      ? Promise.resolve(result.data.releases)
+      : getReleases(owner, repo);
   const checksumsPromise = getChecksums(result.data.assets);
   return (
     <ReleasePageBody
       owner={owner}
       repo={repo}
       release={result.data}
+      initialPlatform={platform}
+      initialArch={arch}
+      readmePromise={readmePromise}
       releasesPromise={releasesPromise}
       checksumsPromise={checksumsPromise}
     />

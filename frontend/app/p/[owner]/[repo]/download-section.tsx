@@ -1,7 +1,8 @@
 "use client";
 
 import { Suspense, use } from "react";
-import { usePlatform, pickBestAsset, type Asset } from "./platform-utils";
+import { pickBestAsset, type Arch, type Asset, type Platform } from "./platform-utils";
+import { usePlatform } from "./use-platform";
 import { DownloadButton } from "./download-button";
 import { AssetChecksum } from "./asset-checksum";
 
@@ -11,6 +12,8 @@ export function DownloadSection({
   assets,
   tagName,
   publishedDate,
+  initialPlatform,
+  initialArch,
   checksumsPromise,
 }: {
   owner: string;
@@ -18,9 +21,11 @@ export function DownloadSection({
   assets: Asset[];
   tagName: string;
   publishedDate: string;
+  initialPlatform: Platform;
+  initialArch: Arch;
   checksumsPromise: Promise<Record<string, string>>;
 }) {
-  const [platform, arch] = usePlatform();
+  const [platform, arch] = usePlatform(initialPlatform, initialArch);
   const primaryAsset = pickBestAsset(assets, platform, arch);
 
   return (
@@ -36,7 +41,11 @@ export function DownloadSection({
         {tagName} &middot; {publishedDate}
       </p>
       {primaryAsset && (
-        <Suspense fallback={null}>
+        <Suspense
+          fallback={
+            <div className="h-4 w-48 rounded bg-foreground/[0.06] animate-pulse" aria-hidden />
+          }
+        >
           <AssetChecksumSlot checksumsPromise={checksumsPromise} assetName={primaryAsset.name} />
         </Suspense>
       )}

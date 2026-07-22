@@ -17,7 +17,7 @@ func newTestCacheWithMiniredis(t *testing.T) (*Cache, *miniredis.Miniredis) {
 	mr := miniredis.RunT(t)
 	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})
 	t.Cleanup(func() { _ = client.Close() })
-	return &Cache{client: client, softTTL: time.Minute, hardTTL: HardTTL}, mr
+	return &Cache{client: client, softTTL: time.Minute, hardTTL: HardTTL, l1: newL1(l1MaxEntries)}, mr
 }
 
 func TestAllow_PermitsUnderLimit(t *testing.T) {

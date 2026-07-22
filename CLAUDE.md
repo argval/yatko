@@ -49,9 +49,10 @@ Request flow for a download: `main.go` wires a single `github.Client` and `cache
 
 - **`github/`** — GitHub REST API client (releases by tag/latest, README fetch, repo search). Returns `*github.APIError` with a `StatusCode` on failure; `handlers/errors.go` maps that to the outward-facing HTTP status (404/403/429/502). Search uses a separate request path that does not update the core rate-limit budget (Search API remaining is ~30/min and would falsely trip the core reserve of 200).
 - **`cache/`** — Redis-backed cache wrapping every GitHub fetch through `cache.FetchCached`. Falls back to a graceful no-op when `UPSTASH_REDIS_URL` is unset, so it works without Redis in local dev. Design (read before changing cache behavior):
-  - **Soft TTL** (`CACHE_TTL_SECONDS`, default 15 min): serve cached value as-is, zero network calls.
-  - **Revalidation**: after soft TTL, next request uses `If-None-Match`; a `304` does not count against GitHub's rate limit and extends freshness.
-  - **Hard TTL** (24h): how long a stale entry (and its ETag) is kept so revalidation stays possible.
+ - **Soft TTL** (`CACHE_TTL_SECONDS`, default 15 min): serve cached value as-is, zero network calls. Search keys use a longer soft TTL (2h).
+ - **L1 (in-process)**: hot keys are also kept in a small process-local LRU so repeated `/dl` hits skip Upstash.
+ - **Revalidation**: after soft TTL, serve the stale value immediately and revalidate in the background with `If-None-Match`; a `304` does not count against GitHub's rate limit and extends freshness.
+ - **Hard TTL** (24h): how long a stale entry (and its ETag) is kept so revalidation stays possible.
   - **Request coalescing**: concurrent misses for the same key are deduplicated via `singleflight`.
   - **Stale-while-error**: if GitHub is unreachable or rate-limited, serve the last known-good value when one exists.
   - **Rate-limit budget guard**: the GitHub client refuses new requests once `X-RateLimit-Remaining` drops below a reserve (200), so bursts of cold repos fail fast with 429 instead of starving already-cached ones. Tracks `X-RateLimit-Reset` and clears the observed budget once that window ends so the guard doesn't stick until process restart.

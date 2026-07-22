@@ -31,6 +31,18 @@ func (h *PageHandler) HandleVersioned(c *gin.Context) {
 	h.handle(c, c.Param("owner"), c.Param("repo"), c.Param("version"))
 }
 
+// HandleREADME serves /api/readme/:owner/:repo — raw README for install-command
+// extraction and the About section. Kept off the critical /api/release path so
+// the download CTA can paint without waiting on a potentially large README.
+func (h *PageHandler) HandleREADME(c *gin.Context) {
+	owner := c.Param("owner")
+	repo := c.Param("repo")
+	if secret := os.Getenv("CACHE_REFRESH_SECRET"); secret != "" && c.Query("refresh") == secret {
+		_ = h.cache.Invalidate(c.Request.Context(), cache.ReadmeKey(owner, repo))
+	}
+	c.JSON(http.StatusOK, gin.H{"readme": h.getREADME(c, owner, repo)})
+}
+
 func (h *PageHandler) handle(c *gin.Context, owner, repo, version string) {
 	// Cache bust is gated on CACHE_REFRESH_SECRET so unauthenticated
 	// ?refresh=1 can't force GitHub re-fetches. When the secret is unset,
@@ -42,15 +54,16 @@ func (h *PageHandler) handle(c *gin.Context, owner, repo, version string) {
 		}
 		_ = h.cache.Invalidate(c.Request.Context(), key)
 		_ = h.cache.Invalidate(c.Request.Context(), cache.ReleasesKey(owner, repo))
+		_ = h.cache.Invalidate(c.Request.Context(), cache.DescriptionKey(owner, repo))
 	}
 
-	// Release, README, and repo metadata are independent lookups (each its own
-	// cache.FetchCached call) - run them concurrently instead of paying three
-	// sequential GitHub round trips on a cold cache. c.Copy() is gin's documented
-	// way to pass a *gin.Context into a goroutine.
+	// Release, repo metadata, and the version list are independent lookups —
+	// run them concurrently. README is served from /api/readme instead so it
+	// does not block this response. c.Copy() is gin's documented way to pass a
+	// *gin.Context into a goroutine.
 	var release *github.Release
-	var readme string
 	var meta repoMeta
+	var releases []github.ReleaseSummary
 	var g errgroup.Group
 	g.Go(func() error {
 		var err error
@@ -58,11 +71,11 @@ func (h *PageHandler) handle(c *gin.Context, owner, repo, version string) {
 		return err
 	})
 	g.Go(func() error {
-		readme = h.getREADME(c.Copy(), owner, repo)
+		meta = h.getRepoMeta(c.Copy(), owner, repo)
 		return nil
 	})
 	g.Go(func() error {
-		meta = h.getRepoMeta(c.Copy(), owner, repo)
+		releases = h.getReleases(c.Copy(), owner, repo)
 		return nil
 	})
 	if err := g.Wait(); err != nil {
@@ -83,7 +96,7 @@ func (h *PageHandler) handle(c *gin.Context, owner, repo, version string) {
 		"html_url":     release.HTMLURL,
 		"prerelease":   release.Prerelease,
 		"assets":       release.Assets,
-		"readme":       readme,
+		"releases":     releases,
 	})
 }
 
@@ -123,4 +136,16 @@ func (h *PageHandler) getREADME(c *gin.Context, owner, repo string) string {
 		return ""
 	}
 	return content
+}
+
+func (h *PageHandler) getReleases(c *gin.Context, owner, repo string) []github.ReleaseSummary {
+	key := cache.ReleasesKey(owner, repo)
+	releases, err := cache.FetchCached(c.Request.Context(), h.cache, key, func(ctx context.Context, etag string) ([]github.ReleaseSummary, string, bool, error) {
+		return h.gh.GetReleases(ctx, owner, repo, etag)
+	})
+	if err != nil {
+		log.Printf("releases fetch error for %s/%s: %v", owner, repo, err)
+		return nil
+	}
+	return releases
 }

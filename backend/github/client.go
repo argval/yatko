@@ -217,9 +217,11 @@ func (c *Client) GetReleaseByTag(ctx context.Context, owner, repo, tag, etag str
 	return &release, newETag, false, nil
 }
 
-// GetReleases fetches the first 30 releases (summary only, no assets/body).
+// GetReleases fetches recent releases (summary only, no assets/body).
+// per_page is kept small — the version selector only needs a short list, and
+// GitHub's REST payload still includes full release objects on the wire.
 func (c *Client) GetReleases(ctx context.Context, owner, repo, etag string) ([]ReleaseSummary, string, bool, error) {
-	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/releases?per_page=30", owner, repo)
+	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/releases?per_page=15", owner, repo)
 	body, newETag, notModified, err := c.conditionalGet(ctx, url, "application/vnd.github.v3+json", etag, maxAPIResponseSize)
 	if err != nil {
 		return nil, "", false, err

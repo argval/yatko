@@ -28,9 +28,11 @@ Most GitHub projects bury downloads in a releases page with 15+ assets. Yatko gi
 | `/dl/:owner/:repo/:version` | Same, but for a specific release tag |
 | `/api/link/:owner/:repo` | JSON with resolved download URL — for CI/scripts |
 | `/api/releases/:owner/:repo` | List of recent releases (tag, date, prerelease flag) |
+| `/api/search?q=` | GitHub repo search — homepage autocomplete suggestions |
 
 ## Features
 
+- **Repo search** — type a name on the homepage and pick from live GitHub suggestions
 - **Platform detection** — Windows / macOS / Linux from User-Agent
 - **Architecture detection** — amd64 / arm64 / arm / 386 from User-Agent and `navigator.userAgentData`
 - **Version selector** — browse and switch between recent releases in the UI

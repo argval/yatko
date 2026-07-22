@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"strconv"
 	"sync/atomic"
@@ -248,6 +249,87 @@ func (c *Client) GetRepo(ctx context.Context, owner, repo, etag string) (*Repo, 
 		return nil, "", false, fmt.Errorf("decoding repo: %w", err)
 	}
 	return &r, newETag, false, nil
+}
+
+// SearchRepo is a trimmed GitHub search hit for homepage autocomplete.
+type SearchRepo struct {
+	Owner       string `json:"owner"`
+	Repo        string `json:"repo"`
+	Description string `json:"description"`
+	Stars       int    `json:"stars"`
+	AvatarURL   string `json:"avatar_url"`
+}
+
+// githubSearchResponse is the subset of GitHub's /search/repositories payload we need.
+type githubSearchResponse struct {
+	Items []struct {
+		Name        string `json:"name"`
+		FullName    string `json:"full_name"`
+		Description string `json:"description"`
+		Stars       int    `json:"stargazers_count"`
+		Owner       struct {
+			Login     string `json:"login"`
+			AvatarURL string `json:"avatar_url"`
+		} `json:"owner"`
+	} `json:"items"`
+}
+
+const searchPerPage = 8
+
+// SearchRepositories searches public repos by name/keyword. GitHub's Search API
+// has its own (much smaller) rate-limit bucket, so this path intentionally does
+// not share checkBudget/recordRateLimit with the core REST client — recording
+// a search remaining of ~30 would falsely trip the core reserve of 200 and
+// starve release fetches.
+func (c *Client) SearchRepositories(ctx context.Context, query, etag string) ([]SearchRepo, string, bool, error) {
+	u := fmt.Sprintf(
+		"https://api.github.com/search/repositories?q=%s&per_page=%d",
+		url.QueryEscape(query),
+		searchPerPage,
+	)
+
+	req, err := c.newRequest(ctx, u, "application/vnd.github.v3+json", etag)
+	if err != nil {
+		return nil, "", false, fmt.Errorf("creating request: %w", err)
+	}
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, "", false, fmt.Errorf("performing request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusNotModified {
+		return nil, etag, true, nil
+	}
+	if err := c.checkStatus(resp); err != nil {
+		return nil, "", false, err
+	}
+	data, err := io.ReadAll(io.LimitReader(resp.Body, maxAPIResponseSize))
+	if err != nil {
+		return nil, "", false, fmt.Errorf("reading response: %w", err)
+	}
+
+	var raw githubSearchResponse
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil, "", false, fmt.Errorf("decoding search: %w", err)
+	}
+
+	items := make([]SearchRepo, 0, len(raw.Items))
+	for _, it := range raw.Items {
+		owner := it.Owner.Login
+		name := it.Name
+		if owner == "" || name == "" {
+			continue
+		}
+		items = append(items, SearchRepo{
+			Owner:       owner,
+			Repo:        name,
+			Description: it.Description,
+			Stars:       it.Stars,
+			AvatarURL:   it.Owner.AvatarURL,
+		})
+	}
+	return items, resp.Header.Get("ETag"), false, nil
 }
 
 // GetREADME fetches the raw README content for a repo, capped at maxREADMESize.

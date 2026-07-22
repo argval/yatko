@@ -39,7 +39,7 @@ bun run build
 bun run start
 ```
 
-Requires `BACKEND_URL` (server-side only — every backend call in `frontend/` is server-side, there's no client-side fetch to it) pointing at the backend. In production this is injected automatically by the Vercel service binding declared in `vercel.json`; for local dev outside `./dev.sh`, set it to `http://localhost:8080`.
+Requires `BACKEND_URL` (server-side only for release pages — every backend call under `frontend/app/p/` is server-side). The homepage autocomplete calls same-origin `/api/search`, which Vercel rewrites to the backend (and `next.config.ts` proxies to `BACKEND_URL` in local `next dev`). For local dev outside `./dev.sh`, set `BACKEND_URL` to `http://localhost:8080`.
 
 There is no lint script and no test runner configured on the frontend.
 
@@ -47,7 +47,7 @@ There is no lint script and no test runner configured on the frontend.
 
 Request flow for a download: `main.go` wires a single `github.Client` and `cache.Cache` into each handler; handlers stay thin and delegate to these packages.
 
-- **`github/`** — GitHub REST API client (releases by tag/latest, README fetch). Returns `*github.APIError` with a `StatusCode` on failure; `handlers/errors.go` maps that to the outward-facing HTTP status (404/403/429/502).
+- **`github/`** — GitHub REST API client (releases by tag/latest, README fetch, repo search). Returns `*github.APIError` with a `StatusCode` on failure; `handlers/errors.go` maps that to the outward-facing HTTP status (404/403/429/502). Search uses a separate request path that does not update the core rate-limit budget (Search API remaining is ~30/min and would falsely trip the core reserve of 200).
 - **`cache/`** — Redis-backed cache wrapping every GitHub fetch through `cache.FetchCached`. Falls back to a graceful no-op when `UPSTASH_REDIS_URL` is unset, so it works without Redis in local dev. Design (read before changing cache behavior):
   - **Soft TTL** (`CACHE_TTL_SECONDS`, default 15 min): serve cached value as-is, zero network calls.
   - **Revalidation**: after soft TTL, next request uses `If-None-Match`; a `304` does not count against GitHub's rate limit and extends freshness.
@@ -56,7 +56,7 @@ Request flow for a download: `main.go` wires a single `github.Client` and `cache
   - **Stale-while-error**: if GitHub is unreachable or rate-limited, serve the last known-good value when one exists.
   - **Rate-limit budget guard**: the GitHub client refuses new requests once `X-RateLimit-Remaining` drops below a reserve (200), so bursts of cold repos fail fast with 429 instead of starving already-cached ones. Tracks `X-RateLimit-Reset` and clears the observed budget once that window ends so the guard doesn't stick until process restart.
 - **`picker/`** — pure platform/arch detection and asset-matching logic (User-Agent parsing → OS/arch → best-matching release asset). No I/O.
-- **`handlers/`** — Gin route handlers, one file per route family (`redirect`, `link`, `page`, `releases`). Each handler fetches a release via `cache.FetchCached(ctx, cache, key, ghClientCall)`, then hands assets to `picker` if it needs to pick one.
+- **`handlers/`** — Gin route handlers, one file per route family (`redirect`, `link`, `page`, `releases`, `search`). Each handler fetches via `cache.FetchCached(ctx, cache, key, ghClientCall)`, then hands assets to `picker` if it needs to pick one.
 - **`middleware/`** — per-IP HTTP rate limit (`RATE_LIMIT_RPM`, default 120/min); also no-ops without `UPSTASH_REDIS_URL`. Separate from the GitHub cache/rate-limit budget above.
 
 No CORS policy: frontend and backend are Vercel services sharing one origin, so only same-origin requests ever reach the API. `main.go` trusts the `X-Forwarded-For` header for the per-IP rate limiter's client identity — safe because Vercel's edge overwrites that header and never forwards a client-supplied value.

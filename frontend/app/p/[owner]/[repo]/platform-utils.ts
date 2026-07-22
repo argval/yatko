@@ -2,7 +2,6 @@
 // mentionsOtherPlatform, isSource, platformExtensions) mirror
 // backend/picker/asset.go so the browser can pick/label assets without a
 // round trip. Keep both in sync when changing either.
-import { useSyncExternalStore } from "react";
 
 export type Platform = "windows" | "macos" | "linux";
 export type Arch = "amd64" | "arm64" | "";
@@ -20,9 +19,6 @@ export const platformLabels: Record<Platform, string> = {
   linux: "Linux",
 };
 
-// A value that never changes after the first client read: subscribe is a no-op.
-const noopSubscribe = () => () => {};
-
 export function detectPlatformFromUA(userAgent: string): Platform {
   const ua = userAgent.toLowerCase();
   if (ua.includes("macintosh") || ua.includes("mac os") || ua.includes("darwin")) return "macos";
@@ -37,24 +33,6 @@ export function detectArchFromUA(userAgent: string): Arch {
   if (ua.includes("arm64") || ua.includes("aarch64")) return "arm64";
   if (ua.includes("x86_64") || ua.includes("amd64") || ua.includes("win64")) return "amd64";
   return "";
-}
-
-// usePlatform detects the visitor's platform/arch. When initial* is provided
-// (from the request User-Agent on the server), SSR and the first client paint
-// match — avoiding a Windows→macOS/Linux flash. After hydration, navigator
-// (including userAgentData) can refine the arch.
-export function usePlatform(initialPlatform?: Platform, initialArch?: Arch): [Platform, Arch] {
-  const platform = useSyncExternalStore(
-    noopSubscribe,
-    detectPlatform,
-    () => initialPlatform ?? ("windows" as Platform),
-  );
-  const arch = useSyncExternalStore(
-    noopSubscribe,
-    detectArch,
-    () => initialArch ?? ("" as Arch),
-  );
-  return [platform, arch];
 }
 
 export function detectPlatform(): Platform {

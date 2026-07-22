@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { useCopy } from "./use-copy";
+import { platformLabels as basePlatformLabels, type Platform } from "./platform-utils";
+import { usePlatform } from "./use-platform";
 import { CollapsibleCard } from "./collapsible-card";
-import { usePlatform, platformLabels as basePlatformLabels, type Platform } from "./platform-utils";
+import { useCopy } from "./use-copy";
 
 export type InstallPlatform = "macos" | "windows" | "linux" | "universal";
 

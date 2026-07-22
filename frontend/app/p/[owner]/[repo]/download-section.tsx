@@ -1,7 +1,8 @@
 "use client";
 
 import { Suspense, use } from "react";
-import { usePlatform, pickBestAsset, type Arch, type Asset, type Platform } from "./platform-utils";
+import { pickBestAsset, type Arch, type Asset, type Platform } from "./platform-utils";
+import { usePlatform } from "./use-platform";
 import { DownloadButton } from "./download-button";
 import { AssetChecksum } from "./asset-checksum";
 

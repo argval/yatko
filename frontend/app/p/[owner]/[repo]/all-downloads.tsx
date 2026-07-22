@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { usePlatform, assetPlatformLabel, platformLabels, formatSize, type Asset, type Platform } from "./platform-utils";
+import { assetPlatformLabel, platformLabels, formatSize, type Asset, type Platform } from "./platform-utils";
+import { usePlatform } from "./use-platform";
 import { CollapsibleCard } from "./collapsible-card";
 
 const compactCount = new Intl.NumberFormat("en", {

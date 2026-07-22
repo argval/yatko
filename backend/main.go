@@ -7,11 +7,13 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/argval/yatko/cache"
 	"github.com/argval/yatko/github"
 	"github.com/argval/yatko/handlers"
 	"github.com/argval/yatko/middleware"
+	"github.com/argval/yatko/ratelimit"
+	"github.com/argval/yatko/search"
+	"github.com/gin-gonic/gin"
 )
 
 // defaultRateLimitRPM is the per-IP request budget per minute, overridable
@@ -21,12 +23,13 @@ const defaultRateLimitRPM = 120
 func main() {
 	ghClient := github.NewClient()
 	redisCache := cache.New()
+	limiter := ratelimit.New()
 
 	redirectHandler := handlers.NewRedirectHandler(ghClient, redisCache)
 	pageHandler := handlers.NewPageHandler(redirectHandler, ghClient, redisCache)
 	linkHandler := handlers.NewLinkHandler(redirectHandler)
 	releasesHandler := handlers.NewReleasesHandler(ghClient, redisCache)
-	searchHandler := handlers.NewSearchHandler(ghClient, redisCache)
+	searchHandler := handlers.NewSearchHandler(search.NewAutocomplete(ghClient, redisCache))
 
 	r := gin.Default()
 
@@ -54,7 +57,7 @@ func main() {
 	// Rate-limited routes only - /health is exempt so hosting-platform
 	// probes (which hit it frequently from an internal IP) are never throttled.
 	limited := r.Group("/")
-	limited.Use(middleware.RateLimit(redisCache, rateLimitRPM, time.Minute))
+	limited.Use(middleware.RateLimit(limiter, rateLimitRPM, time.Minute))
 	limited.GET("/dl/:owner/:repo", redirectHandler.Handle)
 	limited.GET("/dl/:owner/:repo/:version", redirectHandler.HandleVersioned)
 	limited.GET("/api/release/:owner/:repo", pageHandler.Handle)

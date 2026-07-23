@@ -54,6 +54,32 @@ function languageFromClassName(className: string | undefined): string | undefine
   return match?.[1];
 }
 
+/** Hosts GitHub itself uses for README/release images (and our relative-URL rewrite). */
+const ALLOWED_IMG_HOSTS = new Set([
+  "github.com",
+  "www.github.com",
+  "raw.github.com", // legacy raw URLs still appear in older READMEs
+]);
+
+/**
+ * True when src is an https URL on a GitHub-controlled image host.
+ * Blocks attacker-hosted tracking pixels that would otherwise load on yatko.app.
+ */
+export function isAllowedMarkdownImageSrc(src: string): boolean {
+  let parsed: URL;
+  try {
+    const normalized = src.startsWith("//") ? `https:${src}` : src;
+    parsed = new URL(normalized);
+  } catch {
+    return false;
+  }
+  if (parsed.protocol !== "https:") return false;
+  const host = parsed.hostname.toLowerCase();
+  if (ALLOWED_IMG_HOSTS.has(host)) return true;
+  // raw / user-images / camo / avatars / private-user-images / media / …
+  return host === "githubusercontent.com" || host.endsWith(".githubusercontent.com");
+}
+
 const markdownComponents: Components = {
   a({ href, children, target: _target, rel: _rel, ...props }) {
     const external = isExternalHref(href);
@@ -69,8 +95,8 @@ const markdownComponents: Components = {
     );
   },
   img({ src, alt, ...props }) {
-    if (!src) return null;
-    // Plain <img>: release/README assets come from many hosts; next/image needs an allowlist.
+    if (!src || !isAllowedMarkdownImageSrc(src)) return null;
+    // Plain <img>: next/image needs a static host allowlist; GitHub hosts vary by path.
     return <img src={src} alt={alt ?? ""} loading="lazy" decoding="async" {...props} />;
   },
   // Unwrap <pre> so MarkdownCodeBlock owns the chrome (language label + copy).

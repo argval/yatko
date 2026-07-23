@@ -50,7 +50,7 @@ export function BelowFoldSections({
   }, []);
 
   return (
-    <div ref={ref} className="space-y-8">
+    <div ref={ref} id="downloads" className="space-y-8 scroll-mt-8">
       {ready ? (
         <>
           <AllDownloads assets={assets} initialPlatform={initialPlatform} />

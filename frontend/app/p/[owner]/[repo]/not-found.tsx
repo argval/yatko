@@ -20,7 +20,7 @@ export function NotFoundCard({
       <Link href="/" className={statusCardPrimaryAction}>
         Back to search
       </Link>
-      <a href={githubUrl} className={statusCardSecondaryAction}>
+      <a href={githubUrl} target="_blank" rel="noopener noreferrer" className={statusCardSecondaryAction}>
         Open GitHub
       </a>
     </StatusCard>

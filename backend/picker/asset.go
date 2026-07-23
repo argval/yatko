@@ -12,6 +12,8 @@ const (
 	Windows Platform = "windows"
 	MacOS   Platform = "macos"
 	Linux   Platform = "linux"
+	Android Platform = "android"
+	IOS     Platform = "ios"
 	Unknown Platform = "unknown"
 )
 
@@ -69,11 +71,17 @@ func DetectArch(userAgent string) Arch {
 }
 
 // DetectPlatform parses a User-Agent string to determine the client's OS.
+// Android must be checked before Linux (Android UAs contain "Linux"), and
+// iPhone/iPad/iPod before macOS (iOS UAs contain "like Mac OS X").
 func DetectPlatform(userAgent string) Platform {
 	ua := strings.ToLower(userAgent)
 	switch {
 	case strings.Contains(ua, "windows") || strings.Contains(ua, "win64") || strings.Contains(ua, "win32"):
 		return Windows
+	case strings.Contains(ua, "android"):
+		return Android
+	case strings.Contains(ua, "iphone") || strings.Contains(ua, "ipad") || strings.Contains(ua, "ipod"):
+		return IOS
 	case strings.Contains(ua, "macintosh") || strings.Contains(ua, "mac os") || strings.Contains(ua, "darwin"):
 		return MacOS
 	case strings.Contains(ua, "linux") || strings.Contains(ua, "ubuntu") || strings.Contains(ua, "fedora") || strings.Contains(ua, "debian"):
@@ -88,6 +96,8 @@ var platformExtensions = map[Platform][]string{
 	Windows: {".exe", ".msi", ".zip"},
 	MacOS:   {".dmg", ".pkg", ".zip", ".tar.gz"},
 	Linux:   {".AppImage", ".deb", ".rpm", ".tar.gz", ".tar.xz", ".zip"},
+	Android: {".apk", ".aab"},
+	IOS:     {".ipa"},
 }
 
 // variantKeywords are filename tokens that mark secondary builds (profiling,
@@ -245,12 +255,18 @@ func isAmbiguousTarball(name string) bool {
 	return false
 }
 
+// platformKeywords maps each platform to the substrings that identify it in
+// asset filenames. Shared by mentionsAnyPlatform / mentionsOtherPlatform.
+var platformKeywords = map[Platform][]string{
+	Windows: {"windows", "win32", "win64", "win-"},
+	MacOS:   {"macos", "darwin", "osx", "mac-"},
+	Linux:   {"linux", "ubuntu", "debian", "fedora", "appimage"},
+	Android: {"android", "apk"},
+	IOS:     {"ios", "iphone", "ipad", "ipod"},
+}
+
 func mentionsAnyPlatform(name string) bool {
-	for _, keywords := range [][]string{
-		{"windows", "win32", "win64", "win-"},
-		{"macos", "darwin", "osx", "mac-", "apple"},
-		{"linux", "ubuntu", "debian", "fedora", "appimage"},
-	} {
+	for _, keywords := range platformKeywords {
 		for _, kw := range keywords {
 			if hasBoundedKeyword(name, kw) {
 				return true
@@ -286,12 +302,6 @@ func isSource(name string) bool {
 
 // mentionsOtherPlatform checks if a filename explicitly references a different platform.
 func mentionsOtherPlatform(name string, current Platform) bool {
-	platformKeywords := map[Platform][]string{
-		Windows: {"windows", "win32", "win64", "win-"},
-		MacOS:   {"macos", "darwin", "osx", "mac-", "apple"},
-		Linux:   {"linux", "ubuntu", "debian", "fedora", "appimage"},
-	}
-
 	for p, keywords := range platformKeywords {
 		if p == current {
 			continue

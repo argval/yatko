@@ -52,6 +52,10 @@ func platformFromFixture(t *testing.T, s string) Platform {
 		return MacOS
 	case "linux":
 		return Linux
+	case "android":
+		return Android
+	case "ios":
+		return IOS
 	default:
 		t.Fatalf("unknown platform %q", s)
 		return Unknown

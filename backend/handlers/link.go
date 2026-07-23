@@ -16,7 +16,7 @@ import (
 //
 // Query params:
 //
-//	?platform=windows|macos|linux   (override UA detection)
+//	?platform=windows|macos|linux|android|ios   (override UA detection)
 //	?arch=amd64|arm64|arm|386       (override UA detection)
 type LinkHandler struct {
 	redirect *RedirectHandler

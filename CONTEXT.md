@@ -10,7 +10,7 @@ Canonical implementation: Go module `backend/picker`. The TypeScript port is a t
 
 ## Platform
 
-Visitor OS for asset matching: `windows`, `macos`, `linux`, or `unknown` (Go). Unknown yields no pick and `/dl` falls back to the GitHub release page.
+Visitor OS for asset matching: `windows`, `macos`, `linux`, `android`, `ios`, or `unknown` (Go). Unknown yields no pick and `/dl` falls back to the GitHub release page.
 
 ## Arch
 

@@ -97,3 +97,40 @@ func TestPickAssetForArch_FallsBackToVariantWhenOnlyOption(t *testing.T) {
 		t.Fatalf("expected tool-darwin-arm64-profile.zip, got %s", got.Name)
 	}
 }
+
+func TestDetectPlatform_MobileBeforeDesktop(t *testing.T) {
+	cases := []struct {
+		ua   string
+		want Platform
+	}{
+		{
+			ua:   "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 Chrome/120.0.0.0 Mobile Safari/537.36",
+			want: Android,
+		},
+		{
+			ua:   "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Version/17.0 Mobile/15E148 Safari/604.1",
+			want: IOS,
+		},
+		{
+			ua:   "Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Version/17.0 Mobile/15E148 Safari/604.1",
+			want: IOS,
+		},
+		{
+			ua:   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Version/17.0 Safari/605.1.15",
+			want: MacOS,
+		},
+		{
+			ua:   "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
+			want: Linux,
+		},
+		{
+			ua:   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36",
+			want: Windows,
+		},
+	}
+	for _, tc := range cases {
+		if got := DetectPlatform(tc.ua); got != tc.want {
+			t.Errorf("DetectPlatform(%q) = %q, want %q", tc.ua, got, tc.want)
+		}
+	}
+}

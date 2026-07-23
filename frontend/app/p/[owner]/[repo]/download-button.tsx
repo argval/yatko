@@ -2,6 +2,7 @@
 
 import { platformLabels, formatSize, type Platform, type Asset } from "./platform-utils";
 import { CopyButton } from "./copy-button";
+import { downloadCta } from "./download-cta";
 
 export function DownloadButton({
   owner,
@@ -16,20 +17,24 @@ export function DownloadButton({
   primaryAsset: Asset | null;
   hasAssets: boolean;
 }) {
-  const primaryHref =
-    primaryAsset?.browser_download_url ??
-    `https://github.com/${owner}/${repo}/releases/latest`;
+  const { href, label, external } = downloadCta({
+    platform,
+    primaryAsset,
+    hasAssets,
+    owner,
+    repo,
+  });
 
   return (
     <div className="flex flex-col items-center gap-2">
       <div className="flex items-center gap-2">
         <a
-          href={primaryHref}
-          {...(!primaryAsset && { target: "_blank", rel: "noopener noreferrer" })}
+          href={href}
+          {...(external && { target: "_blank", rel: "noopener noreferrer" })}
           className="inline-flex items-center gap-2 px-8 py-4 rounded-xl bg-foreground text-background font-semibold text-lg tracking-tight hover:opacity-90 active:scale-[0.98] transition-[opacity,transform] duration-150"
         >
           <DownloadIcon />
-          {hasAssets ? `Download for ${platformLabels[platform]}` : "View Release on GitHub"}
+          {label}
         </a>
         <CopyButton
           text={`https://yatko.app/p/${owner}/${repo}`}
@@ -45,7 +50,7 @@ export function DownloadButton({
         </p>
       ) : hasAssets ? (
         <p className="text-xs text-muted">
-          No binary found for {platformLabels[platform]} - see all downloads below
+          No binary found for {platformLabels[platform]} – see all downloads below
         </p>
       ) : (
         <p className="text-xs text-muted">

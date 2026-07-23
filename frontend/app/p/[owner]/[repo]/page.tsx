@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { ReleasePageBody } from "./release-page";
 import { ReleaseError } from "./release-error";
+import { NotFoundCard } from "./not-found";
 import { getChecksums, getReadme, getRelease, getReleases, platformFromRequest } from "./backend";
 
 type Props = {
@@ -18,7 +19,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function ReleasePage({ params }: Props) {
   const { owner, repo } = await params;
   const result = await getRelease(owner, repo);
-  if (!result.ok) return <ReleaseError message={result.message} />;
+  if (!result.ok) {
+    return result.notFound ? (
+      <NotFoundCard owner={owner} repo={repo} repoExists={result.repoExists} />
+    ) : (
+      <ReleaseError message={result.message} />
+    );
+  }
   const [platform, arch] = await platformFromRequest();
   // README streams in separately; releases are usually already on the release
   // payload (backend embeds them). Checksums stay non-blocking via Suspense.

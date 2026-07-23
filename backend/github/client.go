@@ -67,6 +67,11 @@ type Client struct {
 	// GitHub rate-limit window. 0 until first recorded. Used so checkBudget
 	// can recover after a window ends instead of refusing until process restart.
 	resetAt int64
+	// searchRemaining / searchResetAt track GitHub's separate Search API
+	// budget (~30 req/min). Kept distinct from remaining so a low Search
+	// remaining cannot trip the core REST reserve of 200.
+	searchRemaining int32
+	searchResetAt   int64
 }
 
 const (
@@ -81,13 +86,19 @@ const (
 	// (via FetchCached's stale-while-error fallback) instead of every repo,
 	// hot or cold, racing to fail against an exhausted quota.
 	rateLimitReserve = 200
+	// searchRateLimitReserve is the headroom kept below GitHub's Search API
+	// quota (~30/min authenticated). Once search remaining drops below this,
+	// new search fetches are refused so autocomplete fails fast instead of
+	// burning the shared token for every visitor.
+	searchRateLimitReserve = 5
 )
 
 func NewClient() *Client {
 	return &Client{
-		httpClient: &http.Client{Timeout: 10 * time.Second},
-		token:      os.Getenv("GITHUB_TOKEN"),
-		remaining:  -1,
+		httpClient:      &http.Client{Timeout: 10 * time.Second},
+		token:           os.Getenv("GITHUB_TOKEN"),
+		remaining:       -1,
+		searchRemaining: -1,
 	}
 }
 
@@ -119,6 +130,33 @@ func (c *Client) recordRateLimit(h http.Header) {
 	if v := h.Get("X-RateLimit-Reset"); v != "" {
 		if n, err := strconv.ParseInt(v, 10, 64); err == nil {
 			atomic.StoreInt64(&c.resetAt, n)
+		}
+	}
+}
+
+// checkSearchBudget mirrors checkBudget for the Search API's separate quota.
+func (c *Client) checkSearchBudget() error {
+	remaining := atomic.LoadInt32(&c.searchRemaining)
+	if remaining < 0 || remaining >= searchRateLimitReserve {
+		return nil
+	}
+	if resetAt := atomic.LoadInt64(&c.searchResetAt); resetAt > 0 && time.Now().Unix() >= resetAt {
+		atomic.StoreInt32(&c.searchRemaining, -1)
+		atomic.StoreInt64(&c.searchResetAt, 0)
+		return nil
+	}
+	return &APIError{StatusCode: http.StatusTooManyRequests, Message: "GitHub search rate limit nearly exhausted, refusing new request"}
+}
+
+func (c *Client) recordSearchRateLimit(h http.Header) {
+	if v := h.Get("X-RateLimit-Remaining"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			atomic.StoreInt32(&c.searchRemaining, int32(n))
+		}
+	}
+	if v := h.Get("X-RateLimit-Reset"); v != "" {
+		if n, err := strconv.ParseInt(v, 10, 64); err == nil {
+			atomic.StoreInt64(&c.searchResetAt, n)
 		}
 	}
 }
@@ -182,12 +220,23 @@ func (c *Client) conditionalGet(ctx context.Context, url, accept, etag string, m
 	return data, resp.Header.Get("ETag"), false, nil
 }
 
+// repoAPIPath builds a path under /repos/{owner}/{repo} with PathEscape so
+// attacker-controlled segments cannot inject ?/# into the outbound URL.
+func repoAPIPath(owner, repo, suffix string) string {
+	return fmt.Sprintf(
+		"https://api.github.com/repos/%s/%s%s",
+		url.PathEscape(owner),
+		url.PathEscape(repo),
+		suffix,
+	)
+}
+
 // GetLatestRelease fetches the latest release. Pass the previously-seen etag
 // (empty string if none) to revalidate cheaply; when notModified is true, the
 // returned Release is nil and the caller should keep using its cached value.
 func (c *Client) GetLatestRelease(ctx context.Context, owner, repo, etag string) (*Release, string, bool, error) {
-	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/releases/latest", owner, repo)
-	body, newETag, notModified, err := c.conditionalGet(ctx, url, "application/vnd.github.v3+json", etag, maxAPIResponseSize)
+	u := repoAPIPath(owner, repo, "/releases/latest")
+	body, newETag, notModified, err := c.conditionalGet(ctx, u, "application/vnd.github.v3+json", etag, maxAPIResponseSize)
 	if err != nil {
 		return nil, "", false, err
 	}
@@ -202,8 +251,8 @@ func (c *Client) GetLatestRelease(ctx context.Context, owner, repo, etag string)
 }
 
 func (c *Client) GetReleaseByTag(ctx context.Context, owner, repo, tag, etag string) (*Release, string, bool, error) {
-	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/releases/tags/%s", owner, repo, tag)
-	body, newETag, notModified, err := c.conditionalGet(ctx, url, "application/vnd.github.v3+json", etag, maxAPIResponseSize)
+	u := repoAPIPath(owner, repo, "/releases/tags/"+url.PathEscape(tag))
+	body, newETag, notModified, err := c.conditionalGet(ctx, u, "application/vnd.github.v3+json", etag, maxAPIResponseSize)
 	if err != nil {
 		return nil, "", false, err
 	}
@@ -221,8 +270,8 @@ func (c *Client) GetReleaseByTag(ctx context.Context, owner, repo, tag, etag str
 // per_page is kept small — the version selector only needs a short list, and
 // GitHub's REST payload still includes full release objects on the wire.
 func (c *Client) GetReleases(ctx context.Context, owner, repo, etag string) ([]ReleaseSummary, string, bool, error) {
-	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/releases?per_page=15", owner, repo)
-	body, newETag, notModified, err := c.conditionalGet(ctx, url, "application/vnd.github.v3+json", etag, maxAPIResponseSize)
+	u := repoAPIPath(owner, repo, "/releases?per_page=15")
+	body, newETag, notModified, err := c.conditionalGet(ctx, u, "application/vnd.github.v3+json", etag, maxAPIResponseSize)
 	if err != nil {
 		return nil, "", false, err
 	}
@@ -238,8 +287,8 @@ func (c *Client) GetReleases(ctx context.Context, owner, repo, etag string) ([]R
 
 // GetRepo fetches basic repo metadata (description and owner avatar).
 func (c *Client) GetRepo(ctx context.Context, owner, repo, etag string) (*Repo, string, bool, error) {
-	url := fmt.Sprintf("https://api.github.com/repos/%s/%s", owner, repo)
-	body, newETag, notModified, err := c.conditionalGet(ctx, url, "application/vnd.github.v3+json", etag, maxAPIResponseSize)
+	u := repoAPIPath(owner, repo, "")
+	body, newETag, notModified, err := c.conditionalGet(ctx, u, "application/vnd.github.v3+json", etag, maxAPIResponseSize)
 	if err != nil {
 		return nil, "", false, err
 	}
@@ -279,11 +328,15 @@ type githubSearchResponse struct {
 const searchPerPage = 8
 
 // SearchRepositories searches public repos by name/keyword. GitHub's Search API
-// has its own (much smaller) rate-limit bucket, so this path intentionally does
-// not share checkBudget/recordRateLimit with the core REST client — recording
-// a search remaining of ~30 would falsely trip the core reserve of 200 and
-// starve release fetches.
+// has its own (much smaller) rate-limit bucket, so this path uses
+// checkSearchBudget/recordSearchRateLimit instead of the core REST guards —
+// recording a search remaining of ~30 into the core budget would falsely trip
+// the core reserve of 200 and starve release fetches.
 func (c *Client) SearchRepositories(ctx context.Context, query, etag string) ([]SearchRepo, string, bool, error) {
+	if err := c.checkSearchBudget(); err != nil {
+		return nil, "", false, err
+	}
+
 	u := fmt.Sprintf(
 		"https://api.github.com/search/repositories?q=%s&per_page=%d",
 		url.QueryEscape(query),
@@ -299,6 +352,7 @@ func (c *Client) SearchRepositories(ctx context.Context, query, etag string) ([]
 		return nil, "", false, fmt.Errorf("performing request: %w", err)
 	}
 	defer resp.Body.Close()
+	c.recordSearchRateLimit(resp.Header)
 
 	if resp.StatusCode == http.StatusNotModified {
 		return nil, etag, true, nil
@@ -341,8 +395,8 @@ func (c *Client) GetREADME(ctx context.Context, owner, repo, etag string) (strin
 		return "", "", false, err
 	}
 
-	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/readme", owner, repo)
-	req, err := c.newRequest(ctx, url, "application/vnd.github.v3.raw", etag)
+	u := repoAPIPath(owner, repo, "/readme")
+	req, err := c.newRequest(ctx, u, "application/vnd.github.v3.raw", etag)
 	if err != nil {
 		return "", "", false, fmt.Errorf("creating request: %w", err)
 	}

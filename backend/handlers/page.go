@@ -82,7 +82,7 @@ func (h *PageHandler) handle(c *gin.Context, owner, repo, version string) {
 	if err := g.Wait(); err != nil {
 		log.Printf("page: error fetching release %q for %s/%s: %v", version, owner, repo, err)
 		status := httpStatusFromError(err)
-		body := gin.H{"error": err.Error()}
+		body := gin.H{"error": publicErrorMessage(err)}
 		// GitHub's releases/latest 404s both for a repo that doesn't exist and
 		// for a real repo with zero releases; repoFound (from the separately
 		// fetched repo metadata) disambiguates the two for the frontend.

@@ -32,7 +32,7 @@ func (h *SearchHandler) Handle(c *gin.Context) {
 	items, err := h.autocomplete.Suggest(c.Request.Context(), q)
 	if err != nil {
 		log.Printf("search: error for %q: %v", q, err)
-		c.JSON(httpStatusFromError(err), gin.H{"error": err.Error()})
+		c.JSON(httpStatusFromError(err), gin.H{"error": publicErrorMessage(err)})
 		return
 	}
 

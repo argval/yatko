@@ -23,3 +23,19 @@ func httpStatusFromError(err error) int {
 	}
 	return http.StatusBadGateway
 }
+
+// publicErrorMessage returns a fixed, status-appropriate client message.
+// Callers should log err.Error() server-side; never echo upstream bodies or
+// internal Go strings to unauthenticated clients.
+func publicErrorMessage(err error) string {
+	switch httpStatusFromError(err) {
+	case http.StatusNotFound:
+		return "not found"
+	case http.StatusForbidden:
+		return "forbidden"
+	case http.StatusTooManyRequests:
+		return "rate limited"
+	default:
+		return "upstream error"
+	}
+}

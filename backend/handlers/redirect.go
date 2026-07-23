@@ -33,7 +33,7 @@ func (h *RedirectHandler) handle(c *gin.Context, owner, repo, version string) {
 	release, err := h.getRelease(c, owner, repo, version)
 	if err != nil {
 		log.Printf("error fetching release %q for %s/%s: %v", version, owner, repo, err)
-		c.JSON(httpStatusFromError(err), gin.H{"error": err.Error()})
+		c.JSON(httpStatusFromError(err), gin.H{"error": publicErrorMessage(err)})
 		return
 	}
 

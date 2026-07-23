@@ -31,7 +31,7 @@ func (h *ReleasesHandler) Handle(c *gin.Context) {
 	})
 	if err != nil {
 		log.Printf("releases: error fetching for %s/%s: %v", owner, repo, err)
-		c.JSON(httpStatusFromError(err), gin.H{"error": err.Error()})
+		c.JSON(httpStatusFromError(err), gin.H{"error": publicErrorMessage(err)})
 		return
 	}
 

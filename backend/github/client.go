@@ -220,12 +220,23 @@ func (c *Client) conditionalGet(ctx context.Context, url, accept, etag string, m
 	return data, resp.Header.Get("ETag"), false, nil
 }
 
+// repoAPIPath builds a path under /repos/{owner}/{repo} with PathEscape so
+// attacker-controlled segments cannot inject ?/# into the outbound URL.
+func repoAPIPath(owner, repo, suffix string) string {
+	return fmt.Sprintf(
+		"https://api.github.com/repos/%s/%s%s",
+		url.PathEscape(owner),
+		url.PathEscape(repo),
+		suffix,
+	)
+}
+
 // GetLatestRelease fetches the latest release. Pass the previously-seen etag
 // (empty string if none) to revalidate cheaply; when notModified is true, the
 // returned Release is nil and the caller should keep using its cached value.
 func (c *Client) GetLatestRelease(ctx context.Context, owner, repo, etag string) (*Release, string, bool, error) {
-	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/releases/latest", owner, repo)
-	body, newETag, notModified, err := c.conditionalGet(ctx, url, "application/vnd.github.v3+json", etag, maxAPIResponseSize)
+	u := repoAPIPath(owner, repo, "/releases/latest")
+	body, newETag, notModified, err := c.conditionalGet(ctx, u, "application/vnd.github.v3+json", etag, maxAPIResponseSize)
 	if err != nil {
 		return nil, "", false, err
 	}
@@ -240,8 +251,8 @@ func (c *Client) GetLatestRelease(ctx context.Context, owner, repo, etag string)
 }
 
 func (c *Client) GetReleaseByTag(ctx context.Context, owner, repo, tag, etag string) (*Release, string, bool, error) {
-	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/releases/tags/%s", owner, repo, tag)
-	body, newETag, notModified, err := c.conditionalGet(ctx, url, "application/vnd.github.v3+json", etag, maxAPIResponseSize)
+	u := repoAPIPath(owner, repo, "/releases/tags/"+url.PathEscape(tag))
+	body, newETag, notModified, err := c.conditionalGet(ctx, u, "application/vnd.github.v3+json", etag, maxAPIResponseSize)
 	if err != nil {
 		return nil, "", false, err
 	}
@@ -259,8 +270,8 @@ func (c *Client) GetReleaseByTag(ctx context.Context, owner, repo, tag, etag str
 // per_page is kept small — the version selector only needs a short list, and
 // GitHub's REST payload still includes full release objects on the wire.
 func (c *Client) GetReleases(ctx context.Context, owner, repo, etag string) ([]ReleaseSummary, string, bool, error) {
-	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/releases?per_page=15", owner, repo)
-	body, newETag, notModified, err := c.conditionalGet(ctx, url, "application/vnd.github.v3+json", etag, maxAPIResponseSize)
+	u := repoAPIPath(owner, repo, "/releases?per_page=15")
+	body, newETag, notModified, err := c.conditionalGet(ctx, u, "application/vnd.github.v3+json", etag, maxAPIResponseSize)
 	if err != nil {
 		return nil, "", false, err
 	}
@@ -276,8 +287,8 @@ func (c *Client) GetReleases(ctx context.Context, owner, repo, etag string) ([]R
 
 // GetRepo fetches basic repo metadata (description and owner avatar).
 func (c *Client) GetRepo(ctx context.Context, owner, repo, etag string) (*Repo, string, bool, error) {
-	url := fmt.Sprintf("https://api.github.com/repos/%s/%s", owner, repo)
-	body, newETag, notModified, err := c.conditionalGet(ctx, url, "application/vnd.github.v3+json", etag, maxAPIResponseSize)
+	u := repoAPIPath(owner, repo, "")
+	body, newETag, notModified, err := c.conditionalGet(ctx, u, "application/vnd.github.v3+json", etag, maxAPIResponseSize)
 	if err != nil {
 		return nil, "", false, err
 	}
@@ -384,8 +395,8 @@ func (c *Client) GetREADME(ctx context.Context, owner, repo, etag string) (strin
 		return "", "", false, err
 	}
 
-	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/readme", owner, repo)
-	req, err := c.newRequest(ctx, url, "application/vnd.github.v3.raw", etag)
+	u := repoAPIPath(owner, repo, "/readme")
+	req, err := c.newRequest(ctx, u, "application/vnd.github.v3.raw", etag)
 	if err != nil {
 		return "", "", false, fmt.Errorf("creating request: %w", err)
 	}

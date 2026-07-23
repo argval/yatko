@@ -11,7 +11,8 @@ import (
 
 // RateLimit throttles requests per client IP to limit requests per window,
 // returning 429 with a Retry-After header once exceeded. No-ops when the
-// limiter has no Redis configured (see ratelimit.Limiter.Allow).
+// limiter has no Redis configured; Redis errors fall back to an in-process
+// window inside ratelimit.Limiter.Allow.
 func RateLimit(l *ratelimit.Limiter, limit int, window time.Duration) gin.HandlerFunc {
 	return rateLimit(l, "", limit, window)
 }

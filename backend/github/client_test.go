@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -217,6 +218,17 @@ func TestSearchRepositories_RefusesWhenBudgetExhausted(t *testing.T) {
 	var apiErr *APIError
 	if !errors.As(err, &apiErr) || apiErr.StatusCode != http.StatusTooManyRequests {
 		t.Fatalf("expected 429 when search budget exhausted, got %v", err)
+	}
+}
+
+func TestRepoAPIPath_EscapesSegments(t *testing.T) {
+	got := repoAPIPath("acme", "app", "/releases/tags/"+url.PathEscape("v1.0?foo=bar"))
+	want := "https://api.github.com/repos/acme/app/releases/tags/v1.0%3Ffoo=bar"
+	if got != want {
+		t.Fatalf("repoAPIPath = %q, want %q", got, want)
+	}
+	if got := repoAPIPath("o#wner", "re/po", ""); got != "https://api.github.com/repos/o%23wner/re%2Fpo" {
+		t.Fatalf("unexpected escape of owner/repo: %q", got)
 	}
 }
 

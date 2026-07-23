@@ -26,7 +26,9 @@ const sanitizeSchema: Schema = {
     a: [...(defaultSchema.attributes?.a ?? []), "title"],
     td: [...(defaultSchema.attributes?.td ?? []), "align", "colSpan", "rowSpan"],
     th: [...(defaultSchema.attributes?.th ?? []), "align", "colSpan", "rowSpan"],
-    svg: ["xmlns", "viewBox", "width", "height", "fill", "class", "style", "aria-hidden", "role"],
+    // No free-form style/class: hast-util-sanitize does not restrict CSS, so
+    // style would allow fixed full-viewport overlays (UI redress) on release pages.
+    svg: ["xmlns", "viewBox", "width", "height", "fill", "aria-hidden", "role"],
     path: ["d", "fill", "stroke", "strokeWidth", "stroke-width"],
     circle: ["cx", "cy", "r", "fill", "stroke"],
     rect: ["x", "y", "width", "height", "rx", "ry", "fill", "stroke"],

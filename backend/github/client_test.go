@@ -86,6 +86,39 @@ func TestRecordRateLimit(t *testing.T) {
 	}
 }
 
+func TestCheckSearchBudget(t *testing.T) {
+	c := &Client{searchRemaining: -1}
+	if err := c.checkSearchBudget(); err != nil {
+		t.Fatalf("expected no error when search budget unknown, got %v", err)
+	}
+
+	c.searchRemaining = searchRateLimitReserve + 1
+	if err := c.checkSearchBudget(); err != nil {
+		t.Fatalf("expected no error above search reserve, got %v", err)
+	}
+
+	c.searchRemaining = searchRateLimitReserve - 1
+	c.searchResetAt = time.Now().Add(time.Hour).Unix()
+	err := c.checkSearchBudget()
+	var apiErr *APIError
+	if !errors.As(err, &apiErr) || apiErr.StatusCode != http.StatusTooManyRequests {
+		t.Fatalf("expected 429 APIError below search reserve, got %v", err)
+	}
+}
+
+func TestCheckSearchBudget_RecoversAfterReset(t *testing.T) {
+	c := &Client{
+		searchRemaining: searchRateLimitReserve - 1,
+		searchResetAt:   time.Now().Add(-time.Second).Unix(),
+	}
+	if err := c.checkSearchBudget(); err != nil {
+		t.Fatalf("expected search budget to clear after reset, got %v", err)
+	}
+	if got := atomic.LoadInt32(&c.searchRemaining); got != -1 {
+		t.Fatalf("expected searchRemaining cleared to -1 after reset, got %d", got)
+	}
+}
+
 func TestSearchRepositories(t *testing.T) {
 	var sawIfNoneMatch string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -97,10 +130,13 @@ func TestSearchRepositories(t *testing.T) {
 		}
 		sawIfNoneMatch = r.Header.Get("If-None-Match")
 		if sawIfNoneMatch == `"abc"` {
+			w.Header().Set("X-RateLimit-Remaining", "20")
 			w.WriteHeader(http.StatusNotModified)
 			return
 		}
 		w.Header().Set("ETag", `"abc"`)
+		w.Header().Set("X-RateLimit-Remaining", "25")
+		w.Header().Set("X-RateLimit-Reset", "1700000000")
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{
 			"items": [{
@@ -125,7 +161,8 @@ func TestSearchRepositories(t *testing.T) {
 				return http.DefaultTransport.RoundTrip(req)
 			}),
 		},
-		remaining: -1,
+		remaining:       -1,
+		searchRemaining: -1,
 	}
 
 	items, etag, notMod, err := c.SearchRepositories(context.Background(), "ripgrep", "")
@@ -152,6 +189,9 @@ func TestSearchRepositories(t *testing.T) {
 	if got := atomic.LoadInt32(&c.remaining); got != -1 {
 		t.Fatalf("search poisoned core remaining: got %d", got)
 	}
+	if got := atomic.LoadInt32(&c.searchRemaining); got != 25 {
+		t.Fatalf("searchRemaining = %d, want 25", got)
+	}
 
 	_, _, notMod, err = c.SearchRepositories(context.Background(), "ripgrep", `"abc"`)
 	if err != nil {
@@ -162,6 +202,21 @@ func TestSearchRepositories(t *testing.T) {
 	}
 	if sawIfNoneMatch != `"abc"` {
 		t.Fatalf("If-None-Match = %q, want \"abc\"", sawIfNoneMatch)
+	}
+	if got := atomic.LoadInt32(&c.searchRemaining); got != 20 {
+		t.Fatalf("searchRemaining after 304 = %d, want 20", got)
+	}
+}
+
+func TestSearchRepositories_RefusesWhenBudgetExhausted(t *testing.T) {
+	c := &Client{
+		searchRemaining: searchRateLimitReserve - 1,
+		searchResetAt:   time.Now().Add(time.Hour).Unix(),
+	}
+	_, _, _, err := c.SearchRepositories(context.Background(), "ripgrep", "")
+	var apiErr *APIError
+	if !errors.As(err, &apiErr) || apiErr.StatusCode != http.StatusTooManyRequests {
+		t.Fatalf("expected 429 when search budget exhausted, got %v", err)
 	}
 }
 

@@ -8,6 +8,11 @@ export type InstallCommand = {
   platform: InstallPlatform;
 };
 
+/** Reject pipe-to-shell / chained / iex forms so Yatko never elevates them. */
+export function isUnsafeInstallCommand(command: string): boolean {
+  return /[|;`]|&&|\$\(|\biex\b/i.test(command);
+}
+
 export function extractInstallCommands(readme: string): InstallCommand[] {
   const commands = new Map<string, InstallPlatform>();
   // Support both CommonMark ``` and some READMEs' ~~~ fences (e.g. htop).
@@ -52,6 +57,7 @@ export function extractInstallCommands(readme: string): InstallCommand[] {
         if (m) {
           // m[1] = optional sudo/doas, m[2] = command — or a single capture for PS patterns.
           const command = (m[2] !== undefined ? `${m[1]}${m[2]}` : m[1]).trim();
+          if (isUnsafeInstallCommand(command)) continue;
           commands.set(command, platform);
         }
       }

@@ -28,7 +28,7 @@ go test ./cache/ -run TestName    # run a single test
 go build ./...                    # compile check
 ```
 
-Useful local env vars: `GITHUB_TOKEN` (a GitHub personal access token — classic PAT with no scopes is enough for public read; raises REST from 60→5000 req/hr and Search from 10→30 req/min), `UPSTASH_REDIS_URL` (cache no-ops without it — Redis also makes repeated search queries near-instant), `CACHE_TTL_SECONDS`, `CACHE_REFRESH_SECRET` (required value for `?refresh=` cache bust on `/api/release/...`; ignored when unset), `RATE_LIMIT_RPM`, `PORT`.
+Useful local env vars: `GITHUB_TOKEN` (a GitHub personal access token — classic PAT with no scopes is enough for public read; raises REST from 60→5000 req/hr and Search from 10→30 req/min), `UPSTASH_REDIS_URL` (cache no-ops without it — Redis also makes repeated search queries near-instant), `CACHE_TTL_SECONDS`, `CACHE_REFRESH_SECRET` (required value for `?refresh=` cache bust on `/api/release/...`; ignored when unset), `RATE_LIMIT_RPM`, `SEARCH_RATE_LIMIT_RPM` (stricter per-IP cap on `/api/search`, default 20), `PORT`.
 
 ### Frontend (`frontend/`)
 

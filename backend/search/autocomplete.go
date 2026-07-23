@@ -1,5 +1,5 @@
-// Package search owns homepage repo autocomplete: cache lookup, prefix
-// reuse while the user types, and background warming. Handlers stay wire-only.
+// Package search owns homepage repo autocomplete: cache lookup and prefix
+// reuse while the user types. Handlers stay wire-only.
 package search
 
 import (
@@ -29,25 +29,19 @@ func NewAutocomplete(gh *github.Client, c *cache.Cache) *Autocomplete {
 }
 
 // Suggest returns repos matching q. On a cold exact key it may reuse a shorter
-// cached prefix (filtered client-side) and warm the exact key in the background.
+// cached prefix (filtered client-side). Exact-key population happens on the
+// next miss that has no usable prefix fallback — we deliberately do not
+// background-warm here, which would double Search API spend per cold keystroke.
 func (a *Autocomplete) Suggest(ctx context.Context, q string) ([]github.SearchRepo, error) {
 	key := cache.SearchKey(q)
 
 	if _, ok := cache.GetCached[[]github.SearchRepo](ctx, a.cache, key); !ok {
 		if items, ok := a.prefixFallback(ctx, q); ok {
-			go a.warm(q)
 			return items, nil
 		}
 	}
 
 	return cache.FetchCachedWithTTL(ctx, a.cache, key, cache.SearchSoftTTL, func(ctx context.Context, etag string) ([]github.SearchRepo, string, bool, error) {
-		return a.gh.SearchRepositories(ctx, q, etag)
-	})
-}
-
-func (a *Autocomplete) warm(q string) {
-	key := cache.SearchKey(q)
-	_, _ = cache.FetchCachedWithTTL(context.Background(), a.cache, key, cache.SearchSoftTTL, func(ctx context.Context, etag string) ([]github.SearchRepo, string, bool, error) {
 		return a.gh.SearchRepositories(ctx, q, etag)
 	})
 }

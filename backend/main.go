@@ -20,6 +20,11 @@ import (
 // via RATE_LIMIT_RPM. No-ops without UPSTASH_REDIS_URL, same as caching.
 const defaultRateLimitRPM = 120
 
+// defaultSearchRateLimitRPM caps /api/search below GitHub's ~30/min Search
+// quota so one IP cannot drain the shared token. Overridable via
+// SEARCH_RATE_LIMIT_RPM. Stacked on top of the global RATE_LIMIT_RPM.
+const defaultSearchRateLimitRPM = 20
+
 func main() {
 	ghClient := github.NewClient()
 	redisCache := cache.New()
@@ -54,6 +59,15 @@ func main() {
 		}
 	}
 
+	searchRateLimitRPM := defaultSearchRateLimitRPM
+	if v := os.Getenv("SEARCH_RATE_LIMIT_RPM"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			searchRateLimitRPM = n
+		} else {
+			fmt.Fprintf(os.Stderr, "warning: invalid SEARCH_RATE_LIMIT_RPM=%q, using default %d\n", v, defaultSearchRateLimitRPM)
+		}
+	}
+
 	// Rate-limited routes only - /health is exempt so hosting-platform
 	// probes (which hit it frequently from an internal IP) are never throttled.
 	limited := r.Group("/")
@@ -66,7 +80,11 @@ func main() {
 	limited.GET("/api/release/:owner/:repo/:version", pageHandler.HandleVersioned)
 	limited.GET("/api/readme/:owner/:repo", pageHandler.HandleREADME)
 	limited.GET("/api/releases/:owner/:repo", releasesHandler.Handle)
-	limited.GET("/api/search", searchHandler.Handle)
+	// Prefixed key so this budget does not share the global per-IP counter.
+	limited.GET("/api/search",
+		middleware.RateLimitPrefixed(limiter, "search:", searchRateLimitRPM, time.Minute),
+		searchHandler.Handle,
+	)
 
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "ok"})

@@ -67,6 +67,11 @@ type Client struct {
 	// GitHub rate-limit window. 0 until first recorded. Used so checkBudget
 	// can recover after a window ends instead of refusing until process restart.
 	resetAt int64
+	// searchRemaining / searchResetAt track GitHub's separate Search API
+	// budget (~30 req/min). Kept distinct from remaining so a low Search
+	// remaining cannot trip the core REST reserve of 200.
+	searchRemaining int32
+	searchResetAt   int64
 }
 
 const (
@@ -81,13 +86,19 @@ const (
 	// (via FetchCached's stale-while-error fallback) instead of every repo,
 	// hot or cold, racing to fail against an exhausted quota.
 	rateLimitReserve = 200
+	// searchRateLimitReserve is the headroom kept below GitHub's Search API
+	// quota (~30/min authenticated). Once search remaining drops below this,
+	// new search fetches are refused so autocomplete fails fast instead of
+	// burning the shared token for every visitor.
+	searchRateLimitReserve = 5
 )
 
 func NewClient() *Client {
 	return &Client{
-		httpClient: &http.Client{Timeout: 10 * time.Second},
-		token:      os.Getenv("GITHUB_TOKEN"),
-		remaining:  -1,
+		httpClient:      &http.Client{Timeout: 10 * time.Second},
+		token:           os.Getenv("GITHUB_TOKEN"),
+		remaining:       -1,
+		searchRemaining: -1,
 	}
 }
 
@@ -119,6 +130,33 @@ func (c *Client) recordRateLimit(h http.Header) {
 	if v := h.Get("X-RateLimit-Reset"); v != "" {
 		if n, err := strconv.ParseInt(v, 10, 64); err == nil {
 			atomic.StoreInt64(&c.resetAt, n)
+		}
+	}
+}
+
+// checkSearchBudget mirrors checkBudget for the Search API's separate quota.
+func (c *Client) checkSearchBudget() error {
+	remaining := atomic.LoadInt32(&c.searchRemaining)
+	if remaining < 0 || remaining >= searchRateLimitReserve {
+		return nil
+	}
+	if resetAt := atomic.LoadInt64(&c.searchResetAt); resetAt > 0 && time.Now().Unix() >= resetAt {
+		atomic.StoreInt32(&c.searchRemaining, -1)
+		atomic.StoreInt64(&c.searchResetAt, 0)
+		return nil
+	}
+	return &APIError{StatusCode: http.StatusTooManyRequests, Message: "GitHub search rate limit nearly exhausted, refusing new request"}
+}
+
+func (c *Client) recordSearchRateLimit(h http.Header) {
+	if v := h.Get("X-RateLimit-Remaining"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			atomic.StoreInt32(&c.searchRemaining, int32(n))
+		}
+	}
+	if v := h.Get("X-RateLimit-Reset"); v != "" {
+		if n, err := strconv.ParseInt(v, 10, 64); err == nil {
+			atomic.StoreInt64(&c.searchResetAt, n)
 		}
 	}
 }
@@ -279,11 +317,15 @@ type githubSearchResponse struct {
 const searchPerPage = 8
 
 // SearchRepositories searches public repos by name/keyword. GitHub's Search API
-// has its own (much smaller) rate-limit bucket, so this path intentionally does
-// not share checkBudget/recordRateLimit with the core REST client — recording
-// a search remaining of ~30 would falsely trip the core reserve of 200 and
-// starve release fetches.
+// has its own (much smaller) rate-limit bucket, so this path uses
+// checkSearchBudget/recordSearchRateLimit instead of the core REST guards —
+// recording a search remaining of ~30 into the core budget would falsely trip
+// the core reserve of 200 and starve release fetches.
 func (c *Client) SearchRepositories(ctx context.Context, query, etag string) ([]SearchRepo, string, bool, error) {
+	if err := c.checkSearchBudget(); err != nil {
+		return nil, "", false, err
+	}
+
 	u := fmt.Sprintf(
 		"https://api.github.com/search/repositories?q=%s&per_page=%d",
 		url.QueryEscape(query),
@@ -299,6 +341,7 @@ func (c *Client) SearchRepositories(ctx context.Context, query, etag string) ([]
 		return nil, "", false, fmt.Errorf("performing request: %w", err)
 	}
 	defer resp.Body.Close()
+	c.recordSearchRateLimit(resp.Header)
 
 	if resp.StatusCode == http.StatusNotModified {
 		return nil, etag, true, nil

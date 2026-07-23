@@ -120,6 +120,101 @@
       "arch": "amd64",
       "assets": ["tool-linux-amd64.tar.xz"],
       "expected": "tool-linux-amd64.tar.xz"
+    },
+    {
+      "name": "android-picks-apk",
+      "platform": "android",
+      "arch": "arm64",
+      "assets": [
+        "App-1.0.0.apk",
+        "App-1.0.0.ipa",
+        "App-linux-x86_64.AppImage",
+        "App-darwin-arm64.dmg"
+      ],
+      "expected": "App-1.0.0.apk"
+    },
+    {
+      "name": "android-prefers-apk-over-aab",
+      "platform": "android",
+      "arch": "",
+      "assets": [
+        "App-1.0.0.aab",
+        "App-1.0.0.apk"
+      ],
+      "expected": "App-1.0.0.apk"
+    },
+    {
+      "name": "android-falls-back-to-aab",
+      "platform": "android",
+      "arch": "",
+      "assets": [
+        "App-1.0.0.aab",
+        "App-darwin-arm64.dmg"
+      ],
+      "expected": "App-1.0.0.aab"
+    },
+    {
+      "name": "ios-picks-ipa",
+      "platform": "ios",
+      "arch": "arm64",
+      "assets": [
+        "App-1.0.0.apk",
+        "App-1.0.0.ipa",
+        "App-darwin-arm64.dmg",
+        "App-win-x64.exe"
+      ],
+      "expected": "App-1.0.0.ipa"
+    },
+    {
+      "name": "android-skips-other-platform-named-apk",
+      "platform": "android",
+      "arch": "",
+      "assets": [
+        "App-ios.apk",
+        "App-android.apk"
+      ],
+      "expected": "App-android.apk"
+    },
+    {
+      "name": "linux-does-not-pick-apk",
+      "platform": "linux",
+      "arch": "amd64",
+      "assets": [
+        "App-1.0.0.apk",
+        "App-linux-amd64.AppImage"
+      ],
+      "expected": "App-linux-amd64.AppImage"
+    },
+    {
+      "name": "macos-does-not-pick-ipa",
+      "platform": "macos",
+      "arch": "arm64",
+      "assets": [
+        "App-1.0.0.ipa",
+        "App-darwin-arm64.dmg"
+      ],
+      "expected": "App-darwin-arm64.dmg"
+    },
+    {
+      "name": "android-no-mobile-asset-returns-null",
+      "platform": "android",
+      "arch": "",
+      "assets": [
+        "App-darwin-arm64.dmg",
+        "App-linux-amd64.AppImage",
+        "App-win-x64.exe"
+      ],
+      "expected": null
+    },
+    {
+      "name": "ios-no-mobile-asset-returns-null",
+      "platform": "ios",
+      "arch": "",
+      "assets": [
+        "App-darwin-arm64.dmg",
+        "App-1.0.0.apk"
+      ],
+      "expected": null
     }
   ]
 }

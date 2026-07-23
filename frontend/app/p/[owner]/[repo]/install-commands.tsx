@@ -13,7 +13,7 @@ import { PlatformFilterToggle } from "./platform-filter-toggle";
 
 export type { InstallCommand, InstallPlatform } from "./extract-install-commands";
 
-const platformLabels: Record<InstallPlatform, string> = {
+const platformLabels: Record<InstallPlatform | Platform, string> = {
   ...basePlatformLabels,
   universal: "Universal",
 };

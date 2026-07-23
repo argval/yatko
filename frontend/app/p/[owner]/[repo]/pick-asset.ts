@@ -2,7 +2,7 @@
 // Shared golden fixtures: shared/picker/fixtures.json. Keep both in sync;
 // see shared/picker/README.md.
 
-export type Platform = "windows" | "macos" | "linux";
+export type Platform = "windows" | "macos" | "linux" | "android" | "ios";
 export type Arch = "amd64" | "arm64" | "arm" | "386" | "";
 
 export type Asset = {
@@ -14,8 +14,10 @@ export type Asset = {
 
 export const platformKeywords: Record<Platform, string[]> = {
   windows: ["windows", "win32", "win64", "win-"],
-  macos: ["macos", "darwin", "osx", "mac-", "apple"],
+  macos: ["macos", "darwin", "osx", "mac-"],
   linux: ["linux", "ubuntu", "debian", "fedora", "appimage"],
+  android: ["android", "apk"],
+  ios: ["ios", "iphone", "ipad", "ipod"],
 };
 
 // Preferred extensions per platform, priority order (lower index wins).
@@ -23,6 +25,8 @@ export const platformExtensions: Record<Platform, string[]> = {
   windows: [".exe", ".msi", ".zip"],
   macos: [".dmg", ".pkg", ".zip", ".tar.gz"],
   linux: [".appimage", ".deb", ".rpm", ".tar.gz", ".tar.xz", ".zip"],
+  android: [".apk", ".aab"],
+  ios: [".ipa"],
 };
 
 const archKeywords: Record<Exclude<Arch, "">, string[]> = {

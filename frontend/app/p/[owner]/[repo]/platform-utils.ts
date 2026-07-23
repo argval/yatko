@@ -19,12 +19,17 @@ export const platformLabels: Record<Platform, string> = {
   windows: "Windows",
   macos: "macOS",
   linux: "Linux",
+  android: "Android",
+  ios: "iOS",
 };
 
 /** Mirrors picker.DetectPlatform, but maps unknown → windows for UI defaults. */
 export function detectPlatformFromUA(userAgent: string): Platform {
   const ua = userAgent.toLowerCase();
+  // Android before Linux; iPhone/iPad/iPod before macOS — same order as Go.
   if (ua.includes("windows") || ua.includes("win64") || ua.includes("win32")) return "windows";
+  if (ua.includes("android")) return "android";
+  if (ua.includes("iphone") || ua.includes("ipad") || ua.includes("ipod")) return "ios";
   if (ua.includes("macintosh") || ua.includes("mac os") || ua.includes("darwin")) return "macos";
   if (ua.includes("linux") || ua.includes("ubuntu") || ua.includes("fedora") || ua.includes("debian")) {
     return "linux";
@@ -75,6 +80,19 @@ export function assetPlatformLabel(name: string): string | null {
     lower.endsWith(".pkg")
   ) {
     return "macOS";
+  }
+  if (
+    platformKeywords.android.some((kw) => hasBoundedKeyword(lower, kw)) ||
+    lower.endsWith(".apk") ||
+    lower.endsWith(".aab")
+  ) {
+    return "Android";
+  }
+  if (
+    platformKeywords.ios.some((kw) => hasBoundedKeyword(lower, kw)) ||
+    lower.endsWith(".ipa")
+  ) {
+    return "iOS";
   }
   if (
     platformKeywords.linux.some((kw) => hasBoundedKeyword(lower, kw)) ||

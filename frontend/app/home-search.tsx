@@ -11,10 +11,8 @@ const compactStars = new Intl.NumberFormat("en", {
 
 export function HomeSearchForm({
   onNavigate,
-  onNavigating,
 }: {
   onNavigate: (owner: string, repo: string) => void;
-  onNavigating: () => void;
 }) {
   const {
     input,
@@ -100,7 +98,6 @@ export function HomeSearchForm({
                     }`}
                     onMouseEnter={() => setActiveIndex(i)}
                     onMouseDown={(e) => e.preventDefault()}
-                    onClick={onNavigating}
                   >
                     <Image
                       src={item.avatar_url || `https://github.com/${item.owner}.png?size=64`}

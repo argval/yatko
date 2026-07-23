@@ -1,25 +1,15 @@
 "use client";
 
-import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ReleaseLoading } from "./p/[owner]/[repo]/release-loading";
 import { HomeSearchForm } from "./home-search";
 import { HomeExamples } from "./home-examples";
 import { HomeHowItWorks } from "./home-how-it-works";
 
 export default function Home() {
-  const [navigating, setNavigating] = useState(false);
   const router = useRouter();
 
   function navigate(owner: string, repo: string) {
-    // Paint loading UI on this page immediately — route loading.tsx only
-    // appears after the soft navigation flight starts, which can lag a beat.
-    setNavigating(true);
     router.push(`/p/${owner}/${repo}`);
-  }
-
-  if (navigating) {
-    return <ReleaseLoading />;
   }
 
   return (
@@ -42,8 +32,8 @@ export default function Home() {
         </div>
 
         <div className="space-y-4">
-          <HomeSearchForm onNavigate={navigate} onNavigating={() => setNavigating(true)} />
-          <HomeExamples onNavigating={() => setNavigating(true)} />
+          <HomeSearchForm onNavigate={navigate} />
+          <HomeExamples />
         </div>
 
         <HomeHowItWorks />

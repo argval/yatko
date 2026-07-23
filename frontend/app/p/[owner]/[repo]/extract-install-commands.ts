@@ -10,21 +10,28 @@ export type InstallCommand = {
 
 export function extractInstallCommands(readme: string): InstallCommand[] {
   const commands = new Map<string, InstallPlatform>();
-  const codeBlockRe = /```[^\n]*\n([\s\S]*?)```/g;
+  // Support both CommonMark ``` and some READMEs' ~~~ fences (e.g. htop).
+  const codeBlockRe = /(?:```|~~~)[^\n]*\n([\s\S]*?)(?:```|~~~)/g;
+  // Optional prompt ($/>) and privilege escalation (sudo/doas) before the command.
+  const lead = String.raw`^\s*(?:\$|>)?\s*((?:(?:sudo|doas)\s+)?)`;
   const patterns: { platform: InstallPlatform; re: RegExp }[] = [
-    { platform: "universal", re: /^\s*(?:\$|>)?\s*(pip install\s+.+)/ },
-    { platform: "universal", re: /^\s*(?:\$|>)?\s*(npm install\s+.+)/ },
-    { platform: "universal", re: /^\s*(?:\$|>)?\s*(npx\s+.+)/ },
-    { platform: "universal", re: /^\s*(?:\$|>)?\s*(yarn add\s+.+)/ },
-    { platform: "universal", re: /^\s*(?:\$|>)?\s*(pnpm add\s+.+)/ },
-    { platform: "universal", re: /^\s*(?:\$|>)?\s*(cargo install\s+.+)/ },
-    { platform: "universal", re: /^\s*(?:\$|>)?\s*(go install\s+.+)/ },
-    { platform: "macos", re: /^\s*(?:\$|>)?\s*(brew install\s+.+)/ },
-    { platform: "universal", re: /^\s*(?:\$|>)?\s*(gem install\s+.+)/ },
-    { platform: "linux", re: /^\s*(?:\$|>)?\s*(apt(?:-get)?\s+install\s+.+)/ },
-    { platform: "windows", re: /^\s*(?:\$|>)?\s*(winget install\s+.+)/ },
-    { platform: "windows", re: /^\s*(?:\$|>)?\s*(choco install\s+.+)/ },
-    { platform: "windows", re: /^\s*(?:\$|>)?\s*(scoop install\s+.+)/ },
+    { platform: "universal", re: new RegExp(lead + String.raw`(pip install\s+.+)`) },
+    { platform: "universal", re: new RegExp(lead + String.raw`(npm install\s+.+)`) },
+    { platform: "universal", re: new RegExp(lead + String.raw`(npx\s+.+)`) },
+    { platform: "universal", re: new RegExp(lead + String.raw`(yarn add\s+.+)`) },
+    { platform: "universal", re: new RegExp(lead + String.raw`(pnpm add\s+.+)`) },
+    { platform: "universal", re: new RegExp(lead + String.raw`(cargo install\s+.+)`) },
+    { platform: "universal", re: new RegExp(lead + String.raw`(go install\s+.+)`) },
+    { platform: "macos", re: new RegExp(lead + String.raw`(brew install\s+.+)`) },
+    { platform: "universal", re: new RegExp(lead + String.raw`(gem install\s+.+)`) },
+    { platform: "linux", re: new RegExp(lead + String.raw`(apt(?:-get)?\s+install\s+.+)`) },
+    { platform: "linux", re: new RegExp(lead + String.raw`(dnf\s+install\s+.+)`) },
+    { platform: "linux", re: new RegExp(lead + String.raw`(yum\s+install\s+.+)`) },
+    { platform: "linux", re: new RegExp(lead + String.raw`(zypper\s+install\s+.+)`) },
+    { platform: "linux", re: new RegExp(lead + String.raw`(pacman\s+-S\s+.+)`) },
+    { platform: "windows", re: new RegExp(lead + String.raw`(winget install\s+.+)`) },
+    { platform: "windows", re: new RegExp(lead + String.raw`(choco install\s+.+)`) },
+    { platform: "windows", re: new RegExp(lead + String.raw`(scoop install\s+.+)`) },
     // PowerShell one-liners: `powershell -c "irm …|iex"`, bare `irm …|iex`, etc.
     {
       platform: "windows",
@@ -34,15 +41,19 @@ export function extractInstallCommands(readme: string): InstallCommand[] {
       platform: "windows",
       re: /^\s*(?:\$|>)?\s*((?:irm|iwr|Invoke-RestMethod|Invoke-WebRequest)\s+.+)/i,
     },
-    { platform: "universal", re: /^\s*(?:\$|>)?\s*(curl\s+.+)/ },
-    { platform: "universal", re: /^\s*(?:\$|>)?\s*(wget\s+.+)/ },
+    { platform: "universal", re: new RegExp(lead + String.raw`(curl\s+.+)`) },
+    { platform: "universal", re: new RegExp(lead + String.raw`(wget\s+.+)`) },
   ];
   let match;
   while ((match = codeBlockRe.exec(readme)) !== null) {
     for (const line of match[1].split("\n")) {
       for (const { platform, re } of patterns) {
         const m = line.match(re);
-        if (m) commands.set(m[1].trim(), platform);
+        if (m) {
+          // m[1] = optional sudo/doas, m[2] = command — or a single capture for PS patterns.
+          const command = (m[2] !== undefined ? `${m[1]}${m[2]}` : m[1]).trim();
+          commands.set(command, platform);
+        }
       }
     }
   }

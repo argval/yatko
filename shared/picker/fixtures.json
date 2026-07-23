@@ -103,6 +103,23 @@
         "tool-linux-amd64.tar.gz"
       ],
       "expected": "tool-linux-amd64.tar.gz"
+    },
+    {
+      "name": "skips-bare-versioned-tarball",
+      "platform": "linux",
+      "arch": "amd64",
+      "assets": [
+        "htop-3.5.2.tar.xz",
+        "htop-3.5.2.tar.xz.sha256"
+      ],
+      "expected": null
+    },
+    {
+      "name": "keeps-platform-tagged-tarball",
+      "platform": "linux",
+      "arch": "amd64",
+      "assets": ["tool-linux-amd64.tar.xz"],
+      "expected": "tool-linux-amd64.tar.xz"
     }
   ]
 }

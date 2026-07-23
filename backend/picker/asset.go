@@ -231,10 +231,57 @@ func isLower(b byte) bool {
 	return b >= 'a' && b <= 'z'
 }
 
+// ambiguousTarballExts are archive suffixes that are used both for platform
+// binaries and for source distributions. Without an OS/arch token in the
+// name, treat them as source (e.g. htop-3.5.2.tar.xz).
+var ambiguousTarballExts = []string{".tar.gz", ".tar.xz", ".tgz", ".txz"}
+
+func isAmbiguousTarball(name string) bool {
+	for _, ext := range ambiguousTarballExts {
+		if strings.HasSuffix(name, ext) {
+			return true
+		}
+	}
+	return false
+}
+
+func mentionsAnyPlatform(name string) bool {
+	for _, keywords := range [][]string{
+		{"windows", "win32", "win64", "win-"},
+		{"macos", "darwin", "osx", "mac-", "apple"},
+		{"linux", "ubuntu", "debian", "fedora", "appimage"},
+	} {
+		for _, kw := range keywords {
+			if hasBoundedKeyword(name, kw) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func mentionsAnyArch(name string) bool {
+	for _, keywords := range archKeywords {
+		for _, kw := range keywords {
+			if hasBoundedKeyword(name, kw) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // isSource returns true if the filename looks like a source archive.
 func isSource(name string) bool {
 	lower := strings.ToLower(name)
-	return strings.Contains(lower, "source") || strings.Contains(lower, "src")
+	if strings.Contains(lower, "source") || strings.Contains(lower, "src") {
+		return true
+	}
+	// Bare versioned tarballs with no OS/arch tokens are source dists.
+	if isAmbiguousTarball(lower) && !mentionsAnyPlatform(lower) && !mentionsAnyArch(lower) {
+		return true
+	}
+	return false
 }
 
 // mentionsOtherPlatform checks if a filename explicitly references a different platform.

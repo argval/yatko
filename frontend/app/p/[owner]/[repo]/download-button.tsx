@@ -1,6 +1,7 @@
 "use client";
 
 import { platformLabels, formatSize, type Platform, type Asset } from "./platform-utils";
+import { CopyButton } from "./copy-button";
 
 export function DownloadButton({
   owner,
@@ -21,13 +22,21 @@ export function DownloadButton({
 
   return (
     <div className="flex flex-col items-center gap-2">
-      <a
-        href={primaryHref}
-        className="inline-flex items-center gap-2 px-8 py-4 rounded-xl bg-foreground text-background font-semibold text-lg tracking-tight hover:opacity-90 active:scale-[0.98] transition-[opacity,transform] duration-150"
-      >
-        <DownloadIcon />
-        {hasAssets ? `Download for ${platformLabels[platform]}` : "View Release on GitHub"}
-      </a>
+      <div className="flex items-center gap-2">
+        <a
+          href={primaryHref}
+          className="inline-flex items-center gap-2 px-8 py-4 rounded-xl bg-foreground text-background font-semibold text-lg tracking-tight hover:opacity-90 active:scale-[0.98] transition-[opacity,transform] duration-150"
+        >
+          <DownloadIcon />
+          {hasAssets ? `Download for ${platformLabels[platform]}` : "View Release on GitHub"}
+        </a>
+        <CopyButton
+          text={`https://yatko.app/p/${owner}/${repo}`}
+          label="Copy link to this page"
+          size={20}
+          className="shrink-0 p-4 rounded-xl border border-border text-foreground/50 hover:text-foreground hover:bg-foreground/5 transition-colors"
+        />
+      </div>
 
       {primaryAsset ? (
         <p className="text-xs text-muted font-mono">

@@ -63,6 +63,7 @@ func (h *PageHandler) handle(c *gin.Context, owner, repo, version string) {
 	// *gin.Context into a goroutine.
 	var release *github.Release
 	var meta repoMeta
+	var repoFound bool
 	var releases []github.ReleaseSummary
 	var g errgroup.Group
 	g.Go(func() error {
@@ -71,7 +72,7 @@ func (h *PageHandler) handle(c *gin.Context, owner, repo, version string) {
 		return err
 	})
 	g.Go(func() error {
-		meta = h.getRepoMeta(c.Copy(), owner, repo)
+		meta, repoFound = h.getRepoMeta(c.Copy(), owner, repo)
 		return nil
 	})
 	g.Go(func() error {
@@ -80,7 +81,15 @@ func (h *PageHandler) handle(c *gin.Context, owner, repo, version string) {
 	})
 	if err := g.Wait(); err != nil {
 		log.Printf("page: error fetching release %q for %s/%s: %v", version, owner, repo, err)
-		c.JSON(httpStatusFromError(err), gin.H{"error": err.Error()})
+		status := httpStatusFromError(err)
+		body := gin.H{"error": err.Error()}
+		// GitHub's releases/latest 404s both for a repo that doesn't exist and
+		// for a real repo with zero releases; repoFound (from the separately
+		// fetched repo metadata) disambiguates the two for the frontend.
+		if status == http.StatusNotFound && repoFound {
+			body["reason"] = "no_releases"
+		}
+		c.JSON(status, body)
 		return
 	}
 
@@ -107,7 +116,9 @@ type repoMeta struct {
 	AvatarURL   string `json:"avatar_url"`
 }
 
-func (h *PageHandler) getRepoMeta(c *gin.Context, owner, repo string) repoMeta {
+// getRepoMeta also reports whether the repo itself was confirmed to exist
+// (used to disambiguate a "repo not found" 404 from a "no releases yet" 404).
+func (h *PageHandler) getRepoMeta(c *gin.Context, owner, repo string) (repoMeta, bool) {
 	key := cache.DescriptionKey(owner, repo)
 	meta, err := cache.FetchCached(c.Request.Context(), h.cache, key, func(ctx context.Context, etag string) (repoMeta, string, bool, error) {
 		data, newETag, notModified, err := h.gh.GetRepo(ctx, owner, repo, etag)
@@ -121,9 +132,9 @@ func (h *PageHandler) getRepoMeta(c *gin.Context, owner, repo string) repoMeta {
 	})
 	if err != nil {
 		log.Printf("repo fetch error for %s/%s: %v", owner, repo, err)
-		return repoMeta{}
+		return repoMeta{}, false
 	}
-	return meta
+	return meta, true
 }
 
 func (h *PageHandler) getREADME(c *gin.Context, owner, repo string) string {

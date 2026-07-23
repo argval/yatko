@@ -1,5 +1,4 @@
 import { headers } from "next/headers";
-import { notFound } from "next/navigation";
 import type { ReleaseData, ReleaseSummary } from "./release-page";
 import { detectArchFromUA, detectPlatformFromUA, type Arch, type Asset, type Platform } from "./platform-utils";
 import { findChecksumAsset, parseChecksumText } from "./parse-checksums";
@@ -7,14 +6,17 @@ import { findChecksumAsset, parseChecksumText } from "./parse-checksums";
 const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:8080";
 
 
-export type ReleaseResult = { ok: true; data: ReleaseData } | { ok: false; message: string };
+export type ReleaseResult =
+  | { ok: true; data: ReleaseData }
+  | { ok: false; notFound: true; repoExists: boolean }
+  | { ok: false; notFound?: false; message: string };
 
 // Returns a result instead of throwing for expected/recoverable failures:
 // Next.js redacts thrown Server Component error messages in production
 // (replaced with a generic "digest" page), so an inline result is the only
-// way to surface the specific message to the user. 404 still uses notFound()
-// - that's a framework control-flow signal, not a rendered error, and isn't
-// subject to the redaction above.
+// way to surface the specific message to the user. 404 is also returned
+// inline (rather than via notFound()) so the caller still has owner/repo
+// to link to the GitHub repo page.
 export async function getRelease(owner: string, repo: string, version?: string): Promise<ReleaseResult> {
   const path = version
     ? `/api/release/${owner}/${repo}/${version}`
@@ -25,7 +27,19 @@ export async function getRelease(owner: string, repo: string, version?: string):
   } catch {
     return { ok: false, message: "Couldn't reach the download service. Try again in a moment." };
   }
-  if (res.status === 404) notFound();
+  if (res.status === 404) {
+    // Backend sets reason: "no_releases" when the repo exists but has never
+    // published a release - distinct from the repo/owner not existing at all.
+    let repoExists = false;
+    try {
+      const body: unknown = await res.json();
+      repoExists =
+        typeof body === "object" && body !== null && "reason" in body && body.reason === "no_releases";
+    } catch {
+      // keep repoExists false
+    }
+    return { ok: false, notFound: true, repoExists };
+  }
   if (res.status === 403) return { ok: false, message: "This repository is private or you don't have access." };
   if (res.status === 429) {
     // Distinguish per-IP HTTP throttle vs GitHub quota using the backend

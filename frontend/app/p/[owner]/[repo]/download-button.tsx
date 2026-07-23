@@ -25,6 +25,7 @@ export function DownloadButton({
       <div className="flex items-center gap-2">
         <a
           href={primaryHref}
+          {...(!primaryAsset && { target: "_blank", rel: "noopener noreferrer" })}
           className="inline-flex items-center gap-2 px-8 py-4 rounded-xl bg-foreground text-background font-semibold text-lg tracking-tight hover:opacity-90 active:scale-[0.98] transition-[opacity,transform] duration-150"
         >
           <DownloadIcon />

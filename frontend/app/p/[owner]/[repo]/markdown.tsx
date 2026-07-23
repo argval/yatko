@@ -95,7 +95,8 @@ const markdownComponents: Components = {
     );
   },
   img({ src, alt, ...props }) {
-    if (!src || !isAllowedMarkdownImageSrc(src)) return null;
+    // react-markdown types src as string | Blob; only string URLs are allowlisted.
+    if (typeof src !== "string" || !isAllowedMarkdownImageSrc(src)) return null;
     // Plain <img>: next/image needs a static host allowlist; GitHub hosts vary by path.
     return <img src={src} alt={alt ?? ""} loading="lazy" decoding="async" {...props} />;
   },

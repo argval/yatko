@@ -55,9 +55,34 @@ export function hasBoundedKeyword(name: string, kw: string): boolean {
   }
 }
 
+const ambiguousTarballExts = [".tar.gz", ".tar.xz", ".tgz", ".txz"];
+
+function isAmbiguousTarball(name: string): boolean {
+  return ambiguousTarballExts.some((ext) => name.endsWith(ext));
+}
+
+function mentionsAnyPlatform(name: string): boolean {
+  for (const keywords of Object.values(platformKeywords)) {
+    if (keywords.some((kw) => hasBoundedKeyword(name, kw))) return true;
+  }
+  return false;
+}
+
+function mentionsAnyArch(name: string): boolean {
+  for (const keywords of Object.values(archKeywords)) {
+    if (keywords.some((kw) => hasBoundedKeyword(name, kw))) return true;
+  }
+  return false;
+}
+
 export function isSource(name: string): boolean {
   const lower = name.toLowerCase();
-  return lower.includes("source") || lower.includes("src");
+  if (lower.includes("source") || lower.includes("src")) return true;
+  // Bare versioned tarballs (htop-3.5.2.tar.xz) are source dists, not binaries.
+  if (isAmbiguousTarball(lower) && !mentionsAnyPlatform(lower) && !mentionsAnyArch(lower)) {
+    return true;
+  }
+  return false;
 }
 
 export function mentionsOtherPlatform(name: string, current: Platform): boolean {

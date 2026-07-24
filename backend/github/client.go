@@ -36,6 +36,8 @@ type Release struct {
 	Body        string  `json:"body"`
 	PublishedAt string  `json:"published_at"`
 	HTMLURL     string  `json:"html_url"`
+	ZipballURL  string  `json:"zipball_url"`
+	TarballURL  string  `json:"tarball_url"`
 	Prerelease  bool    `json:"prerelease"`
 	Assets      []Asset `json:"assets"`
 }
@@ -50,8 +52,9 @@ type ReleaseSummary struct {
 
 // Repo holds the subset of GitHub repo metadata Yatko needs.
 type Repo struct {
-	Description string `json:"description"`
-	Owner       struct {
+	Description   string `json:"description"`
+	DefaultBranch string `json:"default_branch"`
+	Owner         struct {
 		AvatarURL string `json:"avatar_url"`
 	} `json:"owner"`
 }

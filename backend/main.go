@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/argval/yatko/archive"
 	"github.com/argval/yatko/cache"
 	"github.com/argval/yatko/github"
 	"github.com/argval/yatko/handlers"
@@ -30,11 +31,20 @@ func main() {
 	redisCache := cache.New()
 	limiter := ratelimit.New()
 
-	redirectHandler := handlers.NewRedirectHandler(ghClient, redisCache)
+	archiveSvc, err := archive.NewFromEnv(ghClient, redisCache)
+	if err != nil {
+		log.Fatalf("archive config: %v", err)
+	}
+	if archiveSvc.Enabled() {
+		log.Printf("archive enabled for %d group(s)", len(archiveSvc.Groups()))
+	}
+
+	redirectHandler := handlers.NewRedirectHandler(ghClient, redisCache, archiveSvc)
 	pageHandler := handlers.NewPageHandler(redirectHandler, ghClient, redisCache)
 	linkHandler := handlers.NewLinkHandler(redirectHandler)
 	releasesHandler := handlers.NewReleasesHandler(ghClient, redisCache)
 	searchHandler := handlers.NewSearchHandler(search.NewAutocomplete(ghClient, redisCache))
+	archiveHandler := handlers.NewArchiveHandler(archiveSvc)
 
 	r := gin.Default()
 
@@ -85,6 +95,9 @@ func main() {
 		middleware.RateLimitPrefixed(limiter, "search:", searchRateLimitRPM, time.Minute),
 		searchHandler.Handle,
 	)
+	// Vercel Cron issues GET; manual ops may POST. Auth via CACHE_REFRESH_SECRET / CRON_SECRET.
+	limited.GET("/api/archive/sync", archiveHandler.HandleSync)
+	limited.POST("/api/archive/sync", archiveHandler.HandleSync)
 
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "ok"})

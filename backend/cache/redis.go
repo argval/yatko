@@ -240,6 +240,42 @@ func (c *Cache) Invalidate(ctx context.Context, key string) error {
 	return c.client.Del(ctx, key).Err()
 }
 
+// SetPermanent stores raw bytes with no Redis TTL (archive manifests).
+// Still warms L1 so hot /dl paths skip a Redis round-trip. No-ops the Redis
+// write when unconfigured; L1 alone then lasts for process lifetime.
+func (c *Cache) SetPermanent(ctx context.Context, key string, data []byte) error {
+	if c.l1 != nil {
+		c.l1.set(key, data)
+	}
+	if c.client == nil {
+		return nil
+	}
+	return c.client.Set(ctx, key, data, 0).Err()
+}
+
+// GetPermanent returns raw bytes for key, or (nil, nil) on a miss.
+func (c *Cache) GetPermanent(ctx context.Context, key string) ([]byte, error) {
+	if c.l1 != nil {
+		if data, ok := c.l1.get(key); ok {
+			return data, nil
+		}
+	}
+	if c.client == nil {
+		return nil, nil
+	}
+	data, err := c.client.Get(ctx, key).Bytes()
+	if err == redis.Nil {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if c.l1 != nil {
+		c.l1.set(key, data)
+	}
+	return data, nil
+}
+
 func getEntry[T any](ctx context.Context, c *Cache, key string) (*entry[T], error) {
 	if c.l1 != nil {
 		if data, ok := c.l1.get(key); ok {

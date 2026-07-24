@@ -18,5 +18,11 @@
     { "source": "/api/(.*)", "destination": { "service": "backend" } },
     { "source": "/health", "destination": { "service": "backend" } },
     { "source": "/(.*)", "destination": { "service": "frontend" } }
+  ],
+  "crons": [
+    {
+      "path": "/api/archive/sync",
+      "schedule": "0 5 * * *"
+    }
   ]
 }

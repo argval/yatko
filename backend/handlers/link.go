@@ -65,6 +65,9 @@ func (h *LinkHandler) handle(c *gin.Context, owner, repo, version string) {
 	arch := picker.ResolveArch(c.Query("arch"), ua)
 	asset := picker.PickAssetForArch(release.Assets, platform, arch)
 	if asset == nil {
+		asset = soleDownloadable(release.Assets)
+	}
+	if asset == nil {
 		c.JSON(http.StatusNotFound, gin.H{
 			"error":    "no suitable asset found for platform",
 			"platform": string(platform),

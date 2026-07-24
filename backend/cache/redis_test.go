@@ -236,3 +236,22 @@ func TestFetchCached_L1WorksWithoutRedis(t *testing.T) {
 		t.Fatalf("expected L1-only second hit, got %d calls", calls)
 	}
 }
+
+func TestSetPermanent_NoExpiryRoundTrip(t *testing.T) {
+	c := newTestCache(t, time.Minute)
+	ctx := context.Background()
+	if err := c.SetPermanent(ctx, "archive:repo:o/r", []byte(`{"tag":"1"}`)); err != nil {
+		t.Fatal(err)
+	}
+	got, err := c.GetPermanent(ctx, "archive:repo:o/r")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != `{"tag":"1"}` {
+		t.Fatalf("got %s", got)
+	}
+	miss, err := c.GetPermanent(ctx, "missing")
+	if err != nil || miss != nil {
+		t.Fatalf("miss = %v err=%v", miss, err)
+	}
+}

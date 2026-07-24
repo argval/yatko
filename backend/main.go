@@ -17,7 +17,7 @@ import (
 )
 
 // defaultRateLimitRPM is the per-IP request budget per minute, overridable
-// via RATE_LIMIT_RPM. No-ops without UPSTASH_REDIS_URL, same as caching.
+// via RATE_LIMIT_RPM. No-ops without a Redis URL env, same as caching.
 const defaultRateLimitRPM = 120
 
 // defaultSearchRateLimitRPM caps /api/search below GitHub's ~30/min Search

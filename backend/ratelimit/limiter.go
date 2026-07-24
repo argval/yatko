@@ -19,7 +19,7 @@ import (
 const localMaxKeys = 10_000
 
 // Limiter enforces a fixed-window request budget keyed by an opaque string
-// (typically a client IP). Without UPSTASH_REDIS_URL it always allows (local
+// (typically a client IP). Without a Redis URL env it always allows (local
 // dev). When Redis is configured but unreachable, it falls back to a
 // process-local fixed window instead of failing open.
 type Limiter struct {
@@ -34,16 +34,16 @@ type localWindow struct {
 	windowEnd time.Time
 }
 
-// New builds a Limiter from UPSTASH_REDIS_URL. Without a usable URL the
-// returned Limiter always allows.
+// New builds a Limiter from REDIS_URL / KV_URL / UPSTASH_REDIS_URL.
+// Without a usable URL the returned Limiter always allows.
 func New() *Limiter {
-	redisURL := os.Getenv("UPSTASH_REDIS_URL")
+	redisURL := firstEnv("REDIS_URL", "KV_URL", "UPSTASH_REDIS_URL")
 	if redisURL == "" {
 		return &Limiter{local: make(map[string]localWindow)}
 	}
 	opt, err := redis.ParseURL(redisURL)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "warning: invalid UPSTASH_REDIS_URL, rate limiting disabled: %v\n", err)
+		fmt.Fprintf(os.Stderr, "warning: invalid Redis URL, rate limiting disabled: %v\n", err)
 		return &Limiter{local: make(map[string]localWindow)}
 	}
 	opt.TLSConfig = &tls.Config{MinVersion: tls.VersionTLS12}
@@ -51,6 +51,15 @@ func New() *Limiter {
 		client: redis.NewClient(opt),
 		local:  make(map[string]localWindow),
 	}
+}
+
+func firstEnv(keys ...string) string {
+	for _, k := range keys {
+		if v := os.Getenv(k); v != "" {
+			return v
+		}
+	}
+	return ""
 }
 
 // Allow reports whether a request identified by key is within limit for the

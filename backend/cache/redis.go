@@ -46,7 +46,7 @@ func New() *Cache {
 		}
 	}
 
-	redisURL := os.Getenv("UPSTASH_REDIS_URL")
+	redisURL := firstEnv("REDIS_URL", "KV_URL", "UPSTASH_REDIS_URL")
 	if redisURL == "" {
 		// L1 still works without Redis so local /dl repeats stay warm.
 		return &Cache{softTTL: softTTL, hardTTL: HardTTL, l1: newL1(l1MaxEntries)}
@@ -54,7 +54,7 @@ func New() *Cache {
 
 	opt, err := redis.ParseURL(redisURL)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "warning: invalid UPSTASH_REDIS_URL, caching disabled: %v\n", err)
+		fmt.Fprintf(os.Stderr, "warning: invalid Redis URL, caching disabled: %v\n", err)
 		return &Cache{softTTL: softTTL, hardTTL: HardTTL, l1: newL1(l1MaxEntries)}
 	}
 	opt.TLSConfig = &tls.Config{MinVersion: tls.VersionTLS12}
@@ -65,6 +65,18 @@ func New() *Cache {
 		hardTTL: HardTTL,
 		l1:      newL1(l1MaxEntries),
 	}
+}
+
+// firstEnv returns the first non-empty environment variable among keys.
+// Vercel Marketplace Upstash injects REDIS_URL / KV_URL; UPSTASH_REDIS_URL
+// remains supported for older manual setups.
+func firstEnv(keys ...string) string {
+	for _, k := range keys {
+		if v := os.Getenv(k); v != "" {
+			return v
+		}
+	}
+	return ""
 }
 
 // ReleaseKey, ReleaseTagKey, ReleasesKey, ReadmeKey and DescriptionKey build

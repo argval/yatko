@@ -1,16 +1,22 @@
 import type { NextConfig } from "next";
+import { withBotId } from "botid/next/config";
 
 const backendURL = process.env.BACKEND_URL || "http://localhost:8080";
 
 const nextConfig: NextConfig = {
   reactCompiler: true,
   async rewrites() {
-    // Local/dev: proxy API + download routes to the Go backend. On Vercel,
-    // root vercel.json already routes /api, /dl, /health to the backend
-    // service before Next.js sees them.
+    // Local/dev: proxy most API + download routes to the Go backend.
+    // /api/search stays on Next.js so BotID can verify homepage autocomplete
+    // before we proxy to the backend (see app/api/search/route.ts).
+    // On Vercel, root vercel.json routes similarly (search → frontend, other
+    // /api → backend) before Next.js sees the request.
     return {
       beforeFiles: [
-        { source: "/api/:path*", destination: `${backendURL}/api/:path*` },
+        { source: "/api/release/:path*", destination: `${backendURL}/api/release/:path*` },
+        { source: "/api/releases/:path*", destination: `${backendURL}/api/releases/:path*` },
+        { source: "/api/readme/:path*", destination: `${backendURL}/api/readme/:path*` },
+        { source: "/api/link/:path*", destination: `${backendURL}/api/link/:path*` },
         { source: "/dl/:path*", destination: `${backendURL}/dl/:path*` },
         { source: "/health", destination: `${backendURL}/health` },
       ],
@@ -39,4 +45,4 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+export default withBotId(nextConfig);

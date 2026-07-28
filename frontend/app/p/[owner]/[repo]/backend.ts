@@ -1,15 +1,27 @@
-import { headers } from "next/headers";
 import type { ReleaseData, ReleaseSummary } from "./release-page";
-import { detectArchFromUA, detectPlatformFromUA, type Arch, type Asset, type Platform } from "./platform-utils";
 import { findChecksumAsset, parseChecksumText } from "./parse-checksums";
+import type { Asset } from "./platform-utils";
 
 const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:8080";
 
+/** How long Next may reuse a cached backend/GitHub response before revalidating. */
+const FETCH_REVALIDATE_SECONDS = 3600;
+
+/** Cap wall time for frontend → backend (and checksum) fetches so hung upstreams
+ *  cannot hold a Fluid instance open near the function max duration. */
+const FETCH_TIMEOUT_MS = 8_000;
 
 export type ReleaseResult =
   | { ok: true; data: ReleaseData }
   | { ok: false; notFound: true; repoExists: boolean }
   | { ok: false; notFound?: false; message: string };
+
+function backendFetch(path: string): Promise<Response> {
+  return fetch(`${BACKEND_URL}${path}`, {
+    next: { revalidate: FETCH_REVALIDATE_SECONDS },
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+  });
+}
 
 // Returns a result instead of throwing for expected/recoverable failures:
 // Next.js redacts thrown Server Component error messages in production
@@ -23,7 +35,7 @@ export async function getRelease(owner: string, repo: string, version?: string):
     : `/api/release/${owner}/${repo}`;
   let res: Response;
   try {
-    res = await fetch(`${BACKEND_URL}${path}`, { next: { revalidate: 300 } });
+    res = await backendFetch(path);
   } catch {
     return { ok: false, message: "Couldn't reach the download service. Try again in a moment." };
   }
@@ -73,7 +85,7 @@ export async function getRelease(owner: string, repo: string, version?: string):
 // failure here degrades to "no other versions" instead of failing the page.
 export async function getReleases(owner: string, repo: string): Promise<ReleaseSummary[]> {
   try {
-    const res = await fetch(`${BACKEND_URL}/api/releases/${owner}/${repo}`, { next: { revalidate: 300 } });
+    const res = await backendFetch(`/api/releases/${owner}/${repo}`);
     if (!res.ok) return [];
     return await res.json();
   } catch {
@@ -85,7 +97,7 @@ export async function getReleases(owner: string, repo: string): Promise<ReleaseS
 // a large document. Empty string on any failure — install commands / About just hide.
 export async function getReadme(owner: string, repo: string): Promise<string> {
   try {
-    const res = await fetch(`${BACKEND_URL}/api/readme/${owner}/${repo}`, { next: { revalidate: 300 } });
+    const res = await backendFetch(`/api/readme/${owner}/${repo}`);
     if (!res.ok) return "";
     const body: unknown = await res.json();
     if (typeof body === "object" && body !== null && "readme" in body && typeof body.readme === "string") {
@@ -104,15 +116,13 @@ export async function getChecksums(assets: Asset[]): Promise<Record<string, stri
   if (!checksumAsset) return {};
 
   try {
-    const res = await fetch(checksumAsset.browser_download_url, { next: { revalidate: 300 } });
+    const res = await fetch(checksumAsset.browser_download_url, {
+      next: { revalidate: FETCH_REVALIDATE_SECONDS },
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    });
     if (!res.ok) return {};
     return parseChecksumText(await res.text());
   } catch {
     return {};
   }
-}
-
-export async function platformFromRequest(): Promise<[Platform, Arch]> {
-  const ua = (await headers()).get("user-agent") ?? "";
-  return [detectPlatformFromUA(ua), detectArchFromUA(ua)];
 }

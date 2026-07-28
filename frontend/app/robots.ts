@@ -5,7 +5,10 @@ export default function robots(): MetadataRoute.Robots {
     rules: {
       userAgent: "*",
       allow: "/",
-      disallow: ["/api/", "/dl/"],
+      // /p/* is an unbounded owner/repo space — crawlers mostly cause cold
+      // Fluid invocations with little SEO value. Users reach release pages
+      // via direct links (github.com → yatko.app URL swap).
+      disallow: ["/api/", "/dl/", "/p/"],
     },
   };
 }

@@ -24,3 +24,12 @@
 - Install-command extraction from README fences must accept both CommonMark triple-backtick and tilde (`~~~`) fences.
 - Bare versioned tarballs (e.g. `.tar.xz`) with no OS/arch token are treated as source archives, not installable binaries, in both the Go picker and the frontend.
 - Release checksums come from downloadable checksum assets (names matching checksum/sha*sums or `*.sha256` / `*.sha512` / `*.md5`), fetched and parsed into a filename→hash map.
+
+## Cursor Cloud specific instructions
+
+Two services (see `CLAUDE.md` for the full command list and architecture): Go backend in `backend/` on `:8080`, Next.js frontend in `frontend/` on `:3000`. `./dev.sh` runs both together; end-to-end testing needs both.
+
+- Toolchain: the backend needs Go 1.25+ (`backend/go.mod` pins `go 1.25.1`) and the frontend uses **Bun**, not npm. The VM snapshot ships Go 1.25 (symlinked at `/usr/local/bin/go`, ahead of the older distro `/usr/bin/go`) and Bun (`/usr/local/bin/bun`); the update script only refreshes project deps.
+- No env vars are required for local dev: `BACKEND_URL` defaults to `http://localhost:8080`, and the backend hits GitHub's public API unauthenticated. Redis is fully optional (cache + rate limiter no-op without `UPSTASH_REDIS_URL`; Go tests use embedded miniredis).
+- Non-obvious caveat: heavy testing against real repos can hit GitHub's anonymous rate limits (60 req/hr). Set `GITHUB_TOKEN` (classic PAT, no scopes) on the backend to raise limits if resolving many repos.
+- Frontend has no lint script; `bun test` is the only frontend test entry. Backend: `go test ./...` and `go build ./...`.

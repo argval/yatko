@@ -1,12 +1,15 @@
 import type { Metadata } from "next";
 import { ReleasePageBody } from "../release-page";
-import { getChecksums, getReadme, getRelease, getReleases, platformFromRequest } from "../backend";
+import { getChecksums, getReadme, getRelease, getReleases } from "../backend";
 import { ReleaseError } from "../release-error";
 import { NotFoundCard } from "../not-found";
 
 type Props = {
   params: Promise<{ owner: string; repo: string; version: string }>;
 };
+
+/** See parent route: keep versioned pages cacheable without reading request headers. */
+export const revalidate = 3600;
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { owner, repo, version } = await params;
@@ -26,7 +29,6 @@ export default async function VersionedReleasePage({ params }: Props) {
       <ReleaseError message={result.message} />
     );
   }
-  const [platform, arch] = await platformFromRequest();
   const readmePromise = getReadme(owner, repo);
   const releasesPromise = Array.isArray(result.data.releases)
     ? Promise.resolve(result.data.releases)
@@ -37,8 +39,6 @@ export default async function VersionedReleasePage({ params }: Props) {
       owner={owner}
       repo={repo}
       release={result.data}
-      initialPlatform={platform}
-      initialArch={arch}
       readmePromise={readmePromise}
       releasesPromise={releasesPromise}
       checksumsPromise={checksumsPromise}

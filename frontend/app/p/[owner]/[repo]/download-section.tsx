@@ -1,8 +1,8 @@
 "use client";
 
 import { Suspense, use } from "react";
-import { pickBestAsset, type Arch, type Asset, type Platform } from "./platform-utils";
-import { usePlatform } from "./use-platform";
+import { pickBestAsset, type Asset } from "./platform-utils";
+import { useIsClient, usePlatform } from "./use-platform";
 import { DownloadButton } from "./download-button";
 import { AssetChecksum } from "./asset-checksum";
 
@@ -12,8 +12,6 @@ export function DownloadSection({
   assets,
   tagName,
   publishedDate,
-  initialPlatform,
-  initialArch,
   checksumsPromise,
 }: {
   owner: string;
@@ -21,11 +19,23 @@ export function DownloadSection({
   assets: Asset[];
   tagName: string;
   publishedDate: string;
-  initialPlatform: Platform;
-  initialArch: Arch;
   checksumsPromise: Promise<Record<string, string>>;
 }) {
-  const [platform, arch] = usePlatform(initialPlatform, initialArch);
+  const isClient = useIsClient();
+  const [platform, arch] = usePlatform();
+
+  if (!isClient) {
+    return (
+      <div className="flex flex-col items-center gap-2" aria-hidden>
+        <div className="h-14 w-56 rounded-xl bg-foreground/[0.08] animate-pulse" />
+        <p className="text-sm text-muted">
+          {tagName} &middot; {publishedDate}
+        </p>
+        <div className="h-4 w-48 rounded bg-foreground/[0.06] animate-pulse" />
+      </div>
+    );
+  }
+
   const primaryAsset = pickBestAsset(assets, platform, arch);
 
   return (

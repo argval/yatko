@@ -15,8 +15,10 @@ import (
 )
 
 // DefaultSoftTTL is how long a cached value is served without revalidating
-// against GitHub. Override with CACHE_TTL_SECONDS.
-const DefaultSoftTTL = 15 * time.Minute
+// against GitHub. Override with CACHE_TTL_SECONDS. Kept aligned with the
+// frontend's Next.js revalidate window so warm release pages rarely force
+// a GitHub round-trip on the request path.
+const DefaultSoftTTL = 1 * time.Hour
 
 // SearchSoftTTL is longer than DefaultSoftTTL — search results change slowly
 // and GitHub's Search API is both slower and tighter-quota'd than core REST.

@@ -2,11 +2,16 @@ import type { Metadata } from "next";
 import { ReleasePageBody } from "./release-page";
 import { ReleaseError } from "./release-error";
 import { NotFoundCard } from "./not-found";
-import { getChecksums, getReadme, getRelease, getReleases, platformFromRequest } from "./backend";
+import { getChecksums, getReadme, getRelease, getReleases } from "./backend";
 
 type Props = {
   params: Promise<{ owner: string; repo: string }>;
 };
+
+/** Cache the release page HTML/RSC payload for an hour. Platform is detected
+ *  client-side so we avoid headers()-forced dynamic rendering (which made every
+ *  hit a Fluid invocation with private no-store responses). */
+export const revalidate = 3600;
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { owner, repo } = await params;
@@ -26,7 +31,6 @@ export default async function ReleasePage({ params }: Props) {
       <ReleaseError message={result.message} />
     );
   }
-  const [platform, arch] = await platformFromRequest();
   // README streams in separately; releases are usually already on the release
   // payload (backend embeds them). Checksums stay non-blocking via Suspense.
   const readmePromise = getReadme(owner, repo);
@@ -39,8 +43,6 @@ export default async function ReleasePage({ params }: Props) {
       owner={owner}
       repo={repo}
       release={result.data}
-      initialPlatform={platform}
-      initialArch={arch}
       readmePromise={readmePromise}
       releasesPromise={releasesPromise}
       checksumsPromise={checksumsPromise}

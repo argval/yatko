@@ -11,7 +11,7 @@ import { ReleaseNavShell } from "./release-nav-shell";
 import { RepoMarkdown, RepoDescription } from "./markdown";
 import { extractInstallCommands } from "./extract-install-commands";
 import { chromeTextButton } from "@/components/chrome";
-import type { Arch, Asset, Platform } from "./platform-utils";
+import type { Asset } from "./platform-utils";
 
 export type ReleaseData = {
   owner: string;
@@ -40,8 +40,6 @@ export function ReleasePageBody({
   owner,
   repo,
   release,
-  initialPlatform,
-  initialArch,
   readmePromise,
   releasesPromise,
   checksumsPromise,
@@ -49,8 +47,6 @@ export function ReleasePageBody({
   owner: string;
   repo: string;
   release: ReleaseData;
-  initialPlatform: Platform;
-  initialArch: Arch;
   readmePromise: Promise<string>;
   releasesPromise: Promise<ReleaseSummary[]>;
   checksumsPromise: Promise<Record<string, string>>;
@@ -110,8 +106,6 @@ export function ReleasePageBody({
               assets={release.assets}
               tagName={release.tag_name}
               publishedDate={publishedDate}
-              initialPlatform={initialPlatform}
-              initialArch={initialArch}
               checksumsPromise={checksumsPromise}
             />
             <Suspense
@@ -144,7 +138,6 @@ export function ReleasePageBody({
               owner={owner}
               repo={repo}
               readmePromise={readmePromise}
-              initialPlatform={initialPlatform}
             />
           </Suspense>
 
@@ -162,7 +155,6 @@ export function ReleasePageBody({
             owner={owner}
             repo={repo}
             assets={release.assets}
-            initialPlatform={initialPlatform}
           />
         </div>
       </main>
@@ -196,12 +188,10 @@ async function ReadmeSections({
   owner,
   repo,
   readmePromise,
-  initialPlatform,
 }: {
   owner: string;
   repo: string;
   readmePromise: Promise<string>;
-  initialPlatform: Platform;
 }) {
   const readme = await readmePromise;
   if (!readme) return null;
@@ -209,7 +199,7 @@ async function ReadmeSections({
   return (
     <>
       {installCommands.length > 0 && (
-        <InstallCommands commands={installCommands} initialPlatform={initialPlatform} />
+        <InstallCommands commands={installCommands} />
       )}
       <CollapsibleCard title="About" defaultOpen={false}>
         <RepoMarkdown owner={owner} repo={repo}>

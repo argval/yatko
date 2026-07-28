@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
-import type { Asset, Platform } from "./platform-utils";
+import type { Asset } from "./platform-utils";
 
 const sectionFallback = (
   <div className="h-14 rounded-xl border border-border bg-surface/40 animate-pulse" aria-hidden />
@@ -23,12 +23,10 @@ export function BelowFoldSections({
   owner,
   repo,
   assets,
-  initialPlatform,
 }: {
   owner: string;
   repo: string;
   assets: Asset[];
-  initialPlatform: Platform;
 }) {
   const [ready, setReady] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -53,7 +51,7 @@ export function BelowFoldSections({
     <div ref={ref} id="downloads" className="space-y-8 scroll-mt-8">
       {ready ? (
         <>
-          <AllDownloads assets={assets} initialPlatform={initialPlatform} />
+          <AllDownloads assets={assets} />
           <ShareLinks owner={owner} repo={repo} />
         </>
       ) : (

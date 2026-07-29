@@ -2,7 +2,7 @@
 
 import { Suspense, use } from "react";
 import { pickBestAsset, type Asset } from "./platform-utils";
-import { useIsClient, usePlatform } from "./use-platform";
+import { usePlatform } from "./use-platform";
 import { DownloadButton } from "./download-button";
 import { AssetChecksum } from "./asset-checksum";
 
@@ -21,10 +21,9 @@ export function DownloadSection({
   publishedDate: string;
   checksumsPromise: Promise<Record<string, string>>;
 }) {
-  const isClient = useIsClient();
-  const [platform, arch] = usePlatform();
+  const detected = usePlatform();
 
-  if (!isClient) {
+  if (!detected) {
     return (
       <div className="flex flex-col items-center gap-2" aria-hidden>
         <div className="h-14 w-56 rounded-xl bg-foreground/[0.08] animate-pulse" />
@@ -36,6 +35,7 @@ export function DownloadSection({
     );
   }
 
+  const { platform, arch } = detected;
   const primaryAsset = pickBestAsset(assets, platform, arch);
 
   return (

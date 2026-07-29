@@ -1,11 +1,12 @@
 import { ImageResponse } from "next/og";
 import { getRelease } from "./backend";
+import { BACKEND_FETCH_REVALIDATE_SECONDS } from "@/lib/backend-env";
 
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 export const alt = "Yatko download page preview";
 /** Match release-page ISR so social cards aren't regenerated on every share unfurl. */
-export const revalidate = 3600;
+export const revalidate = BACKEND_FETCH_REVALIDATE_SECONDS;
 
 type Props = { params: Promise<{ owner: string; repo: string }> };
 
@@ -14,12 +15,16 @@ type Props = { params: Promise<{ owner: string; repo: string }> };
 // generic sans-serif.
 async function loadOutfitFont(text: string): Promise<ArrayBuffer | null> {
   try {
-    const css = await (
-      await fetch(`https://fonts.googleapis.com/css2?family=Outfit:wght@600&text=${encodeURIComponent(text)}`)
-    ).text();
+    const cssRes = await fetch(
+      `https://fonts.googleapis.com/css2?family=Outfit:wght@600&text=${encodeURIComponent(text)}`,
+    );
+    if (!cssRes.ok) return null;
+    const css = await cssRes.text();
     const match = css.match(/src: url\((.+?)\) format\('(?:opentype|truetype)'\)/);
-    if (!match) return null;
-    return await (await fetch(match[1])).arrayBuffer();
+    if (!match?.[1]) return null;
+    const fontRes = await fetch(match[1]);
+    if (!fontRes.ok) return null;
+    return await fontRes.arrayBuffer();
   } catch {
     return null;
   }

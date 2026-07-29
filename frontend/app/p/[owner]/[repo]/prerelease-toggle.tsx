@@ -1,6 +1,6 @@
 "use client";
 
-import { useReleaseNav } from "./release-nav-shell";
+import { useRouter } from "next/navigation";
 import type { ReleaseSummary } from "./release-page";
 
 export function PrereleaseToggle({
@@ -14,7 +14,7 @@ export function PrereleaseToggle({
   isCurrentPrerelease: boolean;
   releases: ReleaseSummary[];
 }) {
-  const { navigate, prefetch } = useReleaseNav();
+  const router = useRouter();
 
   const hasPrereleases = releases.some((r) => r.prerelease);
   if (!hasPrereleases && !isCurrentPrerelease) return null;
@@ -25,9 +25,9 @@ export function PrereleaseToggle({
 
   function handleToggle(e: React.ChangeEvent<HTMLInputElement>) {
     if (e.target.checked) {
-      if (preHref) navigate(preHref);
+      if (preHref) router.push(preHref);
     } else {
-      navigate(latestHref);
+      router.push(latestHref);
     }
   }
 
@@ -35,8 +35,8 @@ export function PrereleaseToggle({
     <label
       className="flex items-center gap-2 text-xs text-muted cursor-pointer select-none hover:text-foreground transition-colors"
       onMouseEnter={() => {
-        if (preHref) prefetch(preHref);
-        prefetch(latestHref);
+        if (preHref) router.prefetch(preHref);
+        router.prefetch(latestHref);
       }}
     >
       <input

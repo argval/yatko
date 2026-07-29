@@ -1,4 +1,3 @@
-import type { ReactNode } from "react";
 import Markdown, { defaultUrlTransform } from "react-markdown";
 import type { Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -43,16 +42,6 @@ const rehypePlugins: PluggableList = [rehypeRaw, [rehypeSanitize, sanitizeSchema
 /** Typography plugin + a few GFM extras in globals.css */
 const proseBase =
   "prose prose-sm dark:prose-invert max-w-none prose-a:text-blue-500 prose-img:rounded-lg";
-
-/** Soft cap so a megabyte README cannot dominate Fluid Active CPU (or the
- *  browser main thread). Backend fetch is still capped separately at 1 MB. */
-export const MAX_MARKDOWN_CHARS = 100_000;
-
-/** Truncate oversized markdown before the remark/rehype pipeline. */
-export function clipMarkdown(source: string, maxChars = MAX_MARKDOWN_CHARS): string {
-  if (source.length <= maxChars) return source;
-  return `${source.slice(0, maxChars)}\n\n…\n`;
-}
 
 function isExternalHref(href: string | undefined): boolean {
   if (!href) return false;
@@ -150,52 +139,6 @@ export function resolveRepoContentUrl(
   }
 }
 
-/** Strip trailing punctuation that often sticks to autolinked URLs. */
-function splitUrlAndTrailing(raw: string): { url: string; trailing: string } {
-  let url = raw;
-  let trailing = "";
-  while (/[.,;:!?)\]}'"”’]$/.test(url)) {
-    trailing = url.slice(-1) + trailing;
-    url = url.slice(0, -1);
-  }
-  return { url, trailing };
-}
-
-const URL_RE = /https?:\/\/[^\s<>"'`]+/g;
-
-/** Plain-text repo description with http(s) URLs turned into links. */
-export function RepoDescription({ children }: { children: string }) {
-  const nodes: ReactNode[] = [];
-  let last = 0;
-  for (const match of children.matchAll(URL_RE)) {
-    const index = match.index ?? 0;
-    if (index > last) nodes.push(children.slice(last, index));
-    const { url, trailing } = splitUrlAndTrailing(match[0]);
-    if (url) {
-      nodes.push(
-        <a
-          key={`url-${index}`}
-          href={url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-blue-500 hover:underline"
-        >
-          {url}
-        </a>,
-      );
-    }
-    if (trailing) nodes.push(trailing);
-    last = index + match[0].length;
-  }
-  if (last < children.length) nodes.push(children.slice(last));
-
-  return (
-    <p className="text-center text-muted leading-relaxed max-w-md [&_a]:text-blue-500 [&_a:hover]:underline">
-      {nodes}
-    </p>
-  );
-}
-
 export function RepoMarkdown({
   children,
   owner,
@@ -210,7 +153,6 @@ export function RepoMarkdown({
   refName?: string;
   className?: string;
 }) {
-  const source = clipMarkdown(children);
   return (
     <div className={className ? `${proseBase} ${className}` : proseBase}>
       <Markdown
@@ -219,7 +161,7 @@ export function RepoMarkdown({
         urlTransform={(url) => resolveRepoContentUrl(url, owner, repo, refName)}
         components={markdownComponents}
       >
-        {source}
+        {children}
       </Markdown>
     </div>
   );

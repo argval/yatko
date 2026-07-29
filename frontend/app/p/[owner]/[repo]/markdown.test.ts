@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { clipMarkdown, isAllowedMarkdownImageSrc, resolveRepoContentUrl } from "./markdown";
+import { clipMarkdown } from "./clip-markdown";
+import { isAllowedMarkdownImageSrc, resolveRepoContentUrl } from "./markdown";
 
 describe("isAllowedMarkdownImageSrc", () => {
   test("allows GitHub-controlled https hosts", () => {

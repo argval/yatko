@@ -35,7 +35,11 @@ export function HomeSearchForm({
       <div className="relative">
         <div className="flex gap-2">
           <div className="relative flex-1">
+            <label htmlFor="repo-search" className="sr-only">
+              Search GitHub repositories
+            </label>
             <input
+              id="repo-search"
               type="text"
               value={input}
               onChange={(e) => {

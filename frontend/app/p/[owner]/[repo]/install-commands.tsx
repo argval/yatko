@@ -18,19 +18,14 @@ const platformLabels: Record<InstallPlatform | Platform, string> = {
   universal: "Universal",
 };
 
-export function InstallCommands({
-  commands,
-  initialPlatform,
-}: {
-  commands: InstallCommand[];
-  initialPlatform?: Platform;
-}) {
-  const [platform] = usePlatform(initialPlatform);
+export function InstallCommands({ commands }: { commands: InstallCommand[] }) {
+  const detected = usePlatform();
   const [filterEnabled, setFilterEnabled] = useState(false);
 
-  const visible = filterEnabled
-    ? commands.filter((c) => c.platform === "universal" || c.platform === platform)
-    : commands;
+  const visible =
+    filterEnabled && detected
+      ? commands.filter((c) => c.platform === "universal" || c.platform === detected.platform)
+      : commands;
 
   return (
     <CollapsibleCard title="From README">
@@ -39,9 +34,10 @@ export function InstallCommands({
       </p>
       <PlatformFilterToggle checked={filterEnabled} onChange={setFilterEnabled} />
 
-      {visible.length === 0 && (
+      {visible.length === 0 && detected && (
         <p className="text-sm text-foreground/40 py-2">
-          No install commands found for {platformLabels[platform]}. Try unchecking the filter.
+          No install commands found for {platformLabels[detected.platform]}. Try unchecking the
+          filter.
         </p>
       )}
 

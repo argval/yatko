@@ -3,10 +3,6 @@ import { ReleasePageBody } from "./release-page";
 import { getChecksums, getReadme, getRelease, getReleases } from "./backend";
 import { ReleaseError } from "./release-error";
 import { NotFoundCard } from "./not-found";
-import { BACKEND_FETCH_REVALIDATE_SECONDS } from "@/lib/backend-env";
-
-/** ISR window for release HTML/RSC + OG images — keep aligned with backend soft TTL. */
-export const RELEASE_PAGE_REVALIDATE = BACKEND_FETCH_REVALIDATE_SECONDS;
 
 export function releasePageMetadata({
   owner,

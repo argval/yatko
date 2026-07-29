@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import {
-  RELEASE_PAGE_REVALIDATE,
   releasePageMetadata,
   renderReleasePage,
 } from "../release-route";
@@ -9,8 +8,9 @@ type Props = {
   params: Promise<{ owner: string; repo: string; version: string }>;
 };
 
-/** See parent route: keep versioned pages cacheable without reading request headers. */
-export const revalidate = RELEASE_PAGE_REVALIDATE;
+/** See parent route: keep versioned pages cacheable without reading request headers.
+ *  Literal required for Next segment config static analysis. */
+export const revalidate = 3600;
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { owner, repo, version } = await params;

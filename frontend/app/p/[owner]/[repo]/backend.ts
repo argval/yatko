@@ -1,15 +1,11 @@
 import type { ReleaseData, ReleaseSummary } from "./release-page";
 import { findChecksumAsset, parseChecksumText } from "./parse-checksums";
 import type { Asset } from "./platform-utils";
-
-const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:8080";
-
-/** How long Next may reuse a cached backend/GitHub response before revalidating. */
-const FETCH_REVALIDATE_SECONDS = 3600;
-
-/** Cap wall time for frontend → backend (and checksum) fetches so hung upstreams
- *  cannot hold a Fluid instance open near the function max duration. */
-const FETCH_TIMEOUT_MS = 8_000;
+import {
+  BACKEND_FETCH_REVALIDATE_SECONDS,
+  BACKEND_FETCH_TIMEOUT_MS,
+  BACKEND_URL,
+} from "@/lib/backend-env";
 
 export type ReleaseResult =
   | { ok: true; data: ReleaseData }
@@ -18,8 +14,8 @@ export type ReleaseResult =
 
 function backendFetch(path: string): Promise<Response> {
   return fetch(`${BACKEND_URL}${path}`, {
-    next: { revalidate: FETCH_REVALIDATE_SECONDS },
-    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    next: { revalidate: BACKEND_FETCH_REVALIDATE_SECONDS },
+    signal: AbortSignal.timeout(BACKEND_FETCH_TIMEOUT_MS),
   });
 }
 
@@ -117,8 +113,8 @@ export async function getChecksums(assets: Asset[]): Promise<Record<string, stri
 
   try {
     const res = await fetch(checksumAsset.browser_download_url, {
-      next: { revalidate: FETCH_REVALIDATE_SECONDS },
-      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      next: { revalidate: BACKEND_FETCH_REVALIDATE_SECONDS },
+      signal: AbortSignal.timeout(BACKEND_FETCH_TIMEOUT_MS),
     });
     if (!res.ok) return {};
     return parseChecksumText(await res.text());

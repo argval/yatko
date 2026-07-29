@@ -1,8 +1,6 @@
 import { checkBotId } from "botid/server";
 import { NextResponse } from "next/server";
-
-const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:8080";
-const PROXY_TIMEOUT_MS = 8_000;
+import { BACKEND_FETCH_TIMEOUT_MS, BACKEND_URL } from "@/lib/backend-env";
 
 /**
  * Homepage autocomplete. Runs on the frontend service so we can verify BotID
@@ -22,7 +20,7 @@ export async function GET(request: Request) {
   try {
     const res = await fetch(target, {
       headers: { Accept: "application/json" },
-      signal: AbortSignal.timeout(PROXY_TIMEOUT_MS),
+      signal: AbortSignal.timeout(BACKEND_FETCH_TIMEOUT_MS),
       // Search responses are user-specific / short-lived; don't poison the
       // Next data cache with one visitor's autocomplete.
       cache: "no-store",

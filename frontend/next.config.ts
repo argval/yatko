@@ -6,21 +6,18 @@ const backendURL = process.env.BACKEND_URL || "http://localhost:8080";
 const nextConfig: NextConfig = {
   reactCompiler: true,
   async rewrites() {
-    // Local/dev: proxy most API + download routes to the Go backend.
-    // /api/search stays on Next.js so BotID can verify homepage autocomplete
-    // before we proxy to the backend (see app/api/search/route.ts).
-    // On Vercel, root vercel.json routes similarly (search → frontend, other
-    // /api → backend) before Next.js sees the request.
+    // Local/dev proxy to the Go backend. /api/search is an App Router route
+    // (BotID gate) — put the catch-all API proxy in afterFiles so check_fs
+    // serves that route first; everything else under /api proxies upstream.
+    // On Vercel, root vercel.json routes search → frontend and other /api →
+    // backend before Next.js sees the request.
     return {
       beforeFiles: [
-        { source: "/api/release/:path*", destination: `${backendURL}/api/release/:path*` },
-        { source: "/api/releases/:path*", destination: `${backendURL}/api/releases/:path*` },
-        { source: "/api/readme/:path*", destination: `${backendURL}/api/readme/:path*` },
-        { source: "/api/link/:path*", destination: `${backendURL}/api/link/:path*` },
         { source: "/dl/:path*", destination: `${backendURL}/dl/:path*` },
         { source: "/health", destination: `${backendURL}/health` },
       ],
       afterFiles: [
+        { source: "/api/:path*", destination: `${backendURL}/api/:path*` },
         // yatko.app/:owner/:repo mirrors github.com/:owner/:repo, transparently
         // serving the /p/:owner/:repo release page (URL bar stays as-is).
         { source: "/:owner/:repo", destination: "/p/:owner/:repo" },

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { assetPlatformLabel, platformLabels, formatSize, type Asset, type Platform } from "./platform-utils";
+import { assetPlatformLabel, platformLabels, formatSize, type Asset } from "./platform-utils";
 import { usePlatform } from "./use-platform";
 import { CollapsibleCard } from "./collapsible-card";
 import { PlatformFilterToggle } from "./platform-filter-toggle";
@@ -11,19 +11,14 @@ const compactCount = new Intl.NumberFormat("en", {
   maximumFractionDigits: 1,
 });
 
-export function AllDownloads({
-  assets,
-  initialPlatform,
-}: {
-  assets: Asset[];
-  initialPlatform?: Platform;
-}) {
-  const [platform] = usePlatform(initialPlatform);
+export function AllDownloads({ assets }: { assets: Asset[] }) {
+  const detected = usePlatform();
   const [filterEnabled, setFilterEnabled] = useState(false);
 
-  const visible = filterEnabled
-    ? assets.filter((a) => assetPlatformLabel(a.name) === platformLabels[platform])
-    : assets;
+  const visible =
+    filterEnabled && detected
+      ? assets.filter((a) => assetPlatformLabel(a.name) === platformLabels[detected.platform])
+      : assets;
 
   return (
     <CollapsibleCard title="All Downloads">
@@ -31,8 +26,8 @@ export function AllDownloads({
 
       {visible.length === 0 && (
         <p className="text-sm text-foreground/40 py-2">
-          {filterEnabled
-            ? `No assets found for ${platformLabels[platform]}. Try unchecking the filter.`
+          {filterEnabled && detected
+            ? `No assets found for ${platformLabels[detected.platform]}. Try unchecking the filter.`
             : "No downloads available for this release."}
         </p>
       )}

@@ -44,6 +44,16 @@ const rehypePlugins: PluggableList = [rehypeRaw, [rehypeSanitize, sanitizeSchema
 const proseBase =
   "prose prose-sm dark:prose-invert max-w-none prose-a:text-blue-500 prose-img:rounded-lg";
 
+/** Soft cap so a megabyte README cannot dominate Fluid Active CPU (or the
+ *  browser main thread). Backend fetch is still capped separately at 1 MB. */
+export const MAX_MARKDOWN_CHARS = 100_000;
+
+/** Truncate oversized markdown before the remark/rehype pipeline. */
+export function clipMarkdown(source: string, maxChars = MAX_MARKDOWN_CHARS): string {
+  if (source.length <= maxChars) return source;
+  return `${source.slice(0, maxChars)}\n\n…\n`;
+}
+
 function isExternalHref(href: string | undefined): boolean {
   if (!href) return false;
   return href.startsWith("http://") || href.startsWith("https://") || href.startsWith("//");
@@ -200,6 +210,7 @@ export function RepoMarkdown({
   refName?: string;
   className?: string;
 }) {
+  const source = clipMarkdown(children);
   return (
     <div className={className ? `${proseBase} ${className}` : proseBase}>
       <Markdown
@@ -208,7 +219,7 @@ export function RepoMarkdown({
         urlTransform={(url) => resolveRepoContentUrl(url, owner, repo, refName)}
         components={markdownComponents}
       >
-        {children}
+        {source}
       </Markdown>
     </div>
   );

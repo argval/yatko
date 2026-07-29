@@ -180,10 +180,11 @@ func GetCached[T any](ctx context.Context, c *Cache, key string) (T, bool) {
 
 // revalidateInBackground refreshes a stale entry without blocking the caller.
 // Uses a detached timeout context because the request context is canceled when
-// the HTTP handler returns.
+// the HTTP handler returns. Kept short (5s) so Fluid/container instances aren't
+// pinned by slow GitHub revalidations after the response has already gone out.
 func revalidateInBackground[T any](c *Cache, key string, existing entry[T], fetch ConditionalFetch[T]) {
 	_, _, _ = c.sf.Do(key, func() (interface{}, error) {
-		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		value, err := loadAndStore(ctx, c, key, existing.ETag, &existing, fetch)
 		if err != nil {

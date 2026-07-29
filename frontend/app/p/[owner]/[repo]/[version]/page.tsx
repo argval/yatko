@@ -13,9 +13,21 @@ export const revalidate = 3600;
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { owner, repo, version } = await params;
+  const title = `${repo} ${version} - Download | Yatko`;
+  const description = `Download ${owner}/${repo} version ${version}`;
   return {
-    title: `${repo} ${version} - Download | Yatko`,
-    description: `Download ${owner}/${repo} version ${version}`,
+    title,
+    description,
+    openGraph: {
+      title,
+      description,
+      type: "website",
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+    },
   };
 }
 

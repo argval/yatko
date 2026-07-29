@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { isAllowedMarkdownImageSrc, resolveRepoContentUrl } from "./markdown";
+import { clipMarkdown, isAllowedMarkdownImageSrc, resolveRepoContentUrl } from "./markdown";
 
 describe("isAllowedMarkdownImageSrc", () => {
   test("allows GitHub-controlled https hosts", () => {
@@ -35,5 +35,16 @@ describe("resolveRepoContentUrl", () => {
     expect(resolveRepoContentUrl("docs/logo.png", "acme", "app", "v1")).toBe(
       "https://raw.githubusercontent.com/acme/app/v1/docs/logo.png",
     );
+  });
+});
+
+describe("clipMarkdown", () => {
+  test("leaves short sources unchanged", () => {
+    expect(clipMarkdown("hello", 100)).toBe("hello");
+  });
+
+  test("truncates oversized sources with an ellipsis marker", () => {
+    const source = "a".repeat(50);
+    expect(clipMarkdown(source, 20)).toBe(`${"a".repeat(20)}\n\n…\n`);
   });
 });

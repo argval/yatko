@@ -4,6 +4,8 @@ import { getRelease } from "./backend";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 export const alt = "Yatko download page preview";
+/** Match release-page ISR so social cards aren't regenerated on every share unfurl. */
+export const revalidate = 3600;
 
 type Props = { params: Promise<{ owner: string; repo: string }> };
 

@@ -8,7 +8,8 @@ import { PrereleaseToggle } from "./prerelease-toggle";
 import { BelowFoldSections } from "./below-fold";
 import { CollapsibleCard } from "./collapsible-card";
 import { ReleaseNavShell } from "./release-nav-shell";
-import { RepoMarkdown, RepoDescription } from "./markdown";
+import { RepoDescription, clipMarkdown } from "./markdown";
+import { DeferredRepoMarkdown } from "./deferred-markdown";
 import { extractInstallCommands } from "./extract-install-commands";
 import { chromeTextButton } from "@/components/chrome";
 import type { Asset } from "./platform-utils";
@@ -141,12 +142,12 @@ export function ReleasePageBody({
             />
           </Suspense>
 
-          {/* Release notes */}
+          {/* Release notes — markdown parses client-side to spare Fluid CPU on ISR */}
           {release.body && (
             <CollapsibleCard title="Release Notes">
-              <RepoMarkdown owner={owner} repo={repo} refName={release.tag_name}>
-                {release.body}
-              </RepoMarkdown>
+              <DeferredRepoMarkdown owner={owner} repo={repo} refName={release.tag_name}>
+                {clipMarkdown(release.body)}
+              </DeferredRepoMarkdown>
             </CollapsibleCard>
           )}
 
@@ -196,15 +197,16 @@ async function ReadmeSections({
   const readme = await readmePromise;
   if (!readme) return null;
   const installCommands = extractInstallCommands(readme);
+  const aboutMarkdown = clipMarkdown(readme);
   return (
     <>
       {installCommands.length > 0 && (
         <InstallCommands commands={installCommands} />
       )}
       <CollapsibleCard title="About" defaultOpen={false}>
-        <RepoMarkdown owner={owner} repo={repo}>
-          {readme}
-        </RepoMarkdown>
+        <DeferredRepoMarkdown owner={owner} repo={repo}>
+          {aboutMarkdown}
+        </DeferredRepoMarkdown>
       </CollapsibleCard>
     </>
   );

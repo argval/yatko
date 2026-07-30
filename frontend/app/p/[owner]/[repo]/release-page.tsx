@@ -1,6 +1,5 @@
 import { Suspense } from "react";
 import Image from "next/image";
-import Link from "next/link";
 import { InstallCommands } from "./install-commands";
 import { DownloadSection } from "./download-section";
 import { VersionSelector } from "./version-selector";
@@ -10,7 +9,7 @@ import { CollapsibleCard } from "./collapsible-card";
 import { RepoDescription } from "./repo-description";
 import { DeferredRepoMarkdown } from "./deferred-markdown";
 import { extractInstallCommands } from "./extract-install-commands";
-import { chromeTextButton } from "@/components/chrome";
+import { BackToYatko } from "@/components/back-to-yatko";
 import type { Asset } from "./platform-utils";
 
 export type ReleaseData = {
@@ -59,14 +58,7 @@ export function ReleasePageBody({
 
   return (
     <>
-      <Link
-        href="/"
-        className={`fixed top-4 left-4 z-50 ${chromeTextButton}`}
-        aria-label="Back to Yatko homepage"
-      >
-        <BackIcon />
-        Yatko
-      </Link>
+      <BackToYatko />
       <main className="flex-1 flex flex-col items-center px-4 py-12 sm:py-20">
         <div className="w-full max-w-2xl space-y-8">
           {/* Header */}
@@ -207,19 +199,5 @@ async function ReadmeSections({
         </DeferredRepoMarkdown>
       </CollapsibleCard>
     </>
-  );
-}
-
-function BackIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
-      <path
-        d="M10 3 5 8l5 5"
-        stroke="currentColor"
-        strokeWidth="1.75"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
   );
 }

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { BackToYatko } from "@/components/back-to-yatko";
 
 export const metadata: Metadata = {
   title: "Privacy — Yatko",
@@ -9,17 +9,14 @@ export const metadata: Metadata = {
 
 export default function PrivacyPage() {
   return (
-    <main className="flex-1 px-4 py-16 sm:py-20">
-      <article className="mx-auto max-w-xl space-y-8 text-sm leading-relaxed text-foreground/90">
-        <div className="space-y-3">
-          <p>
-            <Link href="/" className="text-muted hover:text-foreground transition-colors">
-              ← Yatko
-            </Link>
-          </p>
-          <h1 className="text-3xl font-semibold tracking-tight text-foreground">Privacy</h1>
-          <p className="text-muted">Last updated July 30, 2026</p>
-        </div>
+    <>
+      <BackToYatko />
+      <main className="flex-1 px-4 py-16 sm:py-20">
+        <article className="mx-auto max-w-xl space-y-8 text-sm leading-relaxed text-foreground/90">
+          <div className="space-y-3">
+            <h1 className="text-3xl font-semibold tracking-tight text-foreground">Privacy</h1>
+            <p className="text-muted">Last updated July 30, 2026</p>
+          </div>
 
         <section className="space-y-3">
           <h2 className="text-base font-medium text-foreground">What Yatko is</h2>
@@ -83,5 +80,6 @@ export default function PrivacyPage() {
         </section>
       </article>
     </main>
+    </>
   );
 }

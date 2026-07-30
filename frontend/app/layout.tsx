@@ -17,9 +17,24 @@ const jetbrainsMono = JetBrains_Mono({
   display: "swap",
 });
 
+const title = "Yatko - Clean downloads for GitHub releases";
+const description = "Clean download links for any public GitHub repo";
+
 export const metadata: Metadata = {
-  title: "Yatko - Clean downloads for GitHub releases",
-  description: "Clean download links for any public GitHub repo",
+  metadataBase: new URL("https://yatko.app"),
+  title,
+  description,
+  openGraph: {
+    title,
+    description,
+    type: "website",
+    siteName: "Yatko",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title,
+    description,
+  },
 };
 
 // Inline script to apply theme before paint to prevent flash

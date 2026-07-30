@@ -11,6 +11,8 @@ type ShareLink = {
 
 export function ShareLinks({ owner, repo }: { owner: string; repo: string }) {
   const base = "https://yatko.app";
+  // Landing page uses the github.com → yatko.app path (no /p/), so shared
+  // links match the product URL and resolve to the same release page.
   const links: ShareLink[] = [
     {
       label: "Smart download",
@@ -19,7 +21,7 @@ export function ShareLinks({ owner, repo }: { owner: string; repo: string }) {
     },
     {
       label: "Landing page",
-      url: `${base}/p/${owner}/${repo}`,
+      url: `${base}/${owner}/${repo}`,
       description: "Shareable download page with release notes and all assets",
     },
     {

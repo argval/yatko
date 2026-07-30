@@ -24,11 +24,15 @@ export const metadata: Metadata = {
   metadataBase: new URL("https://yatko.app"),
   title,
   description,
+  alternates: {
+    canonical: "/",
+  },
   openGraph: {
     title,
     description,
     type: "website",
     siteName: "Yatko",
+    url: "/",
   },
   twitter: {
     card: "summary_large_image",

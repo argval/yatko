@@ -19,13 +19,23 @@ export function releasePageMetadata({
   const description = version
     ? `Download ${owner}/${repo} version ${version}`
     : `Download the latest release of ${owner}/${repo}`;
+  // Latest releases use the github.com → yatko.app path. Version pins stay
+  // under /p/ (no bare /:owner/:repo/:version rewrite).
+  const canonicalPath = version
+    ? `/p/${owner}/${repo}/${version}`
+    : `/${owner}/${repo}`;
   return {
     title,
     description,
+    alternates: {
+      canonical: canonicalPath,
+    },
     openGraph: {
       title,
       description,
       type: "website",
+      siteName: "Yatko",
+      url: canonicalPath,
     },
     twitter: {
       card: "summary_large_image",

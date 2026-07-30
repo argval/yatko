@@ -89,18 +89,32 @@ func TestAllow_ResetsAfterWindow(t *testing.T) {
 	}
 }
 
-func TestAllow_NoopWithoutRedis(t *testing.T) {
-	l := &Limiter{}
+func TestAllow_UsesLocalWithoutRedis(t *testing.T) {
+	l := &Limiter{local: make(map[string]localWindow)}
 	ctx := context.Background()
 
-	for i := 0; i < 5; i++ {
-		allowed, _, err := l.Allow(ctx, "1.2.3.4", 1, time.Minute)
+	for i := 0; i < 2; i++ {
+		allowed, _, err := l.Allow(ctx, "1.2.3.4", 2, time.Minute)
 		if err != nil {
 			t.Fatalf("call %d: unexpected error: %v", i, err)
 		}
 		if !allowed {
-			t.Fatalf("call %d: expected always-allowed with no Redis configured", i)
+			t.Fatalf("call %d: expected local limiter to allow under limit", i)
 		}
+	}
+
+	allowed, retryAfter, err := l.Allow(ctx, "1.2.3.4", 2, time.Minute)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if allowed {
+		t.Fatal("expected local limiter to block over limit when Redis is unset")
+	}
+	if retryAfter <= 0 {
+		t.Fatalf("expected positive retryAfter, got %v", retryAfter)
+	}
+	if got := l.Backend(); got != "local" {
+		t.Fatalf("Backend() = %q, want local", got)
 	}
 }
 

@@ -19,9 +19,11 @@ import (
 const localMaxKeys = 10_000
 
 // Limiter enforces a fixed-window request budget keyed by an opaque string
-// (typically a client IP). Without a Redis URL env it always allows (local
-// dev). When Redis is configured but unreachable, it falls back to a
-// process-local fixed window instead of failing open.
+// (typically a client IP). Without a Redis URL env it uses a process-local
+// fixed window (fine for single-instance local/dev; prod should set Redis so
+// limits are shared across instances). When Redis is configured but
+// unreachable, it falls back to the same process-local window instead of
+// failing open.
 type Limiter struct {
 	client *redis.Client
 
@@ -35,7 +37,7 @@ type localWindow struct {
 }
 
 // New builds a Limiter from REDIS_URL / KV_URL / UPSTASH_REDIS_URL.
-// Without a usable URL the returned Limiter always allows.
+// Without a usable URL the returned Limiter uses process-local limiting.
 func New() *Limiter {
 	redisURL := firstEnv("REDIS_URL", "KV_URL", "UPSTASH_REDIS_URL")
 	if redisURL == "" {
@@ -43,7 +45,7 @@ func New() *Limiter {
 	}
 	opt, err := redis.ParseURL(redisURL)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "warning: invalid Redis URL, rate limiting disabled: %v\n", err)
+		fmt.Fprintf(os.Stderr, "warning: invalid Redis URL, using local rate limiting: %v\n", err)
 		return &Limiter{local: make(map[string]localWindow)}
 	}
 	opt.TLSConfig = &tls.Config{MinVersion: tls.VersionTLS12}
@@ -51,6 +53,15 @@ func New() *Limiter {
 		client: redis.NewClient(opt),
 		local:  make(map[string]localWindow),
 	}
+}
+
+// Backend reports how limits are enforced: "redis" when a client is configured,
+// otherwise "local" (process-local fixed window).
+func (l *Limiter) Backend() string {
+	if l != nil && l.client != nil {
+		return "redis"
+	}
+	return "local"
 }
 
 func firstEnv(keys ...string) string {
@@ -69,7 +80,8 @@ func (l *Limiter) Allow(ctx context.Context, key string, limit int, window time.
 		return true, 0, nil
 	}
 	if l.client == nil {
-		return true, 0, nil
+		allowed, retryAfter := l.allowLocal(key, limit, window)
+		return allowed, retryAfter, nil
 	}
 
 	rlKey := "ratelimit:" + key

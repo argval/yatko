@@ -74,6 +74,33 @@ type Client struct {
 	searchResetAt   int64
 }
 
+// Budget is a point-in-time snapshot of observed GitHub rate-limit headers.
+// Remaining values of -1 mean no response has been recorded yet.
+type Budget struct {
+	Remaining       int32 `json:"remaining"`
+	SearchRemaining int32 `json:"search_remaining"`
+	Reset           int64 `json:"reset"`
+	SearchReset     int64 `json:"search_reset"`
+}
+
+// Budget returns the last-seen core and Search API rate-limit counters.
+func (c *Client) Budget() Budget {
+	if c == nil {
+		return Budget{Remaining: -1, SearchRemaining: -1}
+	}
+	return Budget{
+		Remaining:       atomic.LoadInt32(&c.remaining),
+		SearchRemaining: atomic.LoadInt32(&c.searchRemaining),
+		Reset:           atomic.LoadInt64(&c.resetAt),
+		SearchReset:     atomic.LoadInt64(&c.searchResetAt),
+	}
+}
+
+// HasToken reports whether a GITHUB_TOKEN was configured (never the value).
+func (c *Client) HasToken() bool {
+	return c != nil && c.token != ""
+}
+
 const (
 	// maxREADMESize caps README fetches at 1 MB.
 	maxREADMESize = 1 << 20

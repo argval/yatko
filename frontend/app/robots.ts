@@ -1,6 +1,6 @@
 import type { MetadataRoute } from "next";
 
-/** Link-unfurl bots that need /p/* + opengraph-image to show preview cards. */
+/** Link-unfurl bots that need release pages + OG images for preview cards. */
 const SOCIAL_PREVIEW_BOTS = [
   "Twitterbot",
   "facebookexternalhit",
@@ -26,10 +26,10 @@ export default function robots(): MetadataRoute.Robots {
         disallow: ["/api/", "/dl/", "/p/"],
       },
       {
-        // Social unfurlers must fetch /p/* HTML + opengraph-image so share
-        // cards work. Keep /api and /dl blocked (no useful preview there).
+        // Social unfurlers need the github-swap URL (/:owner/:repo), /p/*
+        // HTML, and opengraph/twitter images. Keep /api and /dl blocked.
         userAgent: SOCIAL_PREVIEW_BOTS,
-        allow: ["/p/"],
+        allow: ["/"],
         disallow: ["/api/", "/dl/"],
       },
     ],

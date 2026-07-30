@@ -37,7 +37,7 @@ export function DownloadButton({
           {label}
         </a>
         <CopyButton
-          text={`https://yatko.app/p/${owner}/${repo}`}
+          text={`https://yatko.app/${owner}/${repo}`}
           label="Copy link to this page"
           size={20}
           className="shrink-0 p-4 rounded-xl border border-border text-foreground/50 hover:text-foreground hover:bg-foreground/5 transition-colors"

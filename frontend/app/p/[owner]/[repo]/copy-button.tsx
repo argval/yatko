@@ -17,13 +17,20 @@ export function CopyButton({
 }) {
   const [copied, copy] = useCopy();
   return (
-    <button
-      type="button"
-      onClick={() => copy(text)}
-      className={className}
-      aria-label={copied ? "Copied" : label}
-    >
-      {copied ? <CheckIcon size={size} /> : <CopyIcon size={size} />}
-    </button>
+    <span className="inline-flex items-center">
+      <button
+        type="button"
+        onClick={() => copy(text)}
+        className={className}
+        aria-label={copied ? "Copied" : label}
+      >
+        {copied ? <CheckIcon size={size} /> : <CopyIcon size={size} />}
+      </button>
+      {copied && (
+        <span className="sr-only" role="status" aria-live="polite">
+          Copied
+        </span>
+      )}
+    </span>
   );
 }

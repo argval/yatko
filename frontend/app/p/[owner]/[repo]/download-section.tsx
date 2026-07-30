@@ -25,12 +25,21 @@ export function DownloadSection({
 
   if (!detected) {
     return (
-      <div className="flex flex-col items-center gap-2" aria-hidden>
-        <div className="h-14 w-56 rounded-xl bg-foreground/[0.08] animate-pulse" />
+      <div className="flex flex-col items-center gap-2">
+        <div
+          className="h-14 w-56 rounded-xl bg-foreground/[0.08] animate-pulse"
+          aria-hidden
+        />
         <p className="text-sm text-muted">
           {tagName} &middot; {publishedDate}
         </p>
-        <div className="h-4 w-48 rounded bg-foreground/[0.06] animate-pulse" />
+        <p className="sr-only" role="status" aria-live="polite">
+          Detecting platform…
+        </p>
+        <div
+          className="h-4 w-48 rounded bg-foreground/[0.06] animate-pulse"
+          aria-hidden
+        />
       </div>
     );
   }

@@ -55,17 +55,21 @@ export async function renderReleasePage({
   repo: string;
   version?: string;
 }) {
-  const result = await getRelease(owner, repo, version);
+  const releasePromise = getRelease(owner, repo, version);
+  // README only needs owner/repo — overlap with release fetch.
+  const readmePromise = getReadme(owner, repo);
+
+  const result = await releasePromise;
   if (!result.ok) {
+    // readmePromise may still settle unused — fine on error paths.
     return result.notFound ? (
       <NotFoundCard owner={owner} repo={repo} repoExists={result.repoExists} />
     ) : (
       <ReleaseError message={result.message} />
     );
   }
-  // README streams in separately; releases are usually already on the release
-  // payload (backend embeds them). Checksums stay non-blocking via Suspense.
-  const readmePromise = getReadme(owner, repo);
+  // Releases are usually already on the release payload (backend embeds them).
+  // Checksums stay non-blocking via Suspense and need assets from the release.
   const releasesPromise = Array.isArray(result.data.releases)
     ? Promise.resolve(result.data.releases)
     : getReleases(owner, repo);

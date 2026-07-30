@@ -1,17 +1,8 @@
-"use client";
-
-import { useRouter } from "next/navigation";
-import { HomeSearchForm } from "./home-search";
+import { HomeSearchSection } from "./home-search-section";
 import { HomeExamples } from "./home-examples";
 import { HomeHowItWorks } from "./home-how-it-works";
 
 export default function Home() {
-  const router = useRouter();
-
-  function navigate(owner: string, repo: string) {
-    router.push(`/p/${owner}/${repo}`);
-  }
-
   return (
     <main className="flex-1 flex flex-col items-center justify-center px-4 py-20 min-h-[100dvh]">
       <div className="w-full max-w-xl space-y-14 text-center">
@@ -32,7 +23,7 @@ export default function Home() {
         </div>
 
         <div className="space-y-4">
-          <HomeSearchForm onNavigate={navigate} />
+          <HomeSearchSection />
           <HomeExamples />
         </div>
 

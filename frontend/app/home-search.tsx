@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { useRepoSearch } from "./use-repo-search";
 
@@ -56,9 +55,11 @@ export function HomeSearchForm({
               }}
               enterKeyHint="go"
               role="combobox"
+              aria-haspopup="listbox"
               aria-expanded={showList}
               aria-controls={listId}
               aria-autocomplete="list"
+              aria-busy={loading || undefined}
               aria-activedescendant={activeIndex >= 0 ? `${listId}-opt-${activeIndex}` : undefined}
               placeholder="Search repos or paste owner/repo"
               autoComplete="off"
@@ -87,7 +88,11 @@ export function HomeSearchForm({
             className="absolute z-20 left-0 right-14 mt-2 max-h-80 overflow-auto rounded-xl border border-border bg-surface text-left shadow-[0_12px_40px_-16px_rgb(0_0_0/0.35)]"
           >
             {loading && suggestions.length === 0 && (
-              <li className="px-4 py-3 text-sm text-muted">Searching…</li>
+              <li role="presentation" className="px-4 py-3 text-sm text-muted">
+                <span role="status" aria-live="polite">
+                  Searching…
+                </span>
+              </li>
             )}
             {suggestions.map((item, i) => {
               const slug = `${item.owner}/${item.repo}`;
@@ -96,19 +101,23 @@ export function HomeSearchForm({
                 <li key={slug} role="option" aria-selected={active} id={`${listId}-opt-${i}`}>
                   <Link
                     href={`/p/${item.owner}/${item.repo}`}
-                    prefetch
+                    // Don't prefetch every row — each /p page is a heavy RSC
+                    // (release + README). useRepoSearch prefetches the active
+                    // highlight / typed owner/repo only.
+                    prefetch={false}
                     className={`w-full flex items-start gap-3 px-4 py-3 text-left transition-colors duration-100 ${
                       active ? "bg-foreground/[0.08]" : "hover:bg-foreground/[0.04]"
                     }`}
                     onMouseEnter={() => setActiveIndex(i)}
                     onMouseDown={(e) => e.preventDefault()}
                   >
-                    <Image
+                    {/* Plain img: next/image adds work for 32px ephemeral avatars. */}
+                    <img
                       src={item.avatar_url || `https://github.com/${item.owner}.png?size=64`}
                       alt=""
                       width={32}
                       height={32}
-                      unoptimized
+                      decoding="async"
                       className="mt-0.5 size-8 rounded-lg bg-foreground/[0.06] shrink-0"
                     />
                     <span className="min-w-0 flex-1 space-y-0.5">

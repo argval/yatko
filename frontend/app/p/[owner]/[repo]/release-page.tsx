@@ -193,7 +193,7 @@ async function ReadmeSections({
       {installCommands.length > 0 && (
         <InstallCommands commands={installCommands} />
       )}
-      <CollapsibleCard title="About" defaultOpen={false}>
+      <CollapsibleCard title="About" defaultOpen={false} mountChildren="when-opened">
         <DeferredRepoMarkdown owner={owner} repo={repo}>
           {readme}
         </DeferredRepoMarkdown>

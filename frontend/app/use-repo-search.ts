@@ -68,17 +68,21 @@ export function useRepoSearch(onNavigate: (owner: string, repo: string) => void)
     }
   }
 
-  // Prefetch the highlighted suggestion (and typed owner/repo) so Enter/Go
-  // often hits a warm RSC payload.
+  // Prefetch only the row the user is about to open (highlighted, or an
+  // explicit owner/repo paste). Prefetching the whole suggestion list was
+  // blocking keystroke paint (~3s) because each /p page is a heavy RSC.
+  const activeSlug =
+    activeIndex >= 0 && activeIndex < suggestions.length
+      ? `${suggestions[activeIndex].owner}/${suggestions[activeIndex].repo}`
+      : null;
+  const typedMatch = parseInput(input);
+  const typedSlug = typedMatch ? `${typedMatch[1]}/${typedMatch[2]}` : null;
+  const prefetchSlug = activeSlug ?? typedSlug;
+
   useEffect(() => {
-    if (activeIndex >= 0 && activeIndex < suggestions.length) {
-      const item = suggestions[activeIndex];
-      router.prefetch(`/p/${item.owner}/${item.repo}`);
-      return;
-    }
-    const match = parseInput(input);
-    if (match) router.prefetch(`/p/${match[1]}/${match[2]}`);
-  }, [activeIndex, suggestions, input, router]);
+    if (!prefetchSlug) return;
+    router.prefetch(`/p/${prefetchSlug}`);
+  }, [prefetchSlug, router]);
 
   function go() {
     if (activeIndex >= 0 && activeIndex < suggestions.length) {
@@ -138,6 +142,8 @@ export function useRepoSearch(onNavigate: (owner: string, repo: string) => void)
       }
       const data = (await res.json()) as { items?: SearchItem[] };
       const items = Array.isArray(data.items) ? data.items : [];
+      // Refuse to commit if a newer search superseded this request.
+      if (abortRef.current !== ctrl || ctrl.signal.aborted) return;
       cacheSet(trimmed, items);
       applySuggestions(items);
     } catch (err) {
@@ -154,13 +160,17 @@ export function useRepoSearch(onNavigate: (owner: string, repo: string) => void)
     if (q.length >= SEARCH_MIN_LEN) {
       const cached = cacheRef.current.get(q);
       if (cached) {
+        abortRef.current?.abort();
+        abortRef.current = null;
         applySuggestions(cached);
         setLoading(false);
         return;
       }
       const optimistic = optimisticFilter(suggestionsRef.current, q);
       if (optimistic.length > 0) applySuggestions(optimistic);
-    } else if (q.length < SEARCH_MIN_LEN) {
+    } else {
+      abortRef.current?.abort();
+      abortRef.current = null;
       applySuggestions([], false);
       setOpen(false);
       setLoading(false);
@@ -169,7 +179,10 @@ export function useRepoSearch(onNavigate: (owner: string, repo: string) => void)
     const t = setTimeout(() => {
       void runSearch(input);
     }, SEARCH_DEBOUNCE_MS);
-    return () => clearTimeout(t);
+    return () => {
+      clearTimeout(t);
+      abortRef.current?.abort();
+    };
   }, [input]);
 
   useEffect(() => {

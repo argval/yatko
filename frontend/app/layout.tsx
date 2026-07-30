@@ -3,6 +3,7 @@ import { Outfit, JetBrains_Mono } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { SiteFooter } from "@/components/site-footer";
 import "./globals.css";
 
 const outfit = Outfit({
@@ -61,6 +62,7 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col">
         <ThemeToggle />
         {children}
+        <SiteFooter />
         <Analytics />
         <SpeedInsights />
       </body>

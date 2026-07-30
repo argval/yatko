@@ -69,6 +69,12 @@ func New() *Cache {
 	}
 }
 
+// RedisConfigured reports whether a Redis client was built from env
+// (REDIS_URL / KV_URL / UPSTASH_REDIS_URL). It does not ping Redis.
+func (c *Cache) RedisConfigured() bool {
+	return c != nil && c.client != nil
+}
+
 // firstEnv returns the first non-empty environment variable among keys.
 // Vercel Marketplace Upstash injects REDIS_URL / KV_URL; UPSTASH_REDIS_URL
 // remains supported for older manual setups.

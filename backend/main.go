@@ -17,7 +17,8 @@ import (
 )
 
 // defaultRateLimitRPM is the per-IP request budget per minute, overridable
-// via RATE_LIMIT_RPM. No-ops without a Redis URL env, same as caching.
+// via RATE_LIMIT_RPM. Uses process-local limiting without Redis; prod should
+// set a Redis URL so limits are shared across instances.
 const defaultRateLimitRPM = 120
 
 // defaultSearchRateLimitRPM caps /api/search below GitHub's ~30/min Search
@@ -87,7 +88,18 @@ func main() {
 	)
 
 	r.GET("/health", func(c *gin.Context) {
-		c.JSON(200, gin.H{"status": "ok"})
+		redisStatus := "missing"
+		if redisCache.RedisConfigured() {
+			redisStatus = "configured"
+		}
+		// Always 200 so platform probes stay healthy; body carries detail.
+		c.JSON(200, gin.H{
+			"status":       "ok",
+			"redis":        redisStatus,
+			"rate_limit":   limiter.Backend(),
+			"github":       ghClient.Budget(),
+			"github_token": ghClient.HasToken(),
+		})
 	})
 
 	port := os.Getenv("PORT")

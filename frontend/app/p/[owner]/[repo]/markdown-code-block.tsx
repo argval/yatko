@@ -17,7 +17,7 @@ export function MarkdownCodeBlock({
         <span className="text-[10px] font-medium uppercase tracking-wider text-muted font-sans">
           {label}
         </span>
-        <CopyButton text={code} size={14} label="Copy code" />
+        <CopyButton text={code} label="Copy code" />
       </div>
       <pre className="m-0 p-4 overflow-x-auto bg-transparent rounded-none text-foreground">
         <code className="text-xs bg-transparent p-0 rounded-none break-words whitespace-pre text-inherit">

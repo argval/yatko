@@ -13,7 +13,7 @@ export function AssetChecksum({ hash }: { hash: string | null }) {
       <CopyButton
         text={hash}
         label="Copy full checksum"
-        className="shrink-0 text-foreground/40 hover:text-foreground/70 transition-colors"
+        className="shrink-0 inline-flex size-6 items-center justify-center text-foreground/40 hover:text-foreground/70 transition-colors"
       />
     </div>
   );

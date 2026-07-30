@@ -7,7 +7,8 @@ export function CopyButton({
   text,
   label = "Copy to clipboard",
   size = 16,
-  className = "shrink-0 p-1 rounded text-foreground/30 hover:text-foreground/60 transition-colors",
+  // size-6 (24px) meets WCAG 2.5.8 minimum touch target.
+  className = "shrink-0 inline-flex size-6 items-center justify-center rounded text-foreground/30 hover:text-foreground/60 transition-colors",
 }: {
   text: string;
   label?: string;

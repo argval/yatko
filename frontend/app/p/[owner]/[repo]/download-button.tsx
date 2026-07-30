@@ -40,7 +40,7 @@ export function DownloadButton({
           text={`https://yatko.app/${owner}/${repo}`}
           label="Copy link to this page"
           size={20}
-          className="shrink-0 p-4 rounded-xl border border-border text-foreground/50 hover:text-foreground hover:bg-foreground/5 transition-colors"
+          className="shrink-0 inline-flex size-12 items-center justify-center rounded-xl border border-border text-foreground/50 hover:text-foreground hover:bg-foreground/5 transition-colors"
         />
       </div>
 

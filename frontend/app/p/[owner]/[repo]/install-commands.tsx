@@ -28,7 +28,7 @@ export function InstallCommands({ commands }: { commands: InstallCommand[] }) {
       : commands;
 
   return (
-    <CollapsibleCard title="From README">
+    <CollapsibleCard title="CLI Installation">
       <p className="text-xs text-foreground/45 mb-2">
         Extracted from this repo&apos;s README — review before running.
       </p>

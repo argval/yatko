@@ -21,7 +21,7 @@ export function PrereleaseToggle({
 
   const pre = releases.find((r) => r.prerelease);
   const preHref = pre ? `/p/${owner}/${repo}/${pre.tag_name}` : null;
-  const latestHref = `/p/${owner}/${repo}`;
+  const latestHref = `/${owner}/${repo}`;
 
   function handleToggle(e: React.ChangeEvent<HTMLInputElement>) {
     if (e.target.checked) {

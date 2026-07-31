@@ -24,6 +24,16 @@ export function releasePageMetadata({
   const canonicalPath = version
     ? `/p/${owner}/${repo}/${version}`
     : `/${owner}/${repo}`;
+  // opengraph-image.tsx sits on the [repo] segment (sibling of [[...version]]),
+  // so Next won't auto-inject og:image into the page head — set it explicitly.
+  // Use the github-swap path (rewritten to /p/.../opengraph-image) so the image
+  // URL is not under robots Disallow:/p/.
+  const ogImage = {
+    url: `/${owner}/${repo}/opengraph-image`,
+    width: 1200,
+    height: 630,
+    alt: `${owner}/${repo} on Yatko`,
+  };
   return {
     title,
     description,
@@ -36,11 +46,13 @@ export function releasePageMetadata({
       type: "website",
       siteName: "Yatko",
       url: canonicalPath,
+      images: [ogImage],
     },
     twitter: {
       card: "summary_large_image",
       title,
       description,
+      images: [ogImage.url],
     },
   };
 }

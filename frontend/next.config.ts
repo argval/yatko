@@ -20,6 +20,16 @@ const nextConfig: NextConfig = {
         { source: "/api/:path*", destination: `${backendURL}/api/:path*` },
         // yatko.app/:owner/:repo mirrors github.com/:owner/:repo, transparently
         // serving the /p/:owner/:repo release page (URL bar stays as-is).
+        // OG/Twitter image routes stay off /p/ so robots Disallow:/p/ does not
+        // block unfurl image fetches for scrapers that honor the * rule.
+        {
+          source: "/:owner/:repo/opengraph-image",
+          destination: "/p/:owner/:repo/opengraph-image",
+        },
+        {
+          source: "/:owner/:repo/twitter-image",
+          destination: "/p/:owner/:repo/twitter-image",
+        },
         { source: "/:owner/:repo", destination: "/p/:owner/:repo" },
       ],
       fallback: [],

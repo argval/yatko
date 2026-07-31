@@ -26,7 +26,8 @@ export function VersionSelector({
 
   function hrefFor(tag: string) {
     const isLatest = visible[0]?.tag_name === tag && !visible[0]?.prerelease;
-    return isLatest ? `/p/${owner}/${repo}` : `/p/${owner}/${repo}/${tag}`;
+    // Latest uses the github-swap URL; version pins stay under /p/.
+    return isLatest ? `/${owner}/${repo}` : `/p/${owner}/${repo}/${tag}`;
   }
 
   function handleChange(tag: string) {

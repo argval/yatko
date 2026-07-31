@@ -100,10 +100,10 @@ export function HomeSearchForm({
               return (
                 <li key={slug} role="option" aria-selected={active} id={`${listId}-opt-${i}`}>
                   <Link
-                    href={`/p/${item.owner}/${item.repo}`}
-                    // Don't prefetch every row — each /p page is a heavy RSC
-                    // (release + README). useRepoSearch prefetches the active
-                    // highlight / typed owner/repo only.
+                    href={`/${item.owner}/${item.repo}`}
+                    // Don't prefetch every row — each release page is a heavy
+                    // RSC (release + README). useRepoSearch prefetches the
+                    // active highlight / typed owner/repo only.
                     prefetch={false}
                     className={`w-full flex items-start gap-3 px-4 py-3 text-left transition-colors duration-100 ${
                       active ? "bg-foreground/[0.08]" : "hover:bg-foreground/[0.04]"

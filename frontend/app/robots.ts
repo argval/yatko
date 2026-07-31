@@ -33,5 +33,6 @@ export default function robots(): MetadataRoute.Robots {
         disallow: ["/api/", "/dl/"],
       },
     ],
+    sitemap: "https://yatko.app/sitemap.xml",
   };
 }

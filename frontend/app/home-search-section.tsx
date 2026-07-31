@@ -6,7 +6,7 @@ import { HomeSearchForm } from "./home-search";
 export function HomeSearchSection() {
   const router = useRouter();
   function navigate(owner: string, repo: string) {
-    router.push(`/p/${owner}/${repo}`);
+    router.push(`/${owner}/${repo}`);
   }
   return <HomeSearchForm onNavigate={navigate} />;
 }

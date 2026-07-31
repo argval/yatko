@@ -70,7 +70,7 @@ export function useRepoSearch(onNavigate: (owner: string, repo: string) => void)
 
   // Prefetch only the row the user is about to open (highlighted, or an
   // explicit owner/repo paste). Prefetching the whole suggestion list was
-  // blocking keystroke paint (~3s) because each /p page is a heavy RSC.
+  // blocking keystroke paint (~3s) because each release page is a heavy RSC.
   const activeSlug =
     activeIndex >= 0 && activeIndex < suggestions.length
       ? `${suggestions[activeIndex].owner}/${suggestions[activeIndex].repo}`
@@ -81,7 +81,7 @@ export function useRepoSearch(onNavigate: (owner: string, repo: string) => void)
 
   useEffect(() => {
     if (!prefetchSlug) return;
-    router.prefetch(`/p/${prefetchSlug}`);
+    router.prefetch(`/${prefetchSlug}`);
   }, [prefetchSlug, router]);
 
   function go() {

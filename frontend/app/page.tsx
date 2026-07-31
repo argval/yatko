@@ -9,7 +9,7 @@ export default function Home() {
         <div className="space-y-5">
           <h1 className="text-5xl sm:text-7xl font-semibold tracking-tighter leading-[1.05]">Yatko</h1>
           <p className="text-base sm:text-lg text-muted leading-relaxed max-w-md mx-auto tracking-normal">
-            Clean download links for any public GitHub repo so that you don&apos;t have to called a{" "}
+            Clean download links for any public GitHub repo so that you don&apos;t have to be called a{" "}
             <a
               target="_blank"
               rel="noopener noreferrer"

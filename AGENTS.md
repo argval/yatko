@@ -11,20 +11,21 @@
 - When asked to ship to production, prefer landing on `main` first, then merging/pushing to the `prod` branch.
 - Keep homepage and github-swap release URLs (`/:owner/:repo`) crawlable; disallow `/api/` and `/dl/`; general crawlers may disallow `/p/`, but social preview bots must stay allowlisted for unfurls.
 - Share and copy “landing page” links as `yatko.app/{owner}/{repo}` (not `/p/...`) so Twitter/OG cards resolve.
+- Secondary pages (e.g. privacy) should use the same fixed top-left Yatko back control as release pages (`BackToYatko`), not a one-off back link.
 
 ## Learned Workspace Facts
 
-- Yatko is positioned as a drop-in release-download URL: replace `github.com` with `yatko.app` for the same owner/repo path.
+- Yatko is positioned as a drop-in release-download URL: replace `github.com` with `yatko.app` for the same owner/repo path. Production primary host is apex `yatko.app`; `www.yatko.app` redirects to apex (308).
 - Release-page markdown (blurb, notes, About) goes through shared `RepoMarkdown` in `frontend/app/p/[owner]/[repo]/markdown.tsx` (GFM, raw HTML, sanitize, URL rewrite) with `@tailwindcss/typography`.
 - `architecture-review` is the integration branch for architecture deepen PRs.
-- Production deploys track the `prod` branch (typically merged from `main`).
+- Production deploys track the `prod` branch via Vercel (previews on PRs/branches); GitHub Actions CI runs backend/frontend tests and builds on push/PR and does not deploy.
 - Search cache uses a longer soft TTL with prefix reuse; an in-process L1 LRU sits in front of Redis for hot keys.
 - Install-command extraction from README fences must accept both CommonMark triple-backtick and tilde (`~~~`) fences.
 - Bare versioned tarballs (e.g. `.tar.xz`) with no OS/arch token are treated as source archives, not installable binaries, in both the Go picker and the frontend.
 - Release checksums come from downloadable checksum assets (names matching checksum/sha*sums or `*.sha256` / `*.sha512` / `*.md5`), fetched and parsed into a filename→hash map.
-- Production Redis is Upstash via Vercel Marketplace; the Go backend prefers `REDIS_URL`, then `KV_URL`, then `UPSTASH_REDIS_URL`.
+- Production Redis is Upstash via Vercel Marketplace over the Redis protocol (`REDIS_URL`, then `KV_URL`, then `UPSTASH_REDIS_URL`); do not switch the Go backend to Upstash REST/`KV_REST_API_*`.
 - HTTP rate limiting uses process-local windows when Redis is unset or unreachable (does not fail open); `/health` stays HTTP 200 with redis/rate_limit/github budget fields (`github_token` boolean only).
-- Crawling is configured in `frontend/app/robots.ts`: allow `/`, disallow `/api/` and `/dl/`; general crawlers also disallow `/p/`; social preview bots are allowlisted for unfurls. Site includes `/privacy` plus a quiet footer with a GitHub non-affiliation disclaimer.
+- Crawling is configured in `frontend/app/robots.ts`: allow `/`, disallow `/api/` and `/dl/`; general crawlers also disallow `/p/`; social preview bots are allowlisted for unfurls. Site includes `/privacy` (GitHub non-affiliation lives there); footer is Privacy + Source only.
 - Vercel Container Registry for the Go backend is capped at 50 images; a full registry blocks deploys until unused images are pruned.
 
 ## Cursor Cloud specific instructions

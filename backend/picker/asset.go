@@ -241,13 +241,13 @@ func isLower(b byte) bool {
 	return b >= 'a' && b <= 'z'
 }
 
-// ambiguousTarballExts are archive suffixes that are used both for platform
-// binaries and for source distributions. Without an OS/arch token in the
-// name, treat them as source (e.g. htop-3.5.2.tar.xz).
-var ambiguousTarballExts = []string{".tar.gz", ".tar.xz", ".tgz", ".txz"}
+// ambiguousArchiveExts are archive suffixes used for both platform binaries
+// and source distributions. Without an OS/arch token in the name they are
+// treated as source (e.g. htop-3.5.2.tar.xz, v1.0.0.zip).
+var ambiguousArchiveExts = []string{".tar.gz", ".tar.xz", ".tgz", ".txz", ".zip"}
 
-func isAmbiguousTarball(name string) bool {
-	for _, ext := range ambiguousTarballExts {
+func isAmbiguousArchive(name string) bool {
+	for _, ext := range ambiguousArchiveExts {
 		if strings.HasSuffix(name, ext) {
 			return true
 		}
@@ -293,8 +293,10 @@ func isSource(name string) bool {
 	if strings.Contains(lower, "source") || strings.Contains(lower, "src") {
 		return true
 	}
-	// Bare versioned tarballs with no OS/arch tokens are source dists.
-	if isAmbiguousTarball(lower) && !mentionsAnyPlatform(lower) && !mentionsAnyArch(lower) {
+	// Bare versioned archives with no OS/arch tokens are source dists
+	// (e.g. htop-3.5.2.tar.xz, v1.0.0.zip). A .zip that carries a platform
+	// or arch keyword is a real binary and must not be filtered out.
+	if isAmbiguousArchive(lower) && !mentionsAnyPlatform(lower) && !mentionsAnyArch(lower) {
 		return true
 	}
 	return false

@@ -215,6 +215,26 @@
         "App-1.0.0.apk"
       ],
       "expected": null
+    },
+    {
+      "name": "skips-bare-versioned-zip",
+      "platform": "windows",
+      "arch": "amd64",
+      "assets": [
+        "v2.1.0.zip",
+        "app-windows-x64.exe"
+      ],
+      "expected": "app-windows-x64.exe"
+    },
+    {
+      "name": "keeps-platform-tagged-zip",
+      "platform": "windows",
+      "arch": "amd64",
+      "assets": [
+        "v2.1.0.zip",
+        "app-windows-x64.zip"
+      ],
+      "expected": "app-windows-x64.zip"
     }
   ]
 }

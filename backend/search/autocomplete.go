@@ -4,11 +4,17 @@ package search
 
 import (
 	"context"
+	"regexp"
 	"strings"
 
 	"github.com/argval/yatko/cache"
 	"github.com/argval/yatko/github"
 )
+
+// githubRepoURLRe extracts owner/repo from a pasted GitHub URL so autocomplete
+// searches the slug instead of the full URL as free text (which matches
+// descriptions that merely mention the link).
+var githubRepoURLRe = regexp.MustCompile(`(?i)^(?:https?://)?(?:www\.)?github\.com/([a-zA-Z0-9._-]+)/([a-zA-Z0-9._-]+)`)
 
 const (
 	// MinQueryLen is the shortest query we will look up.
@@ -76,8 +82,17 @@ func FilterItems(items []github.SearchRepo, q string) []github.SearchRepo {
 	return out
 }
 
-// NormalizeQuery trims and lowercases for stable cache keys. GitHub search is
-// case-insensitive, so this does not change result semantics.
+// NormalizeQuery trims and lowercases for stable cache keys. Pasted GitHub
+// URLs are reduced to owner/repo so Search API results match the intended
+// repo rather than description-text hits. GitHub search is case-insensitive,
+// so lowercasing does not change result semantics.
 func NormalizeQuery(q string) string {
-	return strings.ToLower(strings.TrimSpace(q))
+	q = strings.TrimSpace(q)
+	if m := githubRepoURLRe.FindStringSubmatch(q); len(m) == 3 {
+		repo := strings.TrimSuffix(strings.ToLower(m[2]), ".git")
+		if repo != "" {
+			return strings.ToLower(m[1]) + "/" + repo
+		}
+	}
+	return strings.ToLower(q)
 }

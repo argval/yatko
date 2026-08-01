@@ -25,7 +25,24 @@ func TestFilterItems(t *testing.T) {
 }
 
 func TestNormalizeQuery(t *testing.T) {
-	if got := NormalizeQuery("  Clip "); got != "clip" {
-		t.Fatalf("got %q", got)
+	cases := []struct {
+		in, want string
+	}{
+		{"  Clip ", "clip"},
+		{"https://github.com/astral-sh/uv", "astral-sh/uv"},
+		{"http://github.com/astral-sh/uv", "astral-sh/uv"},
+		{"https://www.github.com/astral-sh/uv", "astral-sh/uv"},
+		{"github.com/astral-sh/uv", "astral-sh/uv"},
+		{"https://github.com/astral-sh/uv/", "astral-sh/uv"},
+		{"https://github.com/astral-sh/uv.git", "astral-sh/uv"},
+		{"https://github.com/astral-sh/uv/releases/tag/0.4.0", "astral-sh/uv"},
+		{"HTTPS://GitHub.com/Astral-Sh/UV", "astral-sh/uv"},
+		{"astral-sh/uv", "astral-sh/uv"},
+		{"uv", "uv"},
+	}
+	for _, tc := range cases {
+		if got := NormalizeQuery(tc.in); got != tc.want {
+			t.Fatalf("NormalizeQuery(%q) = %q, want %q", tc.in, got, tc.want)
+		}
 	}
 }

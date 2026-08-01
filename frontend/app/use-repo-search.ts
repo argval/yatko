@@ -27,6 +27,8 @@ const CLIENT_CACHE_MAX = 40;
 
 const GITHUB_REPO_URL_RE =
   /^(?:https?:\/\/)?(?:www\.)?github\.com\/([a-zA-Z0-9._-]+)\/([a-zA-Z0-9._-]+)/i;
+const GITHUB_OWNER_URL_RE =
+  /^(?:https?:\/\/)?(?:www\.)?github\.com\/([a-zA-Z0-9._-]+)\/?$/i;
 const OWNER_REPO_RE = /^([a-zA-Z0-9._-]+)\/([a-zA-Z0-9._-]+)\/?$/;
 
 /** Extract owner/repo from a slug or pasted GitHub URL. */
@@ -42,19 +44,41 @@ export function parseInput(value: string): { owner: string; repo: string } | nul
     return null;
   }
 
+  // Bare github.com/owner (no repo) is not a slug — leave it for normalizeSearchQuery.
+  if (GITHUB_OWNER_URL_RE.test(trimmed)) return null;
+
   const slugMatch = trimmed.match(OWNER_REPO_RE);
   if (slugMatch) return { owner: slugMatch[1], repo: slugMatch[2] };
   return null;
 }
 
-/** Stable autocomplete query: trim, lowercase, and collapse GitHub URLs to owner/repo. */
+/** Stable autocomplete query: trim, lowercase, collapse GitHub URLs. */
 export function normalizeSearchQuery(q: string) {
+  const trimmed = q.trim();
+  const ownerOnly = trimmed.match(GITHUB_OWNER_URL_RE);
+  // Owner URL → bare login (same as typing the owner; backend dual-searches).
+  if (ownerOnly?.[1]) return ownerOnly[1].toLowerCase();
   const parsed = parseInput(q);
   if (parsed) return `${parsed.owner}/${parsed.repo}`.toLowerCase();
-  return q.trim().toLowerCase();
+  const lower = trimmed.toLowerCase().replace(/\/$/, "");
+  // Legacy sentinel from older clients → bare login.
+  if (lower.startsWith("owner:")) {
+    const owner = lower.slice("owner:".length);
+    if (owner) return owner;
+  }
+  return lower;
 }
 
-function matchesQuery(item: SearchItem, q: string) {
+/** Mirrors backend search.FilterItems: slug vs bare. */
+export function matchesQuery(item: SearchItem, q: string): boolean {
+  const slash = q.indexOf("/");
+  if (slash >= 0) {
+    const owner = q.slice(0, slash);
+    const repo = q.slice(slash + 1);
+    if (!owner || !repo) return false;
+    if (item.owner.toLowerCase() !== owner) return false;
+    return item.repo.toLowerCase().startsWith(repo);
+  }
   const slug = `${item.owner}/${item.repo}`.toLowerCase();
   return slug.includes(q) || item.repo.toLowerCase().includes(q) || item.owner.toLowerCase().includes(q);
 }
@@ -71,6 +95,7 @@ export function useRepoSearch(onNavigate: (owner: string, repo: string) => void)
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
+  const [noResults, setNoResults] = useState(false);
   const router = useRouter();
   const listId = useId();
   const blurTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -79,6 +104,9 @@ export function useRepoSearch(onNavigate: (owner: string, repo: string) => void)
   const suggestionsRef = useRef<SearchItem[]>([]);
 
   function cacheSet(query: string, items: SearchItem[]) {
+    // Don't persist empty hits — they make the dropdown flash "nothing" and
+    // skip the next network attempt via the sync cache path.
+    if (items.length === 0) return;
     const cache = cacheRef.current;
     if (cache.has(query)) cache.delete(query);
     cache.set(query, items);
@@ -132,15 +160,18 @@ export function useRepoSearch(onNavigate: (owner: string, repo: string) => void)
     const trimmed = normalizeSearchQuery(query);
     if (trimmed.length < SEARCH_MIN_LEN) {
       applySuggestions([], false);
+      setNoResults(false);
       setLoading(false);
       setOpen(false);
       return;
     }
 
     const cached = cacheRef.current.get(trimmed);
-    if (cached) {
+    if (cached && cached.length > 0) {
       applySuggestions(cached);
+      setNoResults(false);
       setLoading(false);
+      // Still refresh in the background? Skip — warm cache is fine for autocomplete.
       return;
     }
 
@@ -148,6 +179,7 @@ export function useRepoSearch(onNavigate: (owner: string, repo: string) => void)
     const optimistic = optimisticFilter(suggestionsRef.current, trimmed);
     if (optimistic.length > 0) {
       applySuggestions(optimistic);
+      setNoResults(false);
     }
 
     const ctrl = new AbortController();
@@ -167,6 +199,7 @@ export function useRepoSearch(onNavigate: (owner: string, repo: string) => void)
       if (abortRef.current !== ctrl || ctrl.signal.aborted) return;
       cacheSet(trimmed, items);
       applySuggestions(items);
+      setNoResults(items.length === 0);
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") return;
       // Keep whatever is on screen.
@@ -180,19 +213,24 @@ export function useRepoSearch(onNavigate: (owner: string, repo: string) => void)
     // Synchronous cache hit — no debounce wait.
     if (q.length >= SEARCH_MIN_LEN) {
       const cached = cacheRef.current.get(q);
-      if (cached) {
-        abortRef.current?.abort();
-        abortRef.current = null;
+      if (cached && cached.length > 0) {
         applySuggestions(cached);
+        setNoResults(false);
         setLoading(false);
-        return;
+        // Fall through to debounce so a keystroke still can refresh later paths;
+        // warm non-empty cache is shown immediately above.
+      } else {
+        const optimistic = optimisticFilter(suggestionsRef.current, q);
+        if (optimistic.length > 0) {
+          applySuggestions(optimistic);
+          setNoResults(false);
+        }
       }
-      const optimistic = optimisticFilter(suggestionsRef.current, q);
-      if (optimistic.length > 0) applySuggestions(optimistic);
     } else {
       abortRef.current?.abort();
       abortRef.current = null;
       applySuggestions([], false);
+      setNoResults(false);
       setOpen(false);
       setLoading(false);
     }
@@ -201,8 +239,10 @@ export function useRepoSearch(onNavigate: (owner: string, repo: string) => void)
       void runSearch(input);
     }, SEARCH_DEBOUNCE_MS);
     return () => {
+      // Only cancel the pending debounce — do not abort an in-flight fetch
+      // here. Aborting on every keystroke cleanup raced with completions and
+      // made the list flash empty. runSearch aborts the prior request itself.
       clearTimeout(t);
-      abortRef.current?.abort();
     };
   }, [input]);
 
@@ -239,13 +279,15 @@ export function useRepoSearch(onNavigate: (owner: string, repo: string) => void)
 
   const parsedHint = parseInput(input);
   const hintSlug = parsedHint ? `${parsedHint.owner}/${parsedHint.repo}` : null;
-  const showList = open && (suggestions.length > 0 || loading);
+  const queryReady = normalizeSearchQuery(input).length >= SEARCH_MIN_LEN;
+  const showList = open && queryReady && (suggestions.length > 0 || loading || noResults);
 
   return {
     input,
     setInput,
     suggestions,
     loading,
+    noResults,
     activeIndex,
     setActiveIndex,
     listId,

@@ -129,6 +129,12 @@ func TestSearchRepositories(t *testing.T) {
 		if r.URL.Query().Get("q") != "ripgrep" {
 			t.Errorf("unexpected q %q", r.URL.Query().Get("q"))
 		}
+		if r.URL.Query().Get("sort") != "stars" {
+			t.Errorf("unexpected sort %q", r.URL.Query().Get("sort"))
+		}
+		if r.URL.Query().Get("order") != "desc" {
+			t.Errorf("unexpected order %q", r.URL.Query().Get("order"))
+		}
 		sawIfNoneMatch = r.Header.Get("If-None-Match")
 		if sawIfNoneMatch == `"abc"` {
 			w.Header().Set("X-RateLimit-Remaining", "20")
@@ -145,7 +151,15 @@ func TestSearchRepositories(t *testing.T) {
 				"full_name": "BurntSushi/ripgrep",
 				"description": "regex search",
 				"stargazers_count": 42000,
+				"archived": false,
 				"owner": {"login": "BurntSushi", "avatar_url": "https://avatars.example/bs"}
+			}, {
+				"name": "old-ripgrep",
+				"full_name": "someone/old-ripgrep",
+				"description": "archived",
+				"stargazers_count": 99,
+				"archived": true,
+				"owner": {"login": "someone", "avatar_url": "https://avatars.example/x"}
 			}, {
 				"name": "",
 				"owner": {"login": "skip-me"}
@@ -177,7 +191,7 @@ func TestSearchRepositories(t *testing.T) {
 		t.Fatalf("etag = %q, want \"abc\"", etag)
 	}
 	if len(items) != 1 {
-		t.Fatalf("len(items)=%d, want 1 (empty name skipped)", len(items))
+		t.Fatalf("len(items)=%d, want 1 (empty name + archived skipped)", len(items))
 	}
 	if items[0].Owner != "BurntSushi" || items[0].Repo != "ripgrep" || items[0].Stars != 42000 {
 		t.Fatalf("unexpected item %+v", items[0])

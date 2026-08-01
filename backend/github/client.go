@@ -50,8 +50,12 @@ type ReleaseSummary struct {
 
 // Repo holds the subset of GitHub repo metadata Yatko needs.
 type Repo struct {
+	Name        string `json:"name"`
 	Description string `json:"description"`
+	Stars       int    `json:"stargazers_count"`
+	Archived    bool   `json:"archived"`
 	Owner       struct {
+		Login     string `json:"login"`
 		AvatarURL string `json:"avatar_url"`
 	} `json:"owner"`
 }
@@ -345,6 +349,7 @@ type githubSearchResponse struct {
 		FullName    string `json:"full_name"`
 		Description string `json:"description"`
 		Stars       int    `json:"stargazers_count"`
+		Archived    bool   `json:"archived"`
 		Owner       struct {
 			Login     string `json:"login"`
 			AvatarURL string `json:"avatar_url"`
@@ -354,18 +359,19 @@ type githubSearchResponse struct {
 
 const searchPerPage = 8
 
-// SearchRepositories searches public repos by name/keyword. GitHub's Search API
-// has its own (much smaller) rate-limit bucket, so this path uses
-// checkSearchBudget/recordSearchRateLimit instead of the core REST guards —
-// recording a search remaining of ~30 into the core budget would falsely trip
-// the core reserve of 200 and starve release fetches.
+// SearchRepositories searches public repos by name/keyword. Results are sorted
+// by stars (desc) for autocomplete. GitHub's Search API has its own (much
+// smaller) rate-limit bucket, so this path uses checkSearchBudget/
+// recordSearchRateLimit instead of the core REST guards — recording a search
+// remaining of ~30 into the core budget would falsely trip the core reserve of
+// 200 and starve release fetches.
 func (c *Client) SearchRepositories(ctx context.Context, query, etag string) ([]SearchRepo, string, bool, error) {
 	if err := c.checkSearchBudget(); err != nil {
 		return nil, "", false, err
 	}
 
 	u := fmt.Sprintf(
-		"https://api.github.com/search/repositories?q=%s&per_page=%d",
+		"https://api.github.com/search/repositories?q=%s&per_page=%d&sort=stars&order=desc",
 		url.QueryEscape(query),
 		searchPerPage,
 	)
@@ -399,6 +405,9 @@ func (c *Client) SearchRepositories(ctx context.Context, query, etag string) ([]
 
 	items := make([]SearchRepo, 0, len(raw.Items))
 	for _, it := range raw.Items {
+		if it.Archived {
+			continue
+		}
 		owner := it.Owner.Login
 		name := it.Name
 		if owner == "" || name == "" {

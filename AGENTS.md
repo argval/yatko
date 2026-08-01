@@ -19,13 +19,13 @@
 - Release-page markdown (blurb, notes, About) goes through shared `RepoMarkdown` in `frontend/app/p/[owner]/[repo]/markdown.tsx` (GFM, raw HTML, sanitize, URL rewrite) with `@tailwindcss/typography`.
 - `architecture-review` is the integration branch for architecture deepen PRs.
 - Production deploys track the `prod` branch via Vercel (previews on PRs/branches); GitHub Actions CI runs backend/frontend tests and builds on push/PR and does not deploy.
-- Search cache uses a longer soft TTL with prefix reuse; an in-process L1 LRU sits in front of Redis for hot keys.
+- Homepage search is slug vs bare: `owner/repo` (or repo URL) → `user:owner in:name <repo>` + GetRepo ensure; bare token or owner URL → dual Search (`user:<q>` + quoted `in:name`), merge, rank exact repo name then owned-by-q then stars. Dashes never choose a path. Always `archived:false`. Cache key `search:v8:`.
 - Install-command extraction from README fences must accept both CommonMark triple-backtick and tilde (`~~~`) fences.
 - Bare versioned tarballs (e.g. `.tar.xz`) with no OS/arch token are treated as source archives, not installable binaries, in both the Go picker and the frontend.
 - Release checksums come from downloadable checksum assets (names matching checksum/sha*sums or `*.sha256` / `*.sha512` / `*.md5`), fetched and parsed into a filename→hash map.
 - Production Redis is Upstash via Vercel Marketplace over the Redis protocol (`REDIS_URL`, then `KV_URL`, then `UPSTASH_REDIS_URL`); do not switch the Go backend to Upstash REST/`KV_REST_API_*`.
 - HTTP rate limiting uses process-local windows when Redis is unset or unreachable (does not fail open); `/health` stays HTTP 200 with redis/rate_limit/github budget fields (`github_token` boolean only).
-- Crawling is configured in `frontend/app/robots.ts`: allow `/`, disallow `/api/` and `/dl/`; general crawlers also disallow `/p/`; social preview bots are allowlisted for unfurls. Site includes `/privacy` (GitHub non-affiliation lives there); footer is Privacy + Source only.
+- Crawling is configured in `frontend/app/robots.ts`: allow `/`, disallow `/api/` and `/dl/`; general crawlers also disallow `/p/`; social preview bots are allowlisted for unfurls. Release OG images live at `/{owner}/{repo}/opengraph-image` (not under `/p/`) so the general `/p/` disallow does not block card images. Site includes `/privacy` (GitHub non-affiliation lives there); footer is Privacy + Source only.
 - Vercel Container Registry for the Go backend is capped at 50 images; a full registry blocks deploys until unused images are pruned.
 
 ## Cursor Cloud specific instructions

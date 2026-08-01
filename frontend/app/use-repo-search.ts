@@ -25,11 +25,32 @@ const SEARCH_DEBOUNCE_MS = 100;
 const SEARCH_MIN_LEN = 2;
 const CLIENT_CACHE_MAX = 40;
 
-export function parseInput(value: string) {
-  return value.match(/(?:github\.com\/)?([a-zA-Z0-9._-]+)\/([a-zA-Z0-9._-]+)\/?$/);
+const GITHUB_REPO_URL_RE =
+  /^(?:https?:\/\/)?(?:www\.)?github\.com\/([a-zA-Z0-9._-]+)\/([a-zA-Z0-9._-]+)/i;
+const OWNER_REPO_RE = /^([a-zA-Z0-9._-]+)\/([a-zA-Z0-9._-]+)\/?$/;
+
+/** Extract owner/repo from a slug or pasted GitHub URL. */
+export function parseInput(value: string): { owner: string; repo: string } | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  const urlMatch = trimmed.match(GITHUB_REPO_URL_RE);
+  if (urlMatch) {
+    const owner = urlMatch[1];
+    const repo = urlMatch[2].replace(/\.git$/i, "");
+    if (owner && repo) return { owner, repo };
+    return null;
+  }
+
+  const slugMatch = trimmed.match(OWNER_REPO_RE);
+  if (slugMatch) return { owner: slugMatch[1], repo: slugMatch[2] };
+  return null;
 }
 
-function normalizeQuery(q: string) {
+/** Stable autocomplete query: trim, lowercase, and collapse GitHub URLs to owner/repo. */
+export function normalizeSearchQuery(q: string) {
+  const parsed = parseInput(q);
+  if (parsed) return `${parsed.owner}/${parsed.repo}`.toLowerCase();
   return q.trim().toLowerCase();
 }
 
@@ -76,7 +97,7 @@ export function useRepoSearch(onNavigate: (owner: string, repo: string) => void)
       ? `${suggestions[activeIndex].owner}/${suggestions[activeIndex].repo}`
       : null;
   const typedMatch = parseInput(input);
-  const typedSlug = typedMatch ? `${typedMatch[1]}/${typedMatch[2]}` : null;
+  const typedSlug = typedMatch ? `${typedMatch.owner}/${typedMatch.repo}` : null;
   const prefetchSlug = activeSlug ?? typedSlug;
 
   useEffect(() => {
@@ -91,7 +112,7 @@ export function useRepoSearch(onNavigate: (owner: string, repo: string) => void)
       return;
     }
     const match = parseInput(input);
-    if (match) onNavigate(match[1], match[2]);
+    if (match) onNavigate(match.owner, match.repo);
   }
 
   function handleSubmit(e: FormEvent) {
@@ -108,7 +129,7 @@ export function useRepoSearch(onNavigate: (owner: string, repo: string) => void)
 
   const runSearch = useEffectEvent(async (query: string) => {
     abortRef.current?.abort();
-    const trimmed = normalizeQuery(query);
+    const trimmed = normalizeSearchQuery(query);
     if (trimmed.length < SEARCH_MIN_LEN) {
       applySuggestions([], false);
       setLoading(false);
@@ -155,7 +176,7 @@ export function useRepoSearch(onNavigate: (owner: string, repo: string) => void)
   });
 
   useEffect(() => {
-    const q = normalizeQuery(input);
+    const q = normalizeSearchQuery(input);
     // Synchronous cache hit — no debounce wait.
     if (q.length >= SEARCH_MIN_LEN) {
       const cached = cacheRef.current.get(q);
@@ -217,7 +238,7 @@ export function useRepoSearch(onNavigate: (owner: string, repo: string) => void)
   }
 
   const parsedHint = parseInput(input);
-  const hintSlug = parsedHint ? `${parsedHint[1]}/${parsedHint[2]}` : null;
+  const hintSlug = parsedHint ? `${parsedHint.owner}/${parsedHint.repo}` : null;
   const showList = open && (suggestions.length > 0 || loading);
 
   return {

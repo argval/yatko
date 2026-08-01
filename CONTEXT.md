@@ -22,7 +22,7 @@ Per-IP fixed-window throttle on public API and `/dl` routes. Own module (`backen
 
 ## Search Autocomplete
 
-Homepage repo typeahead: normalize query, reuse shorter warm cache prefixes while typing, fetch/warm via GitHub Search. Own module (`backend/search`); the HTTP handler is wire-only.
+Homepage repo typeahead: normalize to slug or bare; slug hits one Search + GetRepo ensure; bare dual-fetches owner browse + keyword and merges. Own module (`backend/search`); the HTTP handler is wire-only.
 
 ## Install Command
 

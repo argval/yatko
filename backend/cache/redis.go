@@ -110,8 +110,10 @@ func DescriptionKey(owner, repo string) string {
 }
 
 // SearchKey builds the cache key for a normalized GitHub repo search query.
+// Bump the version prefix when search query / ranking semantics change so
+// stale entries (e.g. empty hits from a bad query shape) are not reused.
 func SearchKey(query string) string {
-	return fmt.Sprintf("search:%s", query)
+	return fmt.Sprintf("search:v8:%s", query)
 }
 
 // entry is what's actually persisted in Redis: the value, the ETag GitHub

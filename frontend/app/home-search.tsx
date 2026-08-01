@@ -18,6 +18,7 @@ export function HomeSearchForm({
     setInput,
     suggestions,
     loading,
+    noResults,
     activeIndex,
     setActiveIndex,
     listId,
@@ -48,7 +49,7 @@ export function HomeSearchForm({
               onKeyDown={handleKeyDown}
               onFocus={() => {
                 if (blurTimer.current) clearTimeout(blurTimer.current);
-                if (suggestions.length > 0) setOpen(true);
+                if (suggestions.length > 0 || noResults) setOpen(true);
               }}
               onBlur={() => {
                 blurTimer.current = setTimeout(() => setOpen(false), 120);
@@ -91,6 +92,13 @@ export function HomeSearchForm({
               <li role="presentation" className="px-4 py-3 text-sm text-muted">
                 <span role="status" aria-live="polite">
                   Searching…
+                </span>
+              </li>
+            )}
+            {!loading && noResults && suggestions.length === 0 && (
+              <li role="presentation" className="px-4 py-3 text-sm text-muted">
+                <span role="status" aria-live="polite">
+                  No repositories found
                 </span>
               </li>
             )}

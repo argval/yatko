@@ -287,6 +287,37 @@
         "x16emu_win64-r49.zip"
       ],
       "expected": "x16emu_macos_intel-r49.zip"
+    },
+    {
+      "name": "skips-pdb-debug-symbols",
+      "platform": "windows",
+      "arch": "arm64",
+      "assets": [
+        "OBS-Studio-32.2.1-Windows-arm64-PDBs.zip",
+        "OBS-Studio-32.2.1-Windows-arm64.zip",
+        "OBS-Studio-32.2.1-Windows-x64-Installer.exe"
+      ],
+      "expected": "OBS-Studio-32.2.1-Windows-arm64.zip"
+    },
+    {
+      "name": "386-fallback-prefers-amd64-over-arm64-bun",
+      "platform": "windows",
+      "arch": "386",
+      "assets": [
+        "bun-windows-aarch64.zip",
+        "bun-windows-x64.zip"
+      ],
+      "expected": "bun-windows-x64.zip"
+    },
+    {
+      "name": "386-fallback-prefers-win64-over-arm64-neovim",
+      "platform": "windows",
+      "arch": "386",
+      "assets": [
+        "nvim-win-arm64.msi",
+        "nvim-win64.msi"
+      ],
+      "expected": "nvim-win64.msi"
     }
   ]
 }

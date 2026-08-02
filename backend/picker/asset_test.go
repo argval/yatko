@@ -98,6 +98,21 @@ func TestPickAssetForArch_FallsBackToVariantWhenOnlyOption(t *testing.T) {
 	}
 }
 
+func TestCanonicalizeName_CamelCaseOSArch(t *testing.T) {
+	cases := map[string]string{
+		"gdx-liftoff-winX64.zip":   "gdx-liftoff-win-x64.zip",
+		"gdx-liftoff-linuxX64.zip": "gdx-liftoff-linux-x64.zip",
+		"tool-darwin-arm64.dmg":    "tool-darwin-arm64.dmg",
+		"Foo.AppImage":             "foo.appimage",
+		"macOS-arm64.dmg":          "macos-arm64.dmg",
+	}
+	for in, want := range cases {
+		if got := canonicalizeName(in); got != want {
+			t.Errorf("canonicalizeName(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
 func TestDetectPlatform_MobileBeforeDesktop(t *testing.T) {
 	cases := []struct {
 		ua   string

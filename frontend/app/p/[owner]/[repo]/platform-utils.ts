@@ -4,6 +4,7 @@
 
 export type { Arch, Asset, Platform } from "./pick-asset";
 export {
+  canonicalizeName,
   hasBoundedKeyword,
   isSource,
   mentionsOtherPlatform,
@@ -13,7 +14,7 @@ export {
 } from "./pick-asset";
 
 import type { Arch, Platform } from "./pick-asset";
-import { hasBoundedKeyword, platformKeywords } from "./pick-asset";
+import { canonicalizeName, hasBoundedKeyword, platformKeywords } from "./pick-asset";
 
 export const platformLabels: Record<Platform, string> = {
   windows: "Windows",
@@ -66,7 +67,7 @@ export function detectArch(): Arch {
 }
 
 export function assetPlatformLabel(name: string): string | null {
-  const lower = name.toLowerCase();
+  const lower = canonicalizeName(name);
   if (
     platformKeywords.windows.some((kw) => hasBoundedKeyword(lower, kw)) ||
     lower.endsWith(".exe") ||

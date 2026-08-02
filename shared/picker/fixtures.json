@@ -215,6 +215,78 @@
         "App-1.0.0.apk"
       ],
       "expected": null
+    },
+    {
+      "name": "camelcase-winx64-not-linux",
+      "platform": "windows",
+      "arch": "amd64",
+      "assets": [
+        "gdx-liftoff-1.14.2.1-linux.jar",
+        "gdx-liftoff-1.14.2.1-mac.jar",
+        "gdx-liftoff-1.14.2.1-win.jar",
+        "gdx-liftoff-1.14.2.1.jar",
+        "gdx-liftoff-linuxX64.zip",
+        "gdx-liftoff-winX64.zip"
+      ],
+      "expected": "gdx-liftoff-winX64.zip"
+    },
+    {
+      "name": "skips-wasm-prefers-win64",
+      "platform": "windows",
+      "arch": "amd64",
+      "assets": [
+        "x16emu_linux-x86_64-r49.zip",
+        "x16emu_macos_intel-r49.zip",
+        "x16emu_wasm-r49.zip",
+        "x16emu_win32-r49.zip",
+        "x16emu_win64-r49.zip"
+      ],
+      "expected": "x16emu_win64-r49.zip"
+    },
+    {
+      "name": "prefers-win64-over-win32-and-mono",
+      "platform": "windows",
+      "arch": "amd64",
+      "assets": [
+        "Godot_v4.7.1-stable_mono_win32.zip",
+        "Godot_v4.7.1-stable_mono_win64.zip",
+        "Godot_v4.7.1-stable_web_editor.zip",
+        "Godot_v4.7.1-stable_win32.exe.zip",
+        "Godot_v4.7.1-stable_win64.exe.zip",
+        "Godot_v4.7.1-stable_windows_arm64.exe.zip"
+      ],
+      "expected": "Godot_v4.7.1-stable_win64.exe.zip"
+    },
+    {
+      "name": "unknown-arch-prefers-64bit-windows",
+      "platform": "windows",
+      "arch": "",
+      "assets": [
+        "tool-win32.zip",
+        "tool-win64.zip"
+      ],
+      "expected": "tool-win64.zip"
+    },
+    {
+      "name": "darwin-still-not-win-with-bare-win-keyword",
+      "platform": "macos",
+      "arch": "arm64",
+      "assets": [
+        "tool-darwin-arm64.dmg",
+        "tool-win-arm64.exe"
+      ],
+      "expected": "tool-darwin-arm64.dmg"
+    },
+    {
+      "name": "macos-intel-maps-to-amd64",
+      "platform": "macos",
+      "arch": "amd64",
+      "assets": [
+        "x16emu_macos_m1-r49.zip",
+        "x16emu_macos_intel-r49.zip",
+        "x16emu_win64-r49.zip"
+      ],
+      "expected": "x16emu_macos_intel-r49.zip"
     }
   ]
 }

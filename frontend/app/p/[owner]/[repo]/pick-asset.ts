@@ -13,8 +13,10 @@ export type Asset = {
 };
 
 export const platformKeywords: Record<Platform, string[]> = {
-  windows: ["windows", "win32", "win64", "win-"],
-  macos: ["macos", "darwin", "osx", "mac-"],
+  // Bare "win"/"mac" are safe with hasBoundedKeyword ("win" inside "darwin"
+  // fails the leading-letter boundary). Needed for winX64 / -mac.jar names.
+  windows: ["windows", "win32", "win64", "win-", "win"],
+  macos: ["macos", "darwin", "osx", "mac-", "mac"],
   linux: ["linux", "ubuntu", "debian", "fedora", "appimage"],
   android: ["android", "apk"],
   ios: ["ios", "iphone", "ipad", "ipod"],
@@ -22,21 +24,23 @@ export const platformKeywords: Record<Platform, string[]> = {
 
 // Preferred extensions per platform, priority order (lower index wins).
 export const platformExtensions: Record<Platform, string[]> = {
-  windows: [".exe", ".msi", ".zip"],
-  macos: [".dmg", ".pkg", ".zip", ".tar.gz"],
-  linux: [".appimage", ".deb", ".rpm", ".tar.gz", ".tar.xz", ".zip"],
+  windows: [".exe", ".msi", ".zip", ".jar"],
+  macos: [".dmg", ".pkg", ".zip", ".tar.gz", ".jar"],
+  linux: [".appimage", ".deb", ".rpm", ".tar.gz", ".tar.xz", ".zip", ".jar"],
   android: [".apk", ".aab"],
   ios: [".ipa"],
 };
 
 const archKeywords: Record<Exclude<Arch, "">, string[]> = {
-  amd64: ["amd64", "x86_64", "x86-64", "x64"],
-  arm64: ["arm64", "aarch64"],
+  amd64: ["amd64", "x86_64", "x86-64", "x64", "win64", "intel"],
+  arm64: ["arm64", "aarch64", "m1", "m2", "m3", "m4"],
   arm: ["armv7", "armv6", "armhf", "arm-"],
-  "386": ["i386", "i686", "x86_32", "386"],
+  "386": ["i386", "i686", "x86_32", "386", "win32"],
 };
 
-const variantKeywords = ["profile", "debug", "symbols", "dbg", "baseline"];
+const variantKeywords = ["profile", "debug", "symbols", "dbg", "baseline", "mono"];
+
+const nonNativeKeywords = ["wasm", "wasi"];
 
 function isLower(ch: string | undefined): boolean {
   return !!ch && ch >= "a" && ch <= "z";
@@ -57,6 +61,34 @@ export function hasBoundedKeyword(name: string, kw: string): boolean {
     if (beforeOK && afterOK) return true;
     start = idx + 1;
   }
+}
+
+/**
+ * Insert separators before Uppercase+digit after a lowercase letter
+ * ("winX64" → "win-x64"), then lowercase. Digit look-ahead avoids splitting
+ * AppImage → app-image. Mirrors picker.canonicalizeName.
+ */
+export function canonicalizeName(name: string): string {
+  if (!name) return "";
+  let out = "";
+  for (let i = 0; i < name.length; i++) {
+    const ch = name[i]!;
+    const prev = i > 0 ? name[i - 1]! : "";
+    const next = i + 1 < name.length ? name[i + 1]! : "";
+    if (
+      i > 0 &&
+      ch >= "A" &&
+      ch <= "Z" &&
+      prev >= "a" &&
+      prev <= "z" &&
+      next >= "0" &&
+      next <= "9"
+    ) {
+      out += "-";
+    }
+    out += ch.toLowerCase();
+  }
+  return out;
 }
 
 const ambiguousTarballExts = [".tar.gz", ".tar.xz", ".tgz", ".txz"];
@@ -103,12 +135,49 @@ function mentionsArch(name: string, arch: Arch): boolean {
   return keywords.some((kw) => hasBoundedKeyword(name, kw));
 }
 
+function mentionsPlatform(name: string, platform: Platform): boolean {
+  return platformKeywords[platform].some((kw) => hasBoundedKeyword(name, kw));
+}
+
+function mentionsOtherArch(name: string, want: Arch): boolean {
+  if (!want) return false;
+  for (const arch of Object.keys(archKeywords) as Exclude<Arch, "">[]) {
+    if (arch === want) continue;
+    if (mentionsArch(name, arch)) return true;
+  }
+  return false;
+}
+
+function isNonNative(name: string): boolean {
+  return nonNativeKeywords.some((kw) => hasBoundedKeyword(name, kw));
+}
+
+/** 0 = 64-bit, 1 = unspecified, 2 = 32-bit. */
+function archBitWidth(name: string): number {
+  if (mentionsArch(name, "amd64") || mentionsArch(name, "arm64")) return 0;
+  if (mentionsArch(name, "386") || mentionsArch(name, "arm")) return 2;
+  return 1;
+}
+
 function variantPenalty(name: string): number {
   let penalty = 0;
   for (const kw of variantKeywords) {
     if (hasBoundedKeyword(name, kw)) penalty++;
   }
   return penalty;
+}
+
+function candidateBetter(
+  ext: number,
+  bits: number,
+  variant: number,
+  bestExt: number,
+  bestBits: number,
+  bestVariant: number,
+): boolean {
+  if (ext !== bestExt) return ext < bestExt;
+  if (bits !== bestBits) return bits < bestBits;
+  return variant < bestVariant;
 }
 
 /**
@@ -119,12 +188,20 @@ export function pickBestAsset(assets: Asset[], platform: Platform, arch: Arch): 
   if (assets.length === 0) return null;
 
   const exts = platformExtensions[platform];
-  type Scored = { asset: Asset; extRank: number; archHit: boolean; variant: number };
+  type Scored = {
+    asset: Asset;
+    extRank: number;
+    archHit: boolean;
+    platformHit: boolean;
+    bitWidth: number;
+    variant: number;
+  };
   const candidates: Scored[] = [];
 
   for (const asset of assets) {
-    const name = asset.name.toLowerCase();
+    const name = canonicalizeName(asset.name);
     if (isSource(name)) continue;
+    if (isNonNative(name)) continue;
     if (mentionsOtherPlatform(name, platform)) continue;
 
     const extRank = exts.findIndex((ext) => name.endsWith(ext));
@@ -134,6 +211,8 @@ export function pickBestAsset(assets: Asset[], platform: Platform, arch: Arch): 
       asset,
       extRank,
       archHit: arch !== "" && mentionsArch(name, arch),
+      platformHit: mentionsPlatform(name, platform),
+      bitWidth: archBitWidth(name),
       variant: variantPenalty(name),
     });
   }
@@ -143,12 +222,22 @@ export function pickBestAsset(assets: Asset[], platform: Platform, arch: Arch): 
   let pool = candidates;
   if (arch) {
     const archMatches = candidates.filter((c) => c.archHit);
-    if (archMatches.length > 0) pool = archMatches;
+    if (archMatches.length > 0) {
+      pool = archMatches;
+    } else {
+      const compatible = candidates.filter(
+        (c) => !mentionsOtherArch(canonicalizeName(c.asset.name), arch),
+      );
+      if (compatible.length > 0) pool = compatible;
+    }
   }
+
+  const platformMatches = pool.filter((c) => c.platformHit);
+  if (platformMatches.length > 0) pool = platformMatches;
 
   let best = pool[0]!;
   for (const c of pool.slice(1)) {
-    if (c.extRank < best.extRank || (c.extRank === best.extRank && c.variant < best.variant)) {
+    if (candidateBetter(c.extRank, c.bitWidth, c.variant, best.extRank, best.bitWidth, best.variant)) {
       best = c;
     }
   }

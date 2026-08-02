@@ -38,7 +38,7 @@ const archKeywords: Record<Exclude<Arch, "">, string[]> = {
   "386": ["i386", "i686", "x86_32", "386", "win32"],
 };
 
-const variantKeywords = ["profile", "debug", "symbols", "dbg", "baseline", "mono"];
+const variantKeywords = ["profile", "debug", "symbols", "dbg", "baseline", "mono", "pdb", "pdbs"];
 
 const nonNativeKeywords = ["wasm", "wasi"];
 
@@ -169,15 +169,55 @@ function variantPenalty(name: string): number {
 
 function candidateBetter(
   ext: number,
+  family: number,
   bits: number,
   variant: number,
   bestExt: number,
+  bestFamily: number,
   bestBits: number,
   bestVariant: number,
 ): boolean {
   if (ext !== bestExt) return ext < bestExt;
+  if (family !== bestFamily) return family < bestFamily;
   if (bits !== bestBits) return bits < bestBits;
   return variant < bestVariant;
+}
+
+/** Closer CPU family wins when an exact arch asset is missing. */
+function archFamilyPenalty(name: string, want: Arch): number {
+  if (!want) return 0;
+  if (mentionsArch(name, want)) return 0;
+  const hasAMD64 = mentionsArch(name, "amd64");
+  const hasARM64 = mentionsArch(name, "arm64");
+  const hasX86 = mentionsArch(name, "386");
+  const hasARM = mentionsArch(name, "arm");
+  switch (want) {
+    case "amd64":
+      if (hasX86) return 2;
+      if (hasARM64) return 3;
+      if (hasARM) return 4;
+      break;
+    case "386":
+      if (hasAMD64) return 1;
+      if (hasARM64) return 3;
+      if (hasARM) return 4;
+      break;
+    case "arm64":
+      if (hasARM) return 2;
+      if (hasAMD64) return 3;
+      if (hasX86) return 4;
+      break;
+    case "arm":
+      if (hasARM64) return 1;
+      if (hasAMD64) return 3;
+      if (hasX86) return 4;
+      break;
+    default: {
+      const _exhaustive: never = want;
+      return _exhaustive;
+    }
+  }
+  return 5;
 }
 
 /**
@@ -193,6 +233,7 @@ export function pickBestAsset(assets: Asset[], platform: Platform, arch: Arch): 
     extRank: number;
     archHit: boolean;
     platformHit: boolean;
+    family: number;
     bitWidth: number;
     variant: number;
   };
@@ -212,6 +253,7 @@ export function pickBestAsset(assets: Asset[], platform: Platform, arch: Arch): 
       extRank,
       archHit: arch !== "" && mentionsArch(name, arch),
       platformHit: mentionsPlatform(name, platform),
+      family: archFamilyPenalty(name, arch),
       bitWidth: archBitWidth(name),
       variant: variantPenalty(name),
     });
@@ -237,7 +279,18 @@ export function pickBestAsset(assets: Asset[], platform: Platform, arch: Arch): 
 
   let best = pool[0]!;
   for (const c of pool.slice(1)) {
-    if (candidateBetter(c.extRank, c.bitWidth, c.variant, best.extRank, best.bitWidth, best.variant)) {
+    if (
+      candidateBetter(
+        c.extRank,
+        c.family,
+        c.bitWidth,
+        c.variant,
+        best.extRank,
+        best.family,
+        best.bitWidth,
+        best.variant,
+      )
+    ) {
       best = c;
     }
   }

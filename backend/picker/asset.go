@@ -107,7 +107,7 @@ var platformExtensions = map[Platform][]string{
 // debug symbols, CPU-feature fallbacks, alternate runtimes). Prefer the
 // vanilla asset when both exist — e.g. bun-darwin-aarch64.zip over
 // bun-darwin-aarch64-profile.zip, or Godot win64 over mono_win64.
-var variantKeywords = []string{"profile", "debug", "symbols", "dbg", "baseline", "mono"}
+var variantKeywords = []string{"profile", "debug", "symbols", "dbg", "baseline", "mono", "pdb", "pdbs"}
 
 // nonNativeKeywords mark browser/VM targets that are never the right pick for
 // a desktop or mobile download CTA (e.g. x16emu_wasm-*.zip).
@@ -138,6 +138,7 @@ func PickAssetForArch(assets []github.Asset, platform Platform, arch Arch) *gith
 		extRank     int  // lower = better extension match
 		archHit     bool // true when the asset explicitly matches the requested arch
 		platformHit bool // true when the asset explicitly names this platform
+		family      int  // lower = closer CPU family to the requested arch
 		bitWidth    int  // 0 = 64-bit, 1 = unspecified, 2 = 32-bit (lower better)
 		variant     int  // lower = fewer secondary-build markers (profile/debug/…)
 	}
@@ -169,6 +170,7 @@ func PickAssetForArch(assets []github.Asset, platform Platform, arch Arch) *gith
 					extRank:     rank,
 					archHit:     archHit,
 					platformHit: mentionsPlatform(name, platform),
+					family:      archFamilyPenalty(name, arch),
 					bitWidth:    archBitWidth(name),
 					variant:     variantPenalty(name),
 				})
@@ -184,6 +186,8 @@ func PickAssetForArch(assets []github.Asset, platform Platform, arch Arch) *gith
 	// When we have arch context, prefer assets that explicitly match the
 	// requested arch; otherwise drop assets that name a conflicting arch so
 	// we don't hand a win32 build to a 64-bit host just because it listed first.
+	// If every candidate conflicts (e.g. only amd64+arm64 when asking for 386),
+	// keep them all and let archFamilyPenalty prefer the closer family.
 	if arch != UnknownArch {
 		var archMatches []scored
 		for _, c := range candidates {
@@ -219,11 +223,11 @@ func PickAssetForArch(assets []github.Asset, platform Platform, arch Arch) *gith
 		candidates = platformMatches
 	}
 
-	// Prefer better extension, then 64-bit over 32-bit when arch is unknown,
-	// then vanilla (non-profile/debug/baseline/mono) builds.
+	// Prefer better extension, closer CPU family, 64-bit when arch is unknown,
+	// then vanilla (non-profile/debug/pdb/mono) builds.
 	best := candidates[0]
 	for _, c := range candidates[1:] {
-		if candidateBetter(c.extRank, c.bitWidth, c.variant, best.extRank, best.bitWidth, best.variant) {
+		if candidateBetter(c.extRank, c.family, c.bitWidth, c.variant, best.extRank, best.family, best.bitWidth, best.variant) {
 			best = c
 		}
 	}
@@ -231,14 +235,73 @@ func PickAssetForArch(assets []github.Asset, platform Platform, arch Arch) *gith
 }
 
 // candidateBetter reports whether a candidate outranks the current best.
-func candidateBetter(ext, bits, variant, bestExt, bestBits, bestVariant int) bool {
+func candidateBetter(ext, family, bits, variant, bestExt, bestFamily, bestBits, bestVariant int) bool {
 	if ext != bestExt {
 		return ext < bestExt
+	}
+	if family != bestFamily {
+		return family < bestFamily
 	}
 	if bits != bestBits {
 		return bits < bestBits
 	}
 	return variant < bestVariant
+}
+
+// archFamilyPenalty ranks how close name's arch is to want when an exact
+// match is unavailable. Lower is better. Same-family 64-bit (386→amd64,
+// arm→arm64) beats the opposite family, so Windows 386 hosts don't get an
+// arm64 build just because it was listed first.
+func archFamilyPenalty(name string, want Arch) int {
+	if want == UnknownArch {
+		return 0
+	}
+	if mentionsArch(name, want) {
+		return 0
+	}
+	hasAMD64 := mentionsArch(name, AMD64)
+	hasARM64 := mentionsArch(name, ARM64)
+	hasX86 := mentionsArch(name, X86)
+	hasARM := mentionsArch(name, ARM)
+	switch want {
+	case AMD64:
+		switch {
+		case hasX86:
+			return 2
+		case hasARM64:
+			return 3
+		case hasARM:
+			return 4
+		}
+	case X86:
+		switch {
+		case hasAMD64:
+			return 1
+		case hasARM64:
+			return 3
+		case hasARM:
+			return 4
+		}
+	case ARM64:
+		switch {
+		case hasARM:
+			return 2
+		case hasAMD64:
+			return 3
+		case hasX86:
+			return 4
+		}
+	case ARM:
+		switch {
+		case hasARM64:
+			return 1
+		case hasAMD64:
+			return 3
+		case hasX86:
+			return 4
+		}
+	}
+	return 5
 }
 
 // canonicalizeName inserts separators before an Uppercase+digit run that

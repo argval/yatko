@@ -1,4 +1,5 @@
 import type { MetadataRoute } from "next";
+import { SITE_URL } from "@/lib/site";
 
 /** Link-unfurl bots that need release pages + OG images for preview cards. */
 const SOCIAL_PREVIEW_BOTS = [
@@ -33,6 +34,7 @@ export default function robots(): MetadataRoute.Robots {
         disallow: ["/api/", "/dl/"],
       },
     ],
-    sitemap: "https://yatko.app/sitemap.xml",
+    sitemap: `${SITE_URL}/sitemap.xml`,
+    host: SITE_URL.replace(/^https?:\/\//, ""),
   };
 }

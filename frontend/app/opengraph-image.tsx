@@ -2,7 +2,7 @@ import { ImageResponse } from "next/og";
 
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
-export const alt = "Yatko — clean downloads for GitHub releases";
+export const alt = "Yatko (yatko.app) — clean downloads for GitHub releases";
 
 async function loadOutfitFont(text: string): Promise<ArrayBuffer | null> {
   try {
@@ -23,7 +23,7 @@ async function loadOutfitFont(text: string): Promise<ArrayBuffer | null> {
 
 export default async function Image() {
   const title = "Yatko";
-  const tagline = "Clean download links for any public GitHub repo";
+  const tagline = "Clean download links for any public GitHub release";
   const font = await loadOutfitFont(`yatko.app${title}${tagline}`);
 
   return new ImageResponse(

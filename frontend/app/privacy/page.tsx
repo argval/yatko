@@ -1,15 +1,16 @@
 import type { Metadata } from "next";
 import { BackToYatko } from "@/components/back-to-yatko";
 
-const title = "Privacy — Yatko";
-const description = "What Yatko collects, caches, and does not store.";
+const title = "Privacy";
+const description =
+  "Privacy policy for Yatko (yatko.app) — what we collect, cache, and do not store when you use clean GitHub release download links.";
 
 export const metadata: Metadata = {
   title,
   description,
   alternates: { canonical: "/privacy" },
   openGraph: {
-    title,
+    title: "Privacy · Yatko",
     description,
     type: "website",
     siteName: "Yatko",
@@ -17,7 +18,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title,
+    title: "Privacy · Yatko",
     description,
   },
 };

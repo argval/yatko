@@ -1,12 +1,14 @@
 # Yatko
 
-**Clean download links for any public GitHub release so that you don't have to be called a ["Smelly Nerd"](https://www.reddit.com/r/github/s/7YaS7nTVup) anymore.**
+**[yatko.app](https://yatko.app)** — clean download links for any public GitHub release so that you don't have to be called a ["Smelly Nerd"](https://www.reddit.com/r/github/s/7YaS7nTVup) anymore.
 
 Swap the domain — that's it. Same `owner/repo` path as GitHub, one click to the right binary for your users' platform and architecture.
 
 ```
 github.com/cli/cli  →  yatko.app/cli/cli
 ```
+
+Website: [https://yatko.app](https://yatko.app) · Source: [github.com/argval/yatko](https://github.com/argval/yatko)
 
 Need a direct download (no landing page)? Add `/dl`:
 

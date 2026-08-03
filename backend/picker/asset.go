@@ -55,6 +55,29 @@ func ResolveArch(archParam, userAgent string) Arch {
 	return DetectArch(userAgent)
 }
 
+// ResolvePlatform returns the Platform to use for asset selection. An explicit
+// platform query-param takes priority when recognised; otherwise DetectPlatform
+// on the User-Agent is used. Unknown falls back to Windows so opaque desktop
+// UAs still get a sensible default (historical /api/link behaviour).
+func ResolvePlatform(platformParam, userAgent string) Platform {
+	switch strings.ToLower(strings.TrimSpace(platformParam)) {
+	case "windows":
+		return Windows
+	case "macos", "darwin", "mac":
+		return MacOS
+	case "linux":
+		return Linux
+	case "android":
+		return Android
+	case "ios":
+		return IOS
+	}
+	if p := DetectPlatform(userAgent); p != Unknown {
+		return p
+	}
+	return Windows
+}
+
 // DetectArch attempts to derive the CPU architecture from a User-Agent string.
 // Returns UnknownArch when the UA doesn't carry enough signal.
 func DetectArch(userAgent string) Arch {
@@ -125,10 +148,122 @@ func variantPenalty(name string) int {
 	return penalty
 }
 
+// Libc is an optional C library / linkage preference for Linux-style assets.
+type Libc string
+
+const (
+	LibcAny    Libc = ""
+	LibcMusl   Libc = "musl"
+	LibcGNU    Libc = "gnu"
+	LibcStatic Libc = "static"
+)
+
+// PickOpts controls optional format and libc preferences for asset selection.
+type PickOpts struct {
+	Prefer string // normalized extension key without leading dot (e.g. "deb")
+	Libc   Libc
+}
+
+// ResolvePrefer normalizes a ?prefer= query value to an extension key
+// (no leading dot). Unrecognised values return "" (ignored).
+func ResolvePrefer(param string) string {
+	p := strings.ToLower(strings.TrimSpace(param))
+	p = strings.TrimPrefix(p, ".")
+	switch p {
+	case "app-image":
+		p = "appimage"
+	case "tgz":
+		p = "tar.gz"
+	case "txz":
+		p = "tar.xz"
+	}
+	switch p {
+	case "exe", "msi", "zip", "jar", "dmg", "pkg", "appimage",
+		"deb", "rpm", "tar.gz", "tar.xz", "apk", "aab", "ipa":
+		return p
+	default:
+		return ""
+	}
+}
+
+// ResolveLibc normalizes a ?libc= query value. Unrecognised values → LibcAny.
+func ResolveLibc(param string) Libc {
+	switch strings.ToLower(strings.TrimSpace(param)) {
+	case "musl":
+		return LibcMusl
+	case "gnu", "glibc":
+		return LibcGNU
+	case "static":
+		return LibcStatic
+	default:
+		return LibcAny
+	}
+}
+
+// libcPenalty ranks filename libc/linkage markers. Lower is better.
+// When want is LibcAny, prefer untagged names over musl/gnu/glibc tags.
+// Explicit musl/gnu/static treats static as compatible with musl or gnu.
+func libcPenalty(name string, want Libc) int {
+	musl := hasBoundedKeyword(name, "musl")
+	gnu := hasBoundedKeyword(name, "gnu") || hasBoundedKeyword(name, "glibc")
+	static := hasBoundedKeyword(name, "static")
+	tagged := musl || gnu
+
+	switch want {
+	case LibcMusl:
+		if musl || static {
+			return 0
+		}
+		if gnu {
+			return 2
+		}
+		return 1
+	case LibcGNU:
+		if gnu || static {
+			return 0
+		}
+		if musl {
+			return 2
+		}
+		return 1
+	case LibcStatic:
+		if static {
+			return 0
+		}
+		return 1
+	default:
+		if tagged {
+			return 1
+		}
+		return 0
+	}
+}
+
+// extRankFor returns the platform extension rank for name. When prefer matches
+// the asset's extension, rank is -1 so it beats the default order.
+func extRankFor(name string, exts []string, prefer string) (rank int, ok bool) {
+	for i, ext := range exts {
+		low := strings.ToLower(ext)
+		if !strings.HasSuffix(name, low) {
+			continue
+		}
+		key := strings.TrimPrefix(low, ".")
+		if prefer != "" && prefer == key {
+			return -1, true
+		}
+		return i, true
+	}
+	return 0, false
+}
+
 // PickAssetForArch selects the best matching release asset for the given platform and
-// CPU architecture. When arch is UnknownArch, architecture is ignored and the
-// function behaves identically to PickAsset.
+// CPU architecture. When arch is UnknownArch, architecture is ignored.
 func PickAssetForArch(assets []github.Asset, platform Platform, arch Arch) *github.Asset {
+	return PickAssetForArchOpts(assets, platform, arch, PickOpts{})
+}
+
+// PickAssetForArchOpts is PickAssetForArch with optional prefer/libc overrides.
+func PickAssetForArchOpts(assets []github.Asset, platform Platform, arch Arch, opts PickOpts) *github.Asset {
 	if len(assets) == 0 {
 		return nil
 	}
@@ -140,12 +275,19 @@ func PickAssetForArch(assets []github.Asset, platform Platform, arch Arch) *gith
 		platformHit bool // true when the asset explicitly names this platform
 		family      int  // lower = closer CPU family to the requested arch
 		bitWidth    int  // 0 = 64-bit, 1 = unspecified, 2 = 32-bit (lower better)
+		libc        int  // lower = better libc/linkage match
 		variant     int  // lower = fewer secondary-build markers (profile/debug/…)
 	}
 
 	exts, ok := platformExtensions[platform]
 	if !ok {
 		return nil
+	}
+
+	prefer := ResolvePrefer(opts.Prefer)
+	libc := opts.Libc
+	if s := string(libc); s != "" {
+		libc = ResolveLibc(s)
 	}
 
 	var candidates []scored
@@ -162,21 +304,21 @@ func PickAssetForArch(assets []github.Asset, platform Platform, arch Arch) *gith
 			continue
 		}
 
-		for rank, ext := range exts {
-			if strings.HasSuffix(name, strings.ToLower(ext)) {
-				archHit := arch != UnknownArch && mentionsArch(name, arch)
-				candidates = append(candidates, scored{
-					asset:       asset,
-					extRank:     rank,
-					archHit:     archHit,
-					platformHit: mentionsPlatform(name, platform),
-					family:      archFamilyPenalty(name, arch),
-					bitWidth:    archBitWidth(name),
-					variant:     variantPenalty(name),
-				})
-				break
-			}
+		rank, matched := extRankFor(name, exts, prefer)
+		if !matched {
+			continue
 		}
+		archHit := arch != UnknownArch && mentionsArch(name, arch)
+		candidates = append(candidates, scored{
+			asset:       asset,
+			extRank:     rank,
+			archHit:     archHit,
+			platformHit: mentionsPlatform(name, platform),
+			family:      archFamilyPenalty(name, arch),
+			bitWidth:    archBitWidth(name),
+			libc:        libcPenalty(name, libc),
+			variant:     variantPenalty(name),
+		})
 	}
 
 	if len(candidates) == 0 {
@@ -224,10 +366,13 @@ func PickAssetForArch(assets []github.Asset, platform Platform, arch Arch) *gith
 	}
 
 	// Prefer better extension, closer CPU family, 64-bit when arch is unknown,
-	// then vanilla (non-profile/debug/pdb/mono) builds.
+	// libc match, then vanilla (non-profile/debug/pdb/mono) builds.
 	best := candidates[0]
 	for _, c := range candidates[1:] {
-		if candidateBetter(c.extRank, c.family, c.bitWidth, c.variant, best.extRank, best.family, best.bitWidth, best.variant) {
+		if candidateBetter(
+			c.extRank, c.family, c.bitWidth, c.libc, c.variant,
+			best.extRank, best.family, best.bitWidth, best.libc, best.variant,
+		) {
 			best = c
 		}
 	}
@@ -235,7 +380,7 @@ func PickAssetForArch(assets []github.Asset, platform Platform, arch Arch) *gith
 }
 
 // candidateBetter reports whether a candidate outranks the current best.
-func candidateBetter(ext, family, bits, variant, bestExt, bestFamily, bestBits, bestVariant int) bool {
+func candidateBetter(ext, family, bits, libc, variant, bestExt, bestFamily, bestBits, bestLibc, bestVariant int) bool {
 	if ext != bestExt {
 		return ext < bestExt
 	}
@@ -244,6 +389,9 @@ func candidateBetter(ext, family, bits, variant, bestExt, bestFamily, bestBits, 
 	}
 	if bits != bestBits {
 		return bits < bestBits
+	}
+	if libc != bestLibc {
+		return libc < bestLibc
 	}
 	return variant < bestVariant
 }

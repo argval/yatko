@@ -318,6 +318,73 @@
         "nvim-win64.msi"
       ],
       "expected": "nvim-win64.msi"
+    },
+    {
+      "name": "prefer-deb-over-appimage",
+      "platform": "linux",
+      "arch": "amd64",
+      "prefer": "deb",
+      "assets": [
+        "tool-linux-amd64.AppImage",
+        "tool-linux-amd64.deb",
+        "tool-linux-amd64.tar.gz"
+      ],
+      "expected": "tool-linux-amd64.deb"
+    },
+    {
+      "name": "prefer-ignored-when-absent",
+      "platform": "linux",
+      "arch": "amd64",
+      "prefer": "rpm",
+      "assets": [
+        "tool-linux-amd64.AppImage",
+        "tool-linux-amd64.deb"
+      ],
+      "expected": "tool-linux-amd64.AppImage"
+    },
+    {
+      "name": "untagged-beats-musl-when-libc-unset",
+      "platform": "linux",
+      "arch": "amd64",
+      "assets": [
+        "tool-linux-amd64-musl.tar.gz",
+        "tool-linux-amd64.tar.gz"
+      ],
+      "expected": "tool-linux-amd64.tar.gz"
+    },
+    {
+      "name": "libc-musl-prefers-musl-tag",
+      "platform": "linux",
+      "arch": "amd64",
+      "libc": "musl",
+      "assets": [
+        "tool-linux-amd64-gnu.tar.gz",
+        "tool-linux-amd64-musl.tar.gz",
+        "tool-linux-amd64.tar.gz"
+      ],
+      "expected": "tool-linux-amd64-musl.tar.gz"
+    },
+    {
+      "name": "libc-gnu-prefers-gnu-tag",
+      "platform": "linux",
+      "arch": "amd64",
+      "libc": "gnu",
+      "assets": [
+        "tool-linux-amd64-musl.tar.gz",
+        "tool-linux-amd64-gnu.tar.gz"
+      ],
+      "expected": "tool-linux-amd64-gnu.tar.gz"
+    },
+    {
+      "name": "libc-static-prefers-static-tag",
+      "platform": "linux",
+      "arch": "amd64",
+      "libc": "static",
+      "assets": [
+        "tool-linux-amd64.tar.gz",
+        "tool-linux-amd64-static.tar.gz"
+      ],
+      "expected": "tool-linux-amd64-static.tar.gz"
     }
   ]
 }

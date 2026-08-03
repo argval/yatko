@@ -65,7 +65,10 @@ export function DownloadSection({
             <div className="h-4 w-48 rounded bg-foreground/[0.06] animate-pulse" aria-hidden />
           }
         >
-          <AssetChecksumSlot checksumsPromise={checksumsPromise} assetName={primaryAsset.name} />
+          <AssetChecksumSlot
+            checksumsPromise={checksumsPromise}
+            assetName={primaryAsset.name}
+          />
         </Suspense>
       )}
     </div>
@@ -82,5 +85,5 @@ function AssetChecksumSlot({
   assetName: string;
 }) {
   const checksums = use(checksumsPromise);
-  return <AssetChecksum hash={checksums[assetName] ?? null} />;
+  return <AssetChecksum hash={checksums[assetName] ?? null} filename={assetName} />;
 }

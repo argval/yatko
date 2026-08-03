@@ -42,6 +42,86 @@ const variantKeywords = ["profile", "debug", "symbols", "dbg", "baseline", "mono
 
 const nonNativeKeywords = ["wasm", "wasi"];
 
+export type Libc = "" | "musl" | "gnu" | "static";
+
+export type PickOpts = {
+  prefer?: string;
+  libc?: Libc;
+};
+
+/** Normalize ?prefer= to an extension key (no leading dot). Unknown → "". */
+export function resolvePrefer(param: string | undefined): string {
+  let p = (param ?? "").trim().toLowerCase();
+  if (p.startsWith(".")) p = p.slice(1);
+  if (p === "app-image") p = "appimage";
+  if (p === "tgz") p = "tar.gz";
+  if (p === "txz") p = "tar.xz";
+  switch (p) {
+    case "exe":
+    case "msi":
+    case "zip":
+    case "jar":
+    case "dmg":
+    case "pkg":
+    case "appimage":
+    case "deb":
+    case "rpm":
+    case "tar.gz":
+    case "tar.xz":
+    case "apk":
+    case "aab":
+    case "ipa":
+      return p;
+    default:
+      return "";
+  }
+}
+
+/** Normalize ?libc=. Unknown → "". */
+export function resolveLibc(param: string | undefined): Libc {
+  switch ((param ?? "").trim().toLowerCase()) {
+    case "musl":
+      return "musl";
+    case "gnu":
+    case "glibc":
+      return "gnu";
+    case "static":
+      return "static";
+    default:
+      return "";
+  }
+}
+
+function libcPenalty(name: string, want: Libc): number {
+  const musl = hasBoundedKeyword(name, "musl");
+  const gnu = hasBoundedKeyword(name, "gnu") || hasBoundedKeyword(name, "glibc");
+  const staticTag = hasBoundedKeyword(name, "static");
+  const tagged = musl || gnu;
+
+  switch (want) {
+    case "musl":
+      if (musl || staticTag) return 0;
+      if (gnu) return 2;
+      return 1;
+    case "gnu":
+      if (gnu || staticTag) return 0;
+      if (musl) return 2;
+      return 1;
+    case "static":
+      return staticTag ? 0 : 1;
+    default:
+      return tagged ? 1 : 0;
+  }
+}
+
+function extRankFor(name: string, exts: string[], prefer: string): number | null {
+  const idx = exts.findIndex((ext) => name.endsWith(ext));
+  if (idx === -1) return null;
+  const key = exts[idx]!.replace(/^\./, "");
+  if (prefer && prefer === key) return -1;
+  return idx;
+}
+
 function isLower(ch: string | undefined): boolean {
   return !!ch && ch >= "a" && ch <= "z";
 }
@@ -171,15 +251,18 @@ function candidateBetter(
   ext: number,
   family: number,
   bits: number,
+  libc: number,
   variant: number,
   bestExt: number,
   bestFamily: number,
   bestBits: number,
+  bestLibc: number,
   bestVariant: number,
 ): boolean {
   if (ext !== bestExt) return ext < bestExt;
   if (family !== bestFamily) return family < bestFamily;
   if (bits !== bestBits) return bits < bestBits;
+  if (libc !== bestLibc) return libc < bestLibc;
   return variant < bestVariant;
 }
 
@@ -222,12 +305,19 @@ function archFamilyPenalty(name: string, want: Arch): number {
 
 /**
  * Selects the best release asset for platform/arch — same ranking as
- * picker.PickAssetForArch. No keyword-only fallback when extension is missing.
+ * picker.PickAssetForArchOpts. No keyword-only fallback when extension is missing.
  */
-export function pickBestAsset(assets: Asset[], platform: Platform, arch: Arch): Asset | null {
+export function pickBestAsset(
+  assets: Asset[],
+  platform: Platform,
+  arch: Arch,
+  opts: PickOpts = {},
+): Asset | null {
   if (assets.length === 0) return null;
 
   const exts = platformExtensions[platform];
+  const prefer = resolvePrefer(opts.prefer);
+  const libcWant = resolveLibc(opts.libc);
   type Scored = {
     asset: Asset;
     extRank: number;
@@ -235,6 +325,7 @@ export function pickBestAsset(assets: Asset[], platform: Platform, arch: Arch): 
     platformHit: boolean;
     family: number;
     bitWidth: number;
+    libc: number;
     variant: number;
   };
   const candidates: Scored[] = [];
@@ -245,8 +336,8 @@ export function pickBestAsset(assets: Asset[], platform: Platform, arch: Arch): 
     if (isNonNative(name)) continue;
     if (mentionsOtherPlatform(name, platform)) continue;
 
-    const extRank = exts.findIndex((ext) => name.endsWith(ext));
-    if (extRank === -1) continue;
+    const extRank = extRankFor(name, exts, prefer);
+    if (extRank === null) continue;
 
     candidates.push({
       asset,
@@ -255,6 +346,7 @@ export function pickBestAsset(assets: Asset[], platform: Platform, arch: Arch): 
       platformHit: mentionsPlatform(name, platform),
       family: archFamilyPenalty(name, arch),
       bitWidth: archBitWidth(name),
+      libc: libcPenalty(name, libcWant),
       variant: variantPenalty(name),
     });
   }
@@ -284,10 +376,12 @@ export function pickBestAsset(assets: Asset[], platform: Platform, arch: Arch): 
         c.extRank,
         c.family,
         c.bitWidth,
+        c.libc,
         c.variant,
         best.extRank,
         best.family,
         best.bitWidth,
+        best.libc,
         best.variant,
       )
     ) {

@@ -10,4 +10,6 @@ When changing ranking:
 2. Mirror the change in the TypeScript adapter.
 3. Run `go test ./picker/` and `bun test` in `frontend/`.
 
+Optional fixture fields: `prefer` (extension key) and `libc` (`musl` | `gnu` | `static`).
+
 Do not add browser-only ranking shortcuts (keyword fallbacks, softer arch filters) — they create silent `/dl` vs button drift.

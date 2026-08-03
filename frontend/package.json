@@ -13,7 +13,7 @@
     "@vercel/analytics": "^2.0.1",
     "@vercel/speed-insights": "^2.0.0",
     "botid": "^1.5.11",
-    "next": "16.2.10",
+    "next": "16.2.12",
     "react": "19.2.7",
     "react-dom": "19.2.7",
     "react-markdown": "^10.1.0",
@@ -31,7 +31,7 @@
     "happy-dom": "^20.11.1",
     "postcss": "^8.5.19",
     "tailwindcss": "^4.3.2",
-    "typescript": "^5.9.3"
+    "typescript": "7.0.2"
   },
   "trustedDependencies": [
     "sharp",

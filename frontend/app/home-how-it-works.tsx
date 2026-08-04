@@ -1,13 +1,15 @@
+import { SITE_DOMAIN } from "@/lib/site";
+
 const HOW_IT_WORKS = [
-  {
-    title: "Direct download",
-    path: "yatko.app/dl/owner/repo",
-    body: "Detects the user's platform and redirects straight to the right binary.",
-  },
   {
     title: "Landing page",
     path: "yatko.app/owner/repo",
     body: "Same shape as your GitHub URL — swap the domain and it just works.",
+  },
+  {
+    title: "Direct download",
+    path: "yatko.app/dl/owner/repo",
+    body: "Detects the user's platform and redirects straight to the right binary.",
   },
   {
     title: "Link API",
@@ -22,8 +24,9 @@ export function HomeHowItWorks() {
       <div className="space-y-2 text-center">
         <h2 className="text-lg font-semibold tracking-tight">How it works</h2>
         <p className="text-sm text-muted leading-relaxed max-w-md mx-auto">
-          Yatko serves the right GitHub release installation file for each visitor&apos;s OS and
-          architecture — landing page, direct download, or JSON link API.
+          Swap <span className="text-foreground/80 font-medium">github.com</span> for{" "}
+          <span className="text-foreground/80 font-medium">{SITE_DOMAIN}</span> — we pick the
+          right binary for each visitor&apos;s OS and architecture.
         </p>
       </div>
       <div className="grid gap-3 sm:grid-cols-2">

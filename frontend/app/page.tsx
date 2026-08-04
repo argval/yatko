@@ -27,10 +27,7 @@ export default function Home() {
             >
               &quot;Smelly Nerd&quot;
             </a>{" "}
-            anymore. Swap{" "}
-            <span className="text-foreground/80 font-medium">github.com</span> for{" "}
-            <span className="text-foreground/80 font-medium">{SITE_DOMAIN}</span> — we pick the
-            right binary for each visitor&apos;s OS and architecture.
+            anymore
           </p>
         </div>
 

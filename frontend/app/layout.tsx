@@ -4,6 +4,14 @@ import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { SiteFooter } from "@/components/site-footer";
+import { SiteJsonLd } from "@/components/json-ld";
+import {
+  SITE_DESCRIPTION,
+  SITE_KEYWORDS,
+  SITE_NAME,
+  SITE_TITLE,
+  SITE_URL,
+} from "@/lib/site";
 import "./globals.css";
 
 const outfit = Outfit({
@@ -18,27 +26,42 @@ const jetbrainsMono = JetBrains_Mono({
   display: "swap",
 });
 
-const title = "Yatko - Clean downloads for GitHub releases";
-const description = "Clean download links for any public GitHub repo";
-
 export const metadata: Metadata = {
-  metadataBase: new URL("https://yatko.app"),
-  title,
-  description,
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: SITE_TITLE,
+    template: `%s · ${SITE_NAME}`,
+  },
+  description: SITE_DESCRIPTION,
+  applicationName: SITE_NAME,
+  keywords: [...SITE_KEYWORDS],
+  authors: [{ name: SITE_NAME, url: SITE_URL }],
+  creator: SITE_NAME,
+  publisher: SITE_NAME,
+  category: "technology",
   alternates: {
     canonical: "/",
   },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+    },
+  },
   openGraph: {
-    title,
-    description,
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
     type: "website",
-    siteName: "Yatko",
+    siteName: SITE_NAME,
     url: "/",
+    locale: "en_US",
   },
   twitter: {
     card: "summary_large_image",
-    title,
-    description,
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
   },
 };
 
@@ -60,6 +83,7 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body className="min-h-full flex flex-col">
+        <SiteJsonLd />
         <ThemeToggle />
         {children}
         <SiteFooter />

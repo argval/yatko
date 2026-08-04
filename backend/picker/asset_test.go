@@ -98,6 +98,21 @@ func TestPickAssetForArch_FallsBackToVariantWhenOnlyOption(t *testing.T) {
 	}
 }
 
+func TestCanonicalizeName_CamelCaseOSArch(t *testing.T) {
+	cases := map[string]string{
+		"gdx-liftoff-winX64.zip":   "gdx-liftoff-win-x64.zip",
+		"gdx-liftoff-linuxX64.zip": "gdx-liftoff-linux-x64.zip",
+		"tool-darwin-arm64.dmg":    "tool-darwin-arm64.dmg",
+		"Foo.AppImage":             "foo.appimage",
+		"macOS-arm64.dmg":          "macos-arm64.dmg",
+	}
+	for in, want := range cases {
+		if got := canonicalizeName(in); got != want {
+			t.Errorf("canonicalizeName(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
 func TestDetectPlatform_MobileBeforeDesktop(t *testing.T) {
 	cases := []struct {
 		ua   string
@@ -131,6 +146,69 @@ func TestDetectPlatform_MobileBeforeDesktop(t *testing.T) {
 	for _, tc := range cases {
 		if got := DetectPlatform(tc.ua); got != tc.want {
 			t.Errorf("DetectPlatform(%q) = %q, want %q", tc.ua, got, tc.want)
+		}
+	}
+}
+
+func TestResolvePlatform(t *testing.T) {
+	macUA := "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15"
+	cases := []struct {
+		param string
+		ua    string
+		want  Platform
+	}{
+		{param: "linux", ua: macUA, want: Linux},
+		{param: "Windows", ua: macUA, want: Windows},
+		{param: "darwin", ua: "", want: MacOS},
+		{param: "mac", ua: "", want: MacOS},
+		{param: "", ua: macUA, want: MacOS},
+		{param: "garbage", ua: macUA, want: MacOS}, // unrecognised → UA
+		{param: "", ua: "", want: Windows},          // unknown UA → Windows
+		{param: "android", ua: macUA, want: Android},
+		{param: "ios", ua: macUA, want: IOS},
+	}
+	for _, tc := range cases {
+		if got := ResolvePlatform(tc.param, tc.ua); got != tc.want {
+			t.Errorf("ResolvePlatform(%q, %q) = %q, want %q", tc.param, tc.ua, got, tc.want)
+		}
+	}
+}
+
+func TestResolvePrefer(t *testing.T) {
+	cases := []struct {
+		in   string
+		want string
+	}{
+		{"deb", "deb"},
+		{".DEB", "deb"},
+		{"app-image", "appimage"},
+		{"AppImage", "appimage"},
+		{"tgz", "tar.gz"},
+		{"garbage", ""},
+		{"", ""},
+	}
+	for _, tc := range cases {
+		if got := ResolvePrefer(tc.in); got != tc.want {
+			t.Errorf("ResolvePrefer(%q) = %q, want %q", tc.in, got, tc.want)
+		}
+	}
+}
+
+func TestResolveLibc(t *testing.T) {
+	cases := []struct {
+		in   string
+		want Libc
+	}{
+		{"musl", LibcMusl},
+		{"gnu", LibcGNU},
+		{"glibc", LibcGNU},
+		{"static", LibcStatic},
+		{"", LibcAny},
+		{"nope", LibcAny},
+	}
+	for _, tc := range cases {
+		if got := ResolveLibc(tc.in); got != tc.want {
+			t.Errorf("ResolveLibc(%q) = %q, want %q", tc.in, got, tc.want)
 		}
 	}
 }

@@ -14,11 +14,11 @@ export function releasePageMetadata({
   version?: string;
 }): Metadata {
   const title = version
-    ? `${repo} ${version} - Download | Yatko`
-    : `${repo} - Download | Yatko`;
+    ? `Download ${owner}/${repo} ${version}`
+    : `Download ${owner}/${repo}`;
   const description = version
-    ? `Download ${owner}/${repo} version ${version}`
-    : `Download the latest release of ${owner}/${repo}`;
+    ? `Download ${owner}/${repo} ${version} on Yatko (yatko.app) — the right GitHub release asset for your OS and architecture.`
+    : `Download the latest ${owner}/${repo} release on Yatko (yatko.app) — swap github.com for clean, platform-aware download links.`;
   // Latest releases use the github.com → yatko.app path. Version pins stay
   // under /p/ (no bare /:owner/:repo/:version rewrite).
   const canonicalPath = version

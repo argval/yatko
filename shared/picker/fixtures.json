@@ -122,6 +122,73 @@
       "expected": "tool-linux-amd64.tar.xz"
     },
     {
+      "name": "skips-bare-versioned-zip",
+      "platform": "windows",
+      "arch": "amd64",
+      "assets": [
+        "v2.1.0.zip",
+        "app-windows-x64.exe"
+      ],
+      "expected": "app-windows-x64.exe"
+    },
+    {
+      "name": "skips-bare-versioned-zip-alone",
+      "platform": "windows",
+      "arch": "amd64",
+      "assets": ["v2.1.0.zip"],
+      "expected": null
+    },
+    {
+      "name": "keeps-platform-tagged-zip",
+      "platform": "windows",
+      "arch": "amd64",
+      "assets": [
+        "v2.1.0.zip",
+        "app-windows-x64.zip"
+      ],
+      "expected": "app-windows-x64.zip"
+    },
+    {
+      "name": "skips-bare-versioned-zip-macos",
+      "platform": "macos",
+      "arch": "arm64",
+      "assets": [
+        "v2.1.0.zip",
+        "app-darwin-arm64.dmg"
+      ],
+      "expected": "app-darwin-arm64.dmg"
+    },
+    {
+      "name": "keeps-platform-tagged-zip-macos",
+      "platform": "macos",
+      "arch": "arm64",
+      "assets": [
+        "v2.1.0.zip",
+        "app-darwin-arm64.zip"
+      ],
+      "expected": "app-darwin-arm64.zip"
+    },
+    {
+      "name": "skips-bare-versioned-zip-linux",
+      "platform": "linux",
+      "arch": "amd64",
+      "assets": [
+        "v2.1.0.zip",
+        "app-linux-amd64.tar.gz"
+      ],
+      "expected": "app-linux-amd64.tar.gz"
+    },
+    {
+      "name": "keeps-platform-tagged-zip-linux",
+      "platform": "linux",
+      "arch": "amd64",
+      "assets": [
+        "v2.1.0.zip",
+        "app-linux-x64.zip"
+      ],
+      "expected": "app-linux-x64.zip"
+    },
+    {
       "name": "android-picks-apk",
       "platform": "android",
       "arch": "arm64",
@@ -217,24 +284,174 @@
       "expected": null
     },
     {
-      "name": "skips-bare-versioned-zip",
+      "name": "camelcase-winx64-not-linux",
       "platform": "windows",
       "arch": "amd64",
       "assets": [
-        "v2.1.0.zip",
-        "app-windows-x64.exe"
+        "gdx-liftoff-1.14.2.1-linux.jar",
+        "gdx-liftoff-1.14.2.1-mac.jar",
+        "gdx-liftoff-1.14.2.1-win.jar",
+        "gdx-liftoff-1.14.2.1.jar",
+        "gdx-liftoff-linuxX64.zip",
+        "gdx-liftoff-winX64.zip"
       ],
-      "expected": "app-windows-x64.exe"
+      "expected": "gdx-liftoff-winX64.zip"
     },
     {
-      "name": "keeps-platform-tagged-zip",
+      "name": "skips-wasm-prefers-win64",
       "platform": "windows",
       "arch": "amd64",
       "assets": [
-        "v2.1.0.zip",
-        "app-windows-x64.zip"
+        "x16emu_linux-x86_64-r49.zip",
+        "x16emu_macos_intel-r49.zip",
+        "x16emu_wasm-r49.zip",
+        "x16emu_win32-r49.zip",
+        "x16emu_win64-r49.zip"
       ],
-      "expected": "app-windows-x64.zip"
+      "expected": "x16emu_win64-r49.zip"
+    },
+    {
+      "name": "prefers-win64-over-win32-and-mono",
+      "platform": "windows",
+      "arch": "amd64",
+      "assets": [
+        "Godot_v4.7.1-stable_mono_win32.zip",
+        "Godot_v4.7.1-stable_mono_win64.zip",
+        "Godot_v4.7.1-stable_web_editor.zip",
+        "Godot_v4.7.1-stable_win32.exe.zip",
+        "Godot_v4.7.1-stable_win64.exe.zip",
+        "Godot_v4.7.1-stable_windows_arm64.exe.zip"
+      ],
+      "expected": "Godot_v4.7.1-stable_win64.exe.zip"
+    },
+    {
+      "name": "unknown-arch-prefers-64bit-windows",
+      "platform": "windows",
+      "arch": "",
+      "assets": [
+        "tool-win32.zip",
+        "tool-win64.zip"
+      ],
+      "expected": "tool-win64.zip"
+    },
+    {
+      "name": "darwin-still-not-win-with-bare-win-keyword",
+      "platform": "macos",
+      "arch": "arm64",
+      "assets": [
+        "tool-darwin-arm64.dmg",
+        "tool-win-arm64.exe"
+      ],
+      "expected": "tool-darwin-arm64.dmg"
+    },
+    {
+      "name": "macos-intel-maps-to-amd64",
+      "platform": "macos",
+      "arch": "amd64",
+      "assets": [
+        "x16emu_macos_m1-r49.zip",
+        "x16emu_macos_intel-r49.zip",
+        "x16emu_win64-r49.zip"
+      ],
+      "expected": "x16emu_macos_intel-r49.zip"
+    },
+    {
+      "name": "skips-pdb-debug-symbols",
+      "platform": "windows",
+      "arch": "arm64",
+      "assets": [
+        "OBS-Studio-32.2.1-Windows-arm64-PDBs.zip",
+        "OBS-Studio-32.2.1-Windows-arm64.zip",
+        "OBS-Studio-32.2.1-Windows-x64-Installer.exe"
+      ],
+      "expected": "OBS-Studio-32.2.1-Windows-arm64.zip"
+    },
+    {
+      "name": "386-fallback-prefers-amd64-over-arm64-bun",
+      "platform": "windows",
+      "arch": "386",
+      "assets": [
+        "bun-windows-aarch64.zip",
+        "bun-windows-x64.zip"
+      ],
+      "expected": "bun-windows-x64.zip"
+    },
+    {
+      "name": "386-fallback-prefers-win64-over-arm64-neovim",
+      "platform": "windows",
+      "arch": "386",
+      "assets": [
+        "nvim-win-arm64.msi",
+        "nvim-win64.msi"
+      ],
+      "expected": "nvim-win64.msi"
+    },
+    {
+      "name": "prefer-deb-over-appimage",
+      "platform": "linux",
+      "arch": "amd64",
+      "prefer": "deb",
+      "assets": [
+        "tool-linux-amd64.AppImage",
+        "tool-linux-amd64.deb",
+        "tool-linux-amd64.tar.gz"
+      ],
+      "expected": "tool-linux-amd64.deb"
+    },
+    {
+      "name": "prefer-ignored-when-absent",
+      "platform": "linux",
+      "arch": "amd64",
+      "prefer": "rpm",
+      "assets": [
+        "tool-linux-amd64.AppImage",
+        "tool-linux-amd64.deb"
+      ],
+      "expected": "tool-linux-amd64.AppImage"
+    },
+    {
+      "name": "untagged-beats-musl-when-libc-unset",
+      "platform": "linux",
+      "arch": "amd64",
+      "assets": [
+        "tool-linux-amd64-musl.tar.gz",
+        "tool-linux-amd64.tar.gz"
+      ],
+      "expected": "tool-linux-amd64.tar.gz"
+    },
+    {
+      "name": "libc-musl-prefers-musl-tag",
+      "platform": "linux",
+      "arch": "amd64",
+      "libc": "musl",
+      "assets": [
+        "tool-linux-amd64-gnu.tar.gz",
+        "tool-linux-amd64-musl.tar.gz",
+        "tool-linux-amd64.tar.gz"
+      ],
+      "expected": "tool-linux-amd64-musl.tar.gz"
+    },
+    {
+      "name": "libc-gnu-prefers-gnu-tag",
+      "platform": "linux",
+      "arch": "amd64",
+      "libc": "gnu",
+      "assets": [
+        "tool-linux-amd64-musl.tar.gz",
+        "tool-linux-amd64-gnu.tar.gz"
+      ],
+      "expected": "tool-linux-amd64-gnu.tar.gz"
+    },
+    {
+      "name": "libc-static-prefers-static-tag",
+      "platform": "linux",
+      "arch": "amd64",
+      "libc": "static",
+      "assets": [
+        "tool-linux-amd64.tar.gz",
+        "tool-linux-amd64-static.tar.gz"
+      ],
+      "expected": "tool-linux-amd64-static.tar.gz"
     }
   ]
 }

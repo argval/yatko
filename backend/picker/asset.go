@@ -2,6 +2,7 @@ package picker
 
 import (
 	"strings"
+	"unicode"
 
 	"github.com/argval/yatko/github"
 )
@@ -28,11 +29,13 @@ const (
 )
 
 // archKeywords maps each Arch to the substrings that identify it in asset filenames.
+// win64/win32 are arch signals used by many Windows builds (Godot, x16emu, …);
+// intel/m1 cover macOS asset names that omit amd64/arm64 tokens.
 var archKeywords = map[Arch][]string{
-	AMD64: {"amd64", "x86_64", "x86-64", "x64"},
-	ARM64: {"arm64", "aarch64"},
+	AMD64: {"amd64", "x86_64", "x86-64", "x64", "win64", "intel"},
+	ARM64: {"arm64", "aarch64", "m1", "m2", "m3", "m4"},
 	ARM:   {"armv7", "armv6", "armhf", "arm-"},
-	X86:   {"i386", "i686", "x86_32", "386"},
+	X86:   {"i386", "i686", "x86_32", "386", "win32"},
 }
 
 // ResolveArch returns the Arch to use for asset selection. The explicit arch
@@ -50,6 +53,29 @@ func ResolveArch(archParam, userAgent string) Arch {
 		return X86
 	}
 	return DetectArch(userAgent)
+}
+
+// ResolvePlatform returns the Platform to use for asset selection. An explicit
+// platform query-param takes priority when recognised; otherwise DetectPlatform
+// on the User-Agent is used. Unknown falls back to Windows so opaque desktop
+// UAs still get a sensible default (historical /api/link behaviour).
+func ResolvePlatform(platformParam, userAgent string) Platform {
+	switch strings.ToLower(strings.TrimSpace(platformParam)) {
+	case "windows":
+		return Windows
+	case "macos", "darwin", "mac":
+		return MacOS
+	case "linux":
+		return Linux
+	case "android":
+		return Android
+	case "ios":
+		return IOS
+	}
+	if p := DetectPlatform(userAgent); p != Unknown {
+		return p
+	}
+	return Windows
 }
 
 // DetectArch attempts to derive the CPU architecture from a User-Agent string.
@@ -93,17 +119,22 @@ func DetectPlatform(userAgent string) Platform {
 
 // platformExtensions maps each platform to its preferred file extensions, in priority order.
 var platformExtensions = map[Platform][]string{
-	Windows: {".exe", ".msi", ".zip"},
-	MacOS:   {".dmg", ".pkg", ".zip", ".tar.gz"},
-	Linux:   {".AppImage", ".deb", ".rpm", ".tar.gz", ".tar.xz", ".zip"},
+	Windows: {".exe", ".msi", ".zip", ".jar"},
+	MacOS:   {".dmg", ".pkg", ".zip", ".tar.gz", ".jar"},
+	Linux:   {".AppImage", ".deb", ".rpm", ".tar.gz", ".tar.xz", ".zip", ".jar"},
 	Android: {".apk", ".aab"},
 	IOS:     {".ipa"},
 }
 
 // variantKeywords are filename tokens that mark secondary builds (profiling,
-// debug symbols, CPU-feature fallbacks). Prefer the vanilla asset when both
-// exist — e.g. bun-darwin-aarch64.zip over bun-darwin-aarch64-profile.zip.
-var variantKeywords = []string{"profile", "debug", "symbols", "dbg", "baseline"}
+// debug symbols, CPU-feature fallbacks, alternate runtimes). Prefer the
+// vanilla asset when both exist — e.g. bun-darwin-aarch64.zip over
+// bun-darwin-aarch64-profile.zip, or Godot win64 over mono_win64.
+var variantKeywords = []string{"profile", "debug", "symbols", "dbg", "baseline", "mono", "pdb", "pdbs"}
+
+// nonNativeKeywords mark browser/VM targets that are never the right pick for
+// a desktop or mobile download CTA (e.g. x16emu_wasm-*.zip).
+var nonNativeKeywords = []string{"wasm", "wasi"}
 
 // variantPenalty counts how many secondary-build markers appear in name.
 // Lower is better; 0 means a vanilla release asset.
@@ -117,19 +148,135 @@ func variantPenalty(name string) int {
 	return penalty
 }
 
+// Libc is an optional C library / linkage preference for Linux-style assets.
+type Libc string
+
+const (
+	LibcAny    Libc = ""
+	LibcMusl   Libc = "musl"
+	LibcGNU    Libc = "gnu"
+	LibcStatic Libc = "static"
+)
+
+// PickOpts controls optional format and libc preferences for asset selection.
+type PickOpts struct {
+	Prefer string // normalized extension key without leading dot (e.g. "deb")
+	Libc   Libc
+}
+
+// ResolvePrefer normalizes a ?prefer= query value to an extension key
+// (no leading dot). Unrecognised values return "" (ignored).
+func ResolvePrefer(param string) string {
+	p := strings.ToLower(strings.TrimSpace(param))
+	p = strings.TrimPrefix(p, ".")
+	switch p {
+	case "app-image":
+		p = "appimage"
+	case "tgz":
+		p = "tar.gz"
+	case "txz":
+		p = "tar.xz"
+	}
+	switch p {
+	case "exe", "msi", "zip", "jar", "dmg", "pkg", "appimage",
+		"deb", "rpm", "tar.gz", "tar.xz", "apk", "aab", "ipa":
+		return p
+	default:
+		return ""
+	}
+}
+
+// ResolveLibc normalizes a ?libc= query value. Unrecognised values → LibcAny.
+func ResolveLibc(param string) Libc {
+	switch strings.ToLower(strings.TrimSpace(param)) {
+	case "musl":
+		return LibcMusl
+	case "gnu", "glibc":
+		return LibcGNU
+	case "static":
+		return LibcStatic
+	default:
+		return LibcAny
+	}
+}
+
+// libcPenalty ranks filename libc/linkage markers. Lower is better.
+// When want is LibcAny, prefer untagged names over musl/gnu/glibc tags.
+// Explicit musl/gnu/static treats static as compatible with musl or gnu.
+func libcPenalty(name string, want Libc) int {
+	musl := hasBoundedKeyword(name, "musl")
+	gnu := hasBoundedKeyword(name, "gnu") || hasBoundedKeyword(name, "glibc")
+	static := hasBoundedKeyword(name, "static")
+	tagged := musl || gnu
+
+	switch want {
+	case LibcMusl:
+		if musl || static {
+			return 0
+		}
+		if gnu {
+			return 2
+		}
+		return 1
+	case LibcGNU:
+		if gnu || static {
+			return 0
+		}
+		if musl {
+			return 2
+		}
+		return 1
+	case LibcStatic:
+		if static {
+			return 0
+		}
+		return 1
+	default:
+		if tagged {
+			return 1
+		}
+		return 0
+	}
+}
+
+// extRankFor returns the platform extension rank for name. When prefer matches
+// the asset's extension, rank is -1 so it beats the default order.
+func extRankFor(name string, exts []string, prefer string) (rank int, ok bool) {
+	for i, ext := range exts {
+		low := strings.ToLower(ext)
+		if !strings.HasSuffix(name, low) {
+			continue
+		}
+		key := strings.TrimPrefix(low, ".")
+		if prefer != "" && prefer == key {
+			return -1, true
+		}
+		return i, true
+	}
+	return 0, false
+}
+
 // PickAssetForArch selects the best matching release asset for the given platform and
-// CPU architecture. When arch is UnknownArch, architecture is ignored and the
-// function behaves identically to PickAsset.
+// CPU architecture. When arch is UnknownArch, architecture is ignored.
 func PickAssetForArch(assets []github.Asset, platform Platform, arch Arch) *github.Asset {
+	return PickAssetForArchOpts(assets, platform, arch, PickOpts{})
+}
+
+// PickAssetForArchOpts is PickAssetForArch with optional prefer/libc overrides.
+func PickAssetForArchOpts(assets []github.Asset, platform Platform, arch Arch, opts PickOpts) *github.Asset {
 	if len(assets) == 0 {
 		return nil
 	}
 
 	type scored struct {
-		asset    github.Asset
-		extRank  int  // lower = better extension match
-		archHit  bool // true when the asset explicitly matches the requested arch
-		variant  int  // lower = fewer secondary-build markers (profile/debug/…)
+		asset       github.Asset
+		extRank     int  // lower = better extension match
+		archHit     bool // true when the asset explicitly matches the requested arch
+		platformHit bool // true when the asset explicitly names this platform
+		family      int  // lower = closer CPU family to the requested arch
+		bitWidth    int  // 0 = 64-bit, 1 = unspecified, 2 = 32-bit (lower better)
+		libc        int  // lower = better libc/linkage match
+		variant     int  // lower = fewer secondary-build markers (profile/debug/…)
 	}
 
 	exts, ok := platformExtensions[platform]
@@ -137,41 +284,53 @@ func PickAssetForArch(assets []github.Asset, platform Platform, arch Arch) *gith
 		return nil
 	}
 
+	prefer := ResolvePrefer(opts.Prefer)
+	libc := opts.Libc
+	if s := string(libc); s != "" {
+		libc = ResolveLibc(s)
+	}
+
 	var candidates []scored
 
 	for _, asset := range assets {
-		name := strings.ToLower(asset.Name)
+		name := canonicalizeName(asset.Name)
 		if isSource(name) {
+			continue
+		}
+		if isNonNative(name) {
 			continue
 		}
 		if mentionsOtherPlatform(name, platform) {
 			continue
 		}
 
-		for rank, ext := range exts {
-			if strings.HasSuffix(name, strings.ToLower(ext)) {
-				archHit := arch != UnknownArch && mentionsArch(name, arch)
-				candidates = append(candidates, scored{
-					asset:   asset,
-					extRank: rank,
-					archHit: archHit,
-					variant: variantPenalty(name),
-				})
-				break
-			}
+		rank, matched := extRankFor(name, exts, prefer)
+		if !matched {
+			continue
 		}
+		archHit := arch != UnknownArch && mentionsArch(name, arch)
+		candidates = append(candidates, scored{
+			asset:       asset,
+			extRank:     rank,
+			archHit:     archHit,
+			platformHit: mentionsPlatform(name, platform),
+			family:      archFamilyPenalty(name, arch),
+			bitWidth:    archBitWidth(name),
+			libc:        libcPenalty(name, libc),
+			variant:     variantPenalty(name),
+		})
 	}
 
 	if len(candidates) == 0 {
 		return nil
 	}
 
-	// When we have arch context, prefer assets that explicitly mention the
-	// requested arch; break ties by extension rank.
+	// When we have arch context, prefer assets that explicitly match the
+	// requested arch; otherwise drop assets that name a conflicting arch so
+	// we don't hand a win32 build to a 64-bit host just because it listed first.
+	// If every candidate conflicts (e.g. only amd64+arm64 when asking for 386),
+	// keep them all and let archFamilyPenalty prefer the closer family.
 	if arch != UnknownArch {
-		// Check if any candidate explicitly matches the arch. If so, filter to
-		// only those; otherwise fall through to extension-rank ordering so we
-		// still return something useful.
 		var archMatches []scored
 		for _, c := range candidates {
 			if c.archHit {
@@ -180,17 +339,188 @@ func PickAssetForArch(assets []github.Asset, platform Platform, arch Arch) *gith
 		}
 		if len(archMatches) > 0 {
 			candidates = archMatches
+		} else {
+			var compatible []scored
+			for _, c := range candidates {
+				if !mentionsOtherArch(canonicalizeName(c.asset.Name), arch) {
+					compatible = append(compatible, c)
+				}
+			}
+			if len(compatible) > 0 {
+				candidates = compatible
+			}
 		}
 	}
 
-	// Prefer better extension, then vanilla (non-profile/debug/baseline) builds.
+	// Prefer platform-tagged assets over neutral names when both match the
+	// extension filter (avoids picking linuxX64.zip for a Windows CTA when the
+	// OS token was glued onto the arch, before canonicalizeName split it).
+	var platformMatches []scored
+	for _, c := range candidates {
+		if c.platformHit {
+			platformMatches = append(platformMatches, c)
+		}
+	}
+	if len(platformMatches) > 0 {
+		candidates = platformMatches
+	}
+
+	// Prefer better extension, closer CPU family, 64-bit when arch is unknown,
+	// libc match, then vanilla (non-profile/debug/pdb/mono) builds.
 	best := candidates[0]
 	for _, c := range candidates[1:] {
-		if c.extRank < best.extRank || (c.extRank == best.extRank && c.variant < best.variant) {
+		if candidateBetter(
+			c.extRank, c.family, c.bitWidth, c.libc, c.variant,
+			best.extRank, best.family, best.bitWidth, best.libc, best.variant,
+		) {
 			best = c
 		}
 	}
 	return &best.asset
+}
+
+// candidateBetter reports whether a candidate outranks the current best.
+func candidateBetter(ext, family, bits, libc, variant, bestExt, bestFamily, bestBits, bestLibc, bestVariant int) bool {
+	if ext != bestExt {
+		return ext < bestExt
+	}
+	if family != bestFamily {
+		return family < bestFamily
+	}
+	if bits != bestBits {
+		return bits < bestBits
+	}
+	if libc != bestLibc {
+		return libc < bestLibc
+	}
+	return variant < bestVariant
+}
+
+// archFamilyPenalty ranks how close name's arch is to want when an exact
+// match is unavailable. Lower is better. Same-family 64-bit (386→amd64,
+// arm→arm64) beats the opposite family, so Windows 386 hosts don't get an
+// arm64 build just because it was listed first.
+func archFamilyPenalty(name string, want Arch) int {
+	if want == UnknownArch {
+		return 0
+	}
+	if mentionsArch(name, want) {
+		return 0
+	}
+	hasAMD64 := mentionsArch(name, AMD64)
+	hasARM64 := mentionsArch(name, ARM64)
+	hasX86 := mentionsArch(name, X86)
+	hasARM := mentionsArch(name, ARM)
+	switch want {
+	case AMD64:
+		switch {
+		case hasX86:
+			return 2
+		case hasARM64:
+			return 3
+		case hasARM:
+			return 4
+		}
+	case X86:
+		switch {
+		case hasAMD64:
+			return 1
+		case hasARM64:
+			return 3
+		case hasARM:
+			return 4
+		}
+	case ARM64:
+		switch {
+		case hasARM:
+			return 2
+		case hasAMD64:
+			return 3
+		case hasX86:
+			return 4
+		}
+	case ARM:
+		switch {
+		case hasARM64:
+			return 1
+		case hasAMD64:
+			return 3
+		case hasX86:
+			return 4
+		}
+	}
+	return 5
+}
+
+// canonicalizeName inserts separators before an Uppercase+digit run that
+// follows a lowercase letter (winX64 → win-x64), then lowercases. The digit
+// look-ahead avoids splitting normal PascalCase tokens like AppImage into
+// app-image, which would break extension and keyword matching.
+func canonicalizeName(name string) string {
+	if name == "" {
+		return ""
+	}
+	runes := []rune(name)
+	var b strings.Builder
+	b.Grow(len(name) + 4)
+	for i, r := range runes {
+		if i > 0 && unicode.IsUpper(r) && unicode.IsLower(runes[i-1]) {
+			if i+1 < len(runes) && unicode.IsDigit(runes[i+1]) {
+				b.WriteByte('-')
+			}
+		}
+		b.WriteRune(unicode.ToLower(r))
+	}
+	return b.String()
+}
+
+// isNonNative reports browser/VM targets that should never win a native download.
+func isNonNative(name string) bool {
+	for _, kw := range nonNativeKeywords {
+		if hasBoundedKeyword(name, kw) {
+			return true
+		}
+	}
+	return false
+}
+
+// archBitWidth ranks 64-bit above unspecified above 32-bit. Used when the
+// client arch is unknown so we still prefer win64 over win32.
+func archBitWidth(name string) int {
+	if mentionsArch(name, AMD64) || mentionsArch(name, ARM64) {
+		return 0
+	}
+	if mentionsArch(name, X86) || mentionsArch(name, ARM) {
+		return 2
+	}
+	return 1
+}
+
+// mentionsOtherArch reports whether name explicitly names an arch other than want.
+func mentionsOtherArch(name string, want Arch) bool {
+	for arch := range archKeywords {
+		if arch == want {
+			continue
+		}
+		if mentionsArch(name, arch) {
+			return true
+		}
+	}
+	return false
+}
+
+// mentionsPlatform reports whether the filename explicitly references platform.
+func mentionsPlatform(name string, platform Platform) bool {
+	keywords, ok := platformKeywords[platform]
+	if !ok {
+		return false
+	}
+	for _, kw := range keywords {
+		if hasBoundedKeyword(name, kw) {
+			return true
+		}
+	}
+	return false
 }
 
 // mentionsArch returns true if the asset filename explicitly references the given arch.
@@ -257,9 +587,13 @@ func isAmbiguousArchive(name string) bool {
 
 // platformKeywords maps each platform to the substrings that identify it in
 // asset filenames. Shared by mentionsAnyPlatform / mentionsOtherPlatform.
+// Bare "win" / "mac" are safe with hasBoundedKeyword: "win" inside "darwin"
+// fails the leading-letter boundary check (dar-WIN), which is what "win-"
+// used to paper over before camelCase names like "winX64" needed a token
+// that isn't hyphen-terminated.
 var platformKeywords = map[Platform][]string{
-	Windows: {"windows", "win32", "win64", "win-"},
-	MacOS:   {"macos", "darwin", "osx", "mac-"},
+	Windows: {"windows", "win32", "win64", "win-", "win"},
+	MacOS:   {"macos", "darwin", "osx", "mac-", "mac"},
 	Linux:   {"linux", "ubuntu", "debian", "fedora", "appimage"},
 	Android: {"android", "apk"},
 	IOS:     {"ios", "iphone", "ipad", "ipod"},

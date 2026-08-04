@@ -38,11 +38,17 @@ func (h *RedirectHandler) handle(c *gin.Context, owner, repo, version string) {
 	}
 
 	ua := c.GetHeader("User-Agent")
-	platform := picker.DetectPlatform(ua)
+	// Query params mirror /api/link so scripts can pin OS/arch/format/libc.
+	platform := picker.ResolvePlatform(c.Query("platform"), ua)
 	arch := picker.ResolveArch(c.Query("arch"), ua)
-	asset := picker.PickAssetForArch(release.Assets, platform, arch)
+	prefer := picker.ResolvePrefer(c.Query("prefer"))
+	libc := picker.ResolveLibc(c.Query("libc"))
+	asset := picker.PickAssetForArchOpts(release.Assets, platform, arch, picker.PickOpts{
+		Prefer: prefer,
+		Libc:   libc,
+	})
 	if asset == nil {
-		c.Redirect(http.StatusFound, release.HTMLURL)
+		respondDownloadMiss(c, owner, repo, release, platform, arch, prefer, libc)
 		return
 	}
 

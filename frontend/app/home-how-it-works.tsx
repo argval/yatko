@@ -1,13 +1,18 @@
 const HOW_IT_WORKS = [
   {
-    title: "Direct download",
-    path: "yatko.app/dl/owner/repo",
-    body: "Detects the user's platform and redirects straight to the right binary.",
+    title: "Swap the domain",
+    path: "github.com → yatko.app",
+    body: "We pick the right binary for each visitor's OS and architecture.",
   },
   {
     title: "Landing page",
     path: "yatko.app/owner/repo",
     body: "Same shape as your GitHub URL — swap the domain and it just works.",
+  },
+  {
+    title: "Direct download",
+    path: "yatko.app/dl/owner/repo",
+    body: "Detects the user's platform and redirects straight to the right binary.",
   },
   {
     title: "Link API",

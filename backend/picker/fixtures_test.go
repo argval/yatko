@@ -18,6 +18,8 @@ type fixtureCase struct {
 	Name     string   `json:"name"`
 	Platform string   `json:"platform"`
 	Arch     string   `json:"arch"`
+	Prefer   string   `json:"prefer"`
+	Libc     string   `json:"libc"`
 	Assets   []string `json:"assets"`
 	Expected *string  `json:"expected"`
 }
@@ -88,7 +90,12 @@ func TestPickAssetForArch_SharedFixtures(t *testing.T) {
 			for i, name := range tc.Assets {
 				assets[i] = github.Asset{Name: name}
 			}
-			got := PickAssetForArch(assets, platformFromFixture(t, tc.Platform), archFromFixture(t, tc.Arch))
+			got := PickAssetForArchOpts(
+				assets,
+				platformFromFixture(t, tc.Platform),
+				archFromFixture(t, tc.Arch),
+				PickOpts{Prefer: tc.Prefer, Libc: ResolveLibc(tc.Libc)},
+			)
 			if tc.Expected == nil {
 				if got != nil {
 					t.Fatalf("expected nil, got %s", got.Name)

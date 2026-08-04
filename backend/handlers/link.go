@@ -14,10 +14,12 @@ import (
 //
 //	curl -s yatko.app/api/link/cli/cli | jq -r .url | xargs wget
 //
-// Query params:
+// Query params (same as /dl):
 //
-//	?platform=windows|macos|linux|android|ios   (override UA detection)
-//	?arch=amd64|arm64|arm|386       (override UA detection)
+//	?platform=windows|macos|linux|android|ios
+//	?arch=amd64|arm64|arm|386
+//	?prefer=deb|rpm|appimage|msi|dmg|exe|pkg|apk|tar.gz|…
+//	?libc=musl|gnu|static
 type LinkHandler struct {
 	redirect *RedirectHandler
 }
@@ -34,6 +36,8 @@ type LinkResponse struct {
 	Platform string `json:"platform"`
 	Arch     string `json:"arch"`
 	Version  string `json:"version"`
+	Prefer   string `json:"prefer,omitempty"`
+	Libc     string `json:"libc,omitempty"`
 }
 
 func (h *LinkHandler) Handle(c *gin.Context) {
@@ -54,17 +58,16 @@ func (h *LinkHandler) handle(c *gin.Context, owner, repo, version string) {
 	}
 
 	ua := c.GetHeader("User-Agent")
-	platform := picker.DetectPlatform(ua)
-	if p := c.Query("platform"); p != "" {
-		platform = picker.Platform(p)
-	}
-	if platform == picker.Unknown {
-		platform = picker.Windows
-	}
-
+	platform := picker.ResolvePlatform(c.Query("platform"), ua)
 	arch := picker.ResolveArch(c.Query("arch"), ua)
-	asset := picker.PickAssetForArch(release.Assets, platform, arch)
+	prefer := picker.ResolvePrefer(c.Query("prefer"))
+	libc := picker.ResolveLibc(c.Query("libc"))
+	asset := picker.PickAssetForArchOpts(release.Assets, platform, arch, picker.PickOpts{
+		Prefer: prefer,
+		Libc:   libc,
+	})
 	if asset == nil {
+		logPickerMiss(owner, repo, platform, arch, prefer, libc, IsScriptUA(ua), release.Assets)
 		c.JSON(http.StatusNotFound, gin.H{
 			"error":    "no suitable asset found for platform",
 			"platform": string(platform),
@@ -81,5 +84,7 @@ func (h *LinkHandler) handle(c *gin.Context, owner, repo, version string) {
 		Platform: string(platform),
 		Arch:     string(arch),
 		Version:  release.TagName,
+		Prefer:   prefer,
+		Libc:     string(libc),
 	})
 }

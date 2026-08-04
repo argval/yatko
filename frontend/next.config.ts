@@ -5,6 +5,11 @@ const backendURL = process.env.BACKEND_URL || "http://localhost:8080";
 
 const nextConfig: NextConfig = {
   reactCompiler: true,
+  // TypeScript 7 ships a native compiler without the classic JS API that
+  // Next's default typecheck uses — run project-local `tsc` instead.
+  experimental: {
+    useTypeScriptCli: true,
+  },
   async rewrites() {
     // Local/dev proxy to the Go backend. /api/search is an App Router route
     // (BotID gate) — put the catch-all API proxy in afterFiles so check_fs

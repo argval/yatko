@@ -1,6 +1,9 @@
-import { SITE_DOMAIN } from "@/lib/site";
-
 const HOW_IT_WORKS = [
+  {
+    title: "Swap the domain",
+    path: "github.com → yatko.app",
+    body: "We pick the right binary for each visitor's OS and architecture.",
+  },
   {
     title: "Landing page",
     path: "yatko.app/owner/repo",
@@ -21,14 +24,7 @@ const HOW_IT_WORKS = [
 export function HomeHowItWorks() {
   return (
     <div className="space-y-6 text-left">
-      <div className="space-y-2 text-center">
-        <h2 className="text-lg font-semibold tracking-tight">How it works</h2>
-        <p className="text-sm text-muted leading-relaxed max-w-md mx-auto">
-          Swap <span className="text-foreground/80 font-medium">github.com</span> for{" "}
-          <span className="text-foreground/80 font-medium">{SITE_DOMAIN}</span> — we pick the
-          right binary for each visitor&apos;s OS and architecture.
-        </p>
-      </div>
+      <h2 className="text-lg font-semibold tracking-tight text-center">How it works</h2>
       <div className="grid gap-3 sm:grid-cols-2">
         {HOW_IT_WORKS.map((card) => (
           <div key={card.title} className="rounded-xl border border-border bg-surface/60 p-5 space-y-2">

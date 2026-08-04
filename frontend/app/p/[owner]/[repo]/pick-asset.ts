@@ -171,10 +171,10 @@ export function canonicalizeName(name: string): string {
   return out;
 }
 
-const ambiguousTarballExts = [".tar.gz", ".tar.xz", ".tgz", ".txz"];
+const ambiguousArchiveExts = [".tar.gz", ".tar.xz", ".tgz", ".txz", ".zip"];
 
-function isAmbiguousTarball(name: string): boolean {
-  return ambiguousTarballExts.some((ext) => name.endsWith(ext));
+function isAmbiguousArchive(name: string): boolean {
+  return ambiguousArchiveExts.some((ext) => name.endsWith(ext));
 }
 
 function mentionsAnyPlatform(name: string): boolean {
@@ -194,8 +194,9 @@ function mentionsAnyArch(name: string): boolean {
 export function isSource(name: string): boolean {
   const lower = name.toLowerCase();
   if (lower.includes("source") || lower.includes("src")) return true;
-  // Bare versioned tarballs (htop-3.5.2.tar.xz) are source dists, not binaries.
-  if (isAmbiguousTarball(lower) && !mentionsAnyPlatform(lower) && !mentionsAnyArch(lower)) {
+  // Bare versioned archives (htop-3.5.2.tar.xz, v1.0.0.zip) are source dists.
+  // A .zip with a platform/arch keyword is a real binary — keep it.
+  if (isAmbiguousArchive(lower) && !mentionsAnyPlatform(lower) && !mentionsAnyArch(lower)) {
     return true;
   }
   return false;

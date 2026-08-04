@@ -21,7 +21,7 @@
 - Production deploys track the `prod` branch via Vercel (previews on PRs/branches); GitHub Actions CI runs backend/frontend tests and builds on push/PR and does not deploy.
 - Homepage search is slug vs bare: `owner/repo` (or repo URL) → `user:owner in:name <repo>` + GetRepo ensure; bare token or owner URL → dual Search (`user:<q>` + quoted `in:name`), merge, rank exact repo name then owned-by-q then stars. Dashes never choose a path. Always `archived:false`. Cache key `search:v8:`.
 - Install-command extraction from README fences must accept both CommonMark triple-backtick and tilde (`~~~`) fences.
-- Bare versioned tarballs (e.g. `.tar.xz`) with no OS/arch token are treated as source archives, not installable binaries, in both the Go picker and the frontend.
+- Bare versioned archives (e.g. `.tar.xz`, `.zip`) with no OS/arch token are treated as source archives, not installable binaries, in both the Go picker and the frontend. Platform/arch-tagged zips stay eligible.
 - Release checksums come from downloadable checksum assets (names matching checksum/sha*sums or `*.sha256` / `*.sha512` / `*.md5`), fetched and parsed into a filename→hash map.
 - Production Redis is Upstash via Vercel Marketplace over the Redis protocol (`REDIS_URL`, then `KV_URL`, then `UPSTASH_REDIS_URL`); do not switch the Go backend to Upstash REST/`KV_REST_API_*`.
 - HTTP rate limiting uses process-local windows when Redis is unset or unreachable (does not fail open); `/health` stays HTTP 200 with redis/rate_limit/github budget fields (`github_token` boolean only).

@@ -1,4 +1,5 @@
 import { ImageResponse } from "next/og";
+import { outfitFontOption } from "@/lib/og-font";
 import { getRelease } from "./backend";
 
 export const size = { width: 1200, height: 630 };
@@ -9,26 +10,6 @@ export const revalidate = 3600;
 
 type Props = { params: Promise<{ owner: string; repo: string }> };
 
-// Fetches only the glyphs this image actually uses from Google Fonts, so the
-// card matches the site's Outfit typeface instead of falling back to a
-// generic sans-serif.
-async function loadOutfitFont(text: string): Promise<ArrayBuffer | null> {
-  try {
-    const cssRes = await fetch(
-      `https://fonts.googleapis.com/css2?family=Outfit:wght@600&text=${encodeURIComponent(text)}`,
-    );
-    if (!cssRes.ok) return null;
-    const css = await cssRes.text();
-    const match = css.match(/src: url\((.+?)\) format\('(?:opentype|truetype)'\)/);
-    if (!match?.[1]) return null;
-    const fontRes = await fetch(match[1]);
-    if (!fontRes.ok) return null;
-    return await fontRes.arrayBuffer();
-  } catch {
-    return null;
-  }
-}
-
 export default async function Image({ params }: Props) {
   const { owner, repo } = await params;
   const result = await getRelease(owner, repo);
@@ -38,8 +19,6 @@ export default async function Image({ params }: Props) {
     description && description.length > 140
       ? description.slice(0, 140).trimEnd() + "…"
       : description || "Download the latest release";
-
-  const font = await loadOutfitFont(`yatko.app${owner}/${repo}${tagline}`);
 
   return new ImageResponse(
     (
@@ -53,7 +32,7 @@ export default async function Image({ params }: Props) {
           justifyContent: "center",
           background: "#09090b",
           color: "#fafafa",
-          fontFamily: font ? "Outfit" : undefined,
+          fontFamily: "Outfit",
           padding: "0 80px",
         }}
       >
@@ -75,7 +54,7 @@ export default async function Image({ params }: Props) {
     ),
     {
       ...size,
-      fonts: font ? [{ name: "Outfit", data: font, style: "normal", weight: 600 }] : [],
+      fonts: [outfitFontOption],
     },
   );
 }

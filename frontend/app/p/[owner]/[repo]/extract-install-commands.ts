@@ -8,12 +8,61 @@ export type InstallCommand = {
   platform: InstallPlatform;
 };
 
-/** Reject pipe-to-shell / chained / iex forms so Yatko never elevates them. */
+/**
+ * Reject chained / substitution forms so Yatko never elevates them.
+ * Common install-script one-liners (curl|bash, irm|iex, iex(irm)) are allowed —
+ * those are what most READMEs document as the install path — but never with
+ * `&&`, `;`, backticks, or `$(…)`.
+ */
 export function isUnsafeInstallCommand(command: string): boolean {
-  return /[|;`]|&&|\$\(|\biex\b/i.test(command);
+  if (/[;`]|&&|\$\(/.test(command)) return true;
+  if (isInstallScriptOneLiner(command)) return false;
+  return /[|`]|\biex\b/i.test(command);
 }
 
-export function extractInstallCommands(readme: string): InstallCommand[] {
+/** curl|sh, wget|bash, irm|iex, iex (irm …), powershell -c "…|iex". */
+export function isInstallScriptOneLiner(command: string): boolean {
+  const c = command.trim();
+  if (/^(?:curl|wget)\b[\s\S]*\|\s*(?:sudo\s+)?(?:ba)?sh\b/i.test(c)) return true;
+  if (/^(?:irm|iwr|Invoke-RestMethod|Invoke-WebRequest)\b[\s\S]*\|\s*iex\b/i.test(c)) {
+    return true;
+  }
+  if (/^iex\s*\(\s*(?:irm|iwr|Invoke-RestMethod|Invoke-WebRequest)\b[\s\S]+\)$/i.test(c)) {
+    return true;
+  }
+  if (/^(?:powershell|pwsh)(?:\.exe)?\s+(?:-c|-command)\s+[\s\S]+\biex\b/i.test(c)) {
+    return true;
+  }
+  return false;
+}
+
+/** True when the command text looks tied to this owner/repo (not a dep install). */
+export function commandMentionsRepo(command: string, owner: string, repo: string): boolean {
+  const lower = command.toLowerCase();
+  const o = owner.toLowerCase();
+  const r = repo.toLowerCase();
+  if (!o || !r) return false;
+  if (lower.includes(`${o}/${r}`)) return true;
+  if (lower.includes(`@${o}/${r}`)) return true;
+  if (lower.includes(r)) return true;
+  // Primary token of multi-segment names (hermes-agent → hermes) when long enough
+  // to avoid matching short noise like "go" / "ai".
+  const primary = r.split(/[-_]/)[0];
+  if (primary && primary.length >= 4) {
+    const re = new RegExp(`(?:^|[^a-z0-9])${escapeRegExp(primary)}(?:[^a-z0-9]|$)`, "i");
+    if (re.test(lower)) return true;
+  }
+  return false;
+}
+
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+export function extractInstallCommands(
+  readme: string,
+  opts?: { owner?: string; repo?: string },
+): InstallCommand[] {
   const commands = new Map<string, InstallPlatform>();
   // Support both CommonMark ``` and some READMEs' ~~~ fences (e.g. htop).
   const codeBlockRe = /(?:```|~~~)[^\n]*\n([\s\S]*?)(?:```|~~~)/g;
@@ -37,10 +86,14 @@ export function extractInstallCommands(readme: string): InstallCommand[] {
     { platform: "windows", re: new RegExp(lead + String.raw`(winget install\s+.+)`) },
     { platform: "windows", re: new RegExp(lead + String.raw`(choco install\s+.+)`) },
     { platform: "windows", re: new RegExp(lead + String.raw`(scoop install\s+.+)`) },
-    // PowerShell one-liners: `powershell -c "irm …|iex"`, bare `irm …|iex`, etc.
+    // PowerShell one-liners: `powershell -c "irm …|iex"`, `iex (irm …)`, bare `irm …|iex`.
     {
       platform: "windows",
       re: /^\s*(?:\$|>)?\s*((?:powershell|pwsh)(?:\.exe)?\s+(?:-c|-command)\s+.+)/i,
+    },
+    {
+      platform: "windows",
+      re: /^\s*(?:\$|>)?\s*(iex\s*\(\s*(?:irm|iwr|Invoke-RestMethod|Invoke-WebRequest)\s+.+\))/i,
     },
     {
       platform: "windows",
@@ -63,5 +116,16 @@ export function extractInstallCommands(readme: string): InstallCommand[] {
       }
     }
   }
-  return [...commands].map(([command, platform]) => ({ command, platform }));
+  let results = [...commands].map(([command, platform]) => ({ command, platform }));
+
+  // When the README also documents dependency installs (winget GitHub.cli, etc.),
+  // keep only lines that mention this owner/repo — if any such lines exist.
+  const owner = opts?.owner?.trim();
+  const repo = opts?.repo?.trim();
+  if (owner && repo) {
+    const relevant = results.filter((c) => commandMentionsRepo(c.command, owner, repo));
+    if (relevant.length > 0) results = relevant;
+  }
+
+  return results;
 }

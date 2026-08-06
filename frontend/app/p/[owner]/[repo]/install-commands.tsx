@@ -19,13 +19,43 @@ const platformLabels: Record<InstallPlatform | Platform, string> = {
 };
 
 export function InstallCommands({ commands }: { commands: InstallCommand[] }) {
+  // Same client-side usePlatform() as DownloadSection — default filter on so
+  // CLI install mirrors the download button's "your platform" behavior.
   const detected = usePlatform();
-  const [filterEnabled, setFilterEnabled] = useState(false);
+  const [filterEnabled, setFilterEnabled] = useState(true);
 
-  const visible =
-    filterEnabled && detected
-      ? commands.filter((c) => c.platform === "universal" || c.platform === detected.platform)
-      : commands;
+  if (!detected) {
+    return (
+      <CollapsibleCard title="CLI Installation">
+        <p className="text-xs text-foreground/45 mb-2">
+          Extracted from this repo&apos;s README — review before running.
+        </p>
+        <div
+          className="h-10 rounded-lg bg-foreground/[0.06] animate-pulse"
+          aria-hidden
+        />
+        <p className="sr-only" role="status" aria-live="polite">
+          Detecting platform…
+        </p>
+      </CollapsibleCard>
+    );
+  }
+
+  const visible = filterEnabled
+    ? commands.filter(
+        (c) => c.platform === "universal" || c.platform === detected.platform,
+      )
+    : commands;
+
+  // Prefer this OS, then universal, then everything else (when filter is off).
+  const ordered = [...visible].sort((a, b) => {
+    const rank = (p: InstallPlatform) => {
+      if (p === detected.platform) return 0;
+      if (p === "universal") return 1;
+      return 2;
+    };
+    return rank(a.platform) - rank(b.platform);
+  });
 
   return (
     <CollapsibleCard title="CLI Installation">
@@ -34,7 +64,7 @@ export function InstallCommands({ commands }: { commands: InstallCommand[] }) {
       </p>
       <PlatformFilterToggle checked={filterEnabled} onChange={setFilterEnabled} />
 
-      {visible.length === 0 && detected && (
+      {ordered.length === 0 && (
         <p className="text-sm text-foreground/40 py-2">
           No install commands found for {platformLabels[detected.platform]}. Try unchecking the
           filter.
@@ -42,7 +72,7 @@ export function InstallCommands({ commands }: { commands: InstallCommand[] }) {
       )}
 
       <div className="space-y-2">
-        {visible.map(({ command, platform: cmdPlatform }) => (
+        {ordered.map(({ command, platform: cmdPlatform }) => (
           <CopyBlock key={command} command={command} platform={cmdPlatform} />
         ))}
       </div>

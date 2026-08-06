@@ -122,6 +122,73 @@
       "expected": "tool-linux-amd64.tar.xz"
     },
     {
+      "name": "skips-bare-versioned-zip",
+      "platform": "windows",
+      "arch": "amd64",
+      "assets": [
+        "v2.1.0.zip",
+        "app-windows-x64.exe"
+      ],
+      "expected": "app-windows-x64.exe"
+    },
+    {
+      "name": "skips-bare-versioned-zip-alone",
+      "platform": "windows",
+      "arch": "amd64",
+      "assets": ["v2.1.0.zip"],
+      "expected": null
+    },
+    {
+      "name": "keeps-platform-tagged-zip",
+      "platform": "windows",
+      "arch": "amd64",
+      "assets": [
+        "v2.1.0.zip",
+        "app-windows-x64.zip"
+      ],
+      "expected": "app-windows-x64.zip"
+    },
+    {
+      "name": "skips-bare-versioned-zip-macos",
+      "platform": "macos",
+      "arch": "arm64",
+      "assets": [
+        "v2.1.0.zip",
+        "app-darwin-arm64.dmg"
+      ],
+      "expected": "app-darwin-arm64.dmg"
+    },
+    {
+      "name": "keeps-platform-tagged-zip-macos",
+      "platform": "macos",
+      "arch": "arm64",
+      "assets": [
+        "v2.1.0.zip",
+        "app-darwin-arm64.zip"
+      ],
+      "expected": "app-darwin-arm64.zip"
+    },
+    {
+      "name": "skips-bare-versioned-zip-linux",
+      "platform": "linux",
+      "arch": "amd64",
+      "assets": [
+        "v2.1.0.zip",
+        "app-linux-amd64.tar.gz"
+      ],
+      "expected": "app-linux-amd64.tar.gz"
+    },
+    {
+      "name": "keeps-platform-tagged-zip-linux",
+      "platform": "linux",
+      "arch": "amd64",
+      "assets": [
+        "v2.1.0.zip",
+        "app-linux-x64.zip"
+      ],
+      "expected": "app-linux-x64.zip"
+    },
+    {
       "name": "android-picks-apk",
       "platform": "android",
       "arch": "arm64",

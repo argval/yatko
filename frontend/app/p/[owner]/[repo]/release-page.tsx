@@ -187,7 +187,7 @@ async function ReadmeSections({
 }) {
   const readme = await readmePromise;
   if (!readme) return null;
-  const installCommands = extractInstallCommands(readme);
+  const installCommands = extractInstallCommands(readme, { owner, repo });
   return (
     <>
       {installCommands.length > 0 && (

@@ -1,32 +1,32 @@
 ## Learned User Preferences
 
 - Keep README feature- and marketing-focused; avoid documenting caching, rate limiting, and deployment internals.
-- Emphasize the one-click URL swap (`github.com/owner/repo` → `yatko.app/owner/repo`) in user-facing docs.
+- Emphasize the one-click URL swap (`github.com/owner/repo` → `yatko.app/owner/repo`) in user-facing docs; homepage “How it works” should lead with a Swap the domain card and no section subtitle.
 - Do not reintroduce download badges unless explicitly requested.
 - Open repo and other external links in a new tab.
 - Homepage navigation (Go, examples, suggestions) should show immediate loading feedback so clicks feel registered.
-- Prefer `@tailwindcss/typography` prose classes over long hand-rolled arbitrary-variant markdown style strings.
-- Prefer a small local `icons.tsx` over adding `lucide-react` unless the icon set grows substantially.
+- Prefer `@tailwindcss/typography` prose classes over long hand-rolled arbitrary-variant markdown style strings, and a small local `icons.tsx` over adding `lucide-react` unless the icon set grows substantially.
 - Land architectural deepen/refactor work on feature branches targeting `architecture-review`, not straight onto `main`.
 - When asked to ship to production, prefer landing on `main` first, then merging/pushing to the `prod` branch.
 - Keep homepage and github-swap release URLs (`/:owner/:repo`) crawlable; disallow `/api/` and `/dl/`; general crawlers may disallow `/p/`, but social preview bots must stay allowlisted for unfurls.
 - Share and copy “landing page” links as `yatko.app/{owner}/{repo}` (not `/p/...`) so Twitter/OG cards resolve.
 - Secondary pages (e.g. privacy) should use the same fixed top-left Yatko back control as release pages (`BackToYatko`), not a one-off back link.
+- CLI/install-command platform filtering should match the download button’s OS/arch detection; keep official `curl | bash` / `iex` one-liners (still reject `$()`, backticks, and `&&`).
 
 ## Learned Workspace Facts
 
 - Yatko is positioned as a drop-in release-download URL: replace `github.com` with `yatko.app` for the same owner/repo path. Production primary host is apex `yatko.app`; `www.yatko.app` redirects to apex (308).
 - Release-page markdown (blurb, notes, About) goes through shared `RepoMarkdown` in `frontend/app/p/[owner]/[repo]/markdown.tsx` (GFM, raw HTML, sanitize, URL rewrite) with `@tailwindcss/typography`.
-- `architecture-review` is the integration branch for architecture deepen PRs.
 - Production deploys track the `prod` branch via Vercel (previews on PRs/branches); GitHub Actions CI runs backend/frontend tests and builds on push/PR and does not deploy.
 - Homepage search is slug vs bare: `owner/repo` (or repo URL) → `user:owner in:name <repo>` + GetRepo ensure; bare token or owner URL → dual Search (`user:<q>` + quoted `in:name`), merge, rank exact repo name then owned-by-q then stars. Dashes never choose a path. Always `archived:false`. Cache key `search:v8:`.
-- Install-command extraction from README fences must accept both CommonMark triple-backtick and tilde (`~~~`) fences.
-- Bare versioned archives (e.g. `.tar.xz`, `.zip`) with no OS/arch token are treated as source archives, not installable binaries, in both the Go picker and the frontend. Platform/arch-tagged zips stay eligible.
-- Release checksums come from downloadable checksum assets (names matching checksum/sha*sums or `*.sha256` / `*.sha512` / `*.md5`), fetched and parsed into a filename→hash map.
+- Install-command extraction from README fences must accept both CommonMark triple-backtick and tilde (`~~~`) fences, keep official curl/iex one-liners, and filter by the same OS/arch as the download button.
+- Bare versioned archives (e.g. `.tar.xz`, `.zip`) with no OS/arch token are treated as source archives, not installable binaries, in both the Go picker and the frontend. Platform/arch-tagged zips stay eligible. `/dl` and `/api/link` accept `?platform=`, `?prefer=` (deb/rpm/appimage/msi/dmg/…), and `?libc=` (musl/gnu/static); script UAs get 404 JSON on miss, browsers keep a GitHub HTML 302. Checksums come from downloadable checksum/sha*sums or `*.sha256` / `*.sha512` / `*.md5` assets.
 - Production Redis is Upstash via Vercel Marketplace over the Redis protocol (`REDIS_URL`, then `KV_URL`, then `UPSTASH_REDIS_URL`); do not switch the Go backend to Upstash REST/`KV_REST_API_*`.
 - HTTP rate limiting uses process-local windows when Redis is unset or unreachable (does not fail open); `/health` stays HTTP 200 with redis/rate_limit/github budget fields (`github_token` boolean only).
-- Crawling is configured in `frontend/app/robots.ts`: allow `/`, disallow `/api/` and `/dl/`; general crawlers also disallow `/p/`; social preview bots are allowlisted for unfurls. Release OG images live at `/{owner}/{repo}/opengraph-image` (not under `/p/`) so the general `/p/` disallow does not block card images. Site includes `/privacy` (GitHub non-affiliation lives there); footer is Privacy + Source only.
-- Vercel Container Registry for the Go backend is capped at 50 images; a full registry blocks deploys until unused images are pruned.
+- Crawling is configured in `frontend/app/robots.ts`: allow `/`, disallow `/api/` and `/dl/`; general crawlers also disallow `/p/`; social preview bots are allowlisted for unfurls. Release OG images live at `/{owner}/{repo}/opengraph-image` (not under `/p/`) so the general `/p/` disallow does not block card images; they load Outfit from a local TTF (do not fetch Google Fonts at build time — Satori cannot parse woff2). Favicon is the static Y-mark `.ico`/PNG, not a generated `icon.tsx`. Site includes `/privacy` (GitHub non-affiliation lives there); footer is Privacy + Source only.
+- Vercel “Images Storage” is OCI container images for the Go backend (`runtime: container`), not Redis or GitHub avatars; the registry is capped at ~50 images and a full registry blocks deploys until unused tags are pruned.
+- Vercel BotID protects `/api/search` only; do not extend challenges to `/p/*` or `/dl/` — those URL-swap paths must succeed on the first request before any client challenge can run.
+- Frontend is TypeScript 7 with Next `experimental.useTypeScriptCli: true` (Next’s default JS compiler API is missing in TS 7).
 
 ## Cursor Cloud specific instructions
 

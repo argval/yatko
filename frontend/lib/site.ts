@@ -3,6 +3,7 @@ export const SITE_URL = "https://yatko.app";
 export const SITE_NAME = "Yatko";
 export const SITE_DOMAIN = "yatko.app";
 export const GITHUB_REPO_URL = "https://github.com/argval/yatko";
+export const TWITTER_URL = "https://x.com/argvalue";
 
 export const SITE_TAGLINE =
   "Clean download links for any public GitHub release";

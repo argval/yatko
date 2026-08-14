@@ -5,6 +5,7 @@ backend/bin/
 # Frontend
 frontend/.next/
 frontend/node_modules/
+/node_modules/
 
 # Env files
 .env

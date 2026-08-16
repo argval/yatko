@@ -337,7 +337,17 @@ export function pickBestAsset(
     if (isNonNative(name)) continue;
     if (mentionsOtherPlatform(name, platform)) continue;
 
-    const extRank = extRankFor(name, exts, prefer);
+    let extRank = extRankFor(name, exts, prefer);
+    // Native release binaries commonly omit an extension (e.g. herdr-macos-aarch64).
+    // Only accept explicitly platform-tagged names so source files stay out.
+    if (
+      extRank === null &&
+      mentionsPlatform(name, platform) &&
+      (!arch || mentionsArch(name, arch)) &&
+      !name.includes(".")
+    ) {
+      extRank = exts.length;
+    }
     if (extRank === null) continue;
 
     candidates.push({

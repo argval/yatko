@@ -21,10 +21,10 @@ const (
 type Arch string
 
 const (
-	AMD64   Arch = "amd64"   // x86-64
-	ARM64   Arch = "arm64"   // aarch64
-	ARM     Arch = "arm"     // 32-bit ARM (armv7, armv6)
-	X86     Arch = "386"     // 32-bit x86
+	AMD64       Arch = "amd64" // x86-64
+	ARM64       Arch = "arm64" // aarch64
+	ARM         Arch = "arm"   // 32-bit ARM (armv7, armv6)
+	X86         Arch = "386"   // 32-bit x86
 	UnknownArch Arch = ""
 )
 
@@ -305,6 +305,12 @@ func PickAssetForArchOpts(assets []github.Asset, platform Platform, arch Arch, o
 		}
 
 		rank, matched := extRankFor(name, exts, prefer)
+		// Native release binaries commonly omit an extension (e.g. herdr-macos-aarch64).
+		// Only accept them when the filename identifies this platform, so source files
+		// and unrelated extensionless assets still stay out of the CTA.
+		if !matched && mentionsPlatform(name, platform) && (arch == UnknownArch || mentionsArch(name, arch)) && !strings.Contains(name, ".") {
+			rank, matched = len(exts), true
+		}
 		if !matched {
 			continue
 		}

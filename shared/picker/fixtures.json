@@ -78,11 +78,11 @@
       "expected": "mytool-linux-amd64.tar.gz"
     },
     {
-      "name": "bare-binary-without-extension-is-ignored",
-      "platform": "linux",
-      "arch": "amd64",
-      "assets": ["mytool-linux-amd64"],
-      "expected": null
+      "name": "platform-tagged-binary-without-extension-is-picked",
+      "platform": "macos",
+      "arch": "arm64",
+      "assets": ["mytool-macos-aarch64"],
+      "expected": "mytool-macos-aarch64"
     },
     {
       "name": "unknown-arch-uses-extension-rank-only",

@@ -77,7 +77,12 @@ export async function renderReleasePage({
     return result.notFound ? (
       <NotFoundCard owner={owner} repo={repo} repoExists={result.repoExists} />
     ) : (
-      <ReleaseError message={result.message} />
+      <ReleaseError
+        message={result.message}
+        owner={owner}
+        repo={repo}
+        version={version}
+      />
     );
   }
   // Releases are usually already on the release payload (backend embeds them).

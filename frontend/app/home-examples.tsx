@@ -1,14 +1,13 @@
 import Link from "next/link";
-
-const EXAMPLES = ["cli/cli", "neovim/neovim", "astral-sh/uv", "BurntSushi/ripgrep"];
+import { EXAMPLE_REPOS } from "@/lib/example-repos";
 
 export function HomeExamples() {
   return (
     <div className="space-y-2.5 text-left">
       <p className="text-xs text-muted font-medium">Try one</p>
       <div className="flex flex-wrap gap-2">
-        {EXAMPLES.map((slug) => {
-          const [owner, repo] = slug.split("/") as [string, string];
+        {EXAMPLE_REPOS.map(({ owner, repo }) => {
+          const slug = `${owner}/${repo}`;
           return (
             <Link
               key={slug}

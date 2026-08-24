@@ -1,4 +1,5 @@
 import { ImageResponse } from "next/og";
+import { EXAMPLE_REPOS } from "@/lib/example-repos";
 import { outfitFontOption } from "@/lib/og-font";
 import { getRelease } from "./backend";
 
@@ -7,6 +8,11 @@ export const contentType = "image/png";
 export const alt = "Yatko download page preview";
 /** Match release-page ISR (literal required for Next segment config). */
 export const revalidate = 3600;
+
+/** Same seed as the release page — enables on-demand ISR for other repos. */
+export function generateStaticParams() {
+  return EXAMPLE_REPOS.map(({ owner, repo }) => ({ owner, repo }));
+}
 
 type Props = { params: Promise<{ owner: string; repo: string }> };
 

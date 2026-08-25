@@ -36,6 +36,28 @@ export default function Home() {
           <HomeExamples />
         </div>
 
+        <a
+          href="https://www.producthunt.com/products/yatko?embed=true&utm_source=badge-featured&utm_medium=badge&utm_campaign=badge-yatko"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mx-auto block w-fit"
+        >
+          <img
+            src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1227238&theme=light&t=1787658051325"
+            alt="Yatko – The download button GitHub forgot to add on Product Hunt"
+            width={250}
+            height={54}
+            className="dark:hidden"
+          />
+          <img
+            src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1227238&theme=dark&t=1787658051325"
+            alt=""
+            width={250}
+            height={54}
+            className="hidden dark:block"
+          />
+        </a>
+
         <HomeHowItWorks />
       </div>
     </main>

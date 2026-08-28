@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, use } from "react";
-import { pickBestAsset, type Asset } from "./platform-utils";
+import { pickBestAsset, type Asset, type Platform } from "./platform-utils";
 import { usePlatform } from "./use-platform";
 import { DownloadButton } from "./download-button";
 import { AssetChecksum } from "./asset-checksum";
@@ -69,6 +69,7 @@ export function DownloadSection({
           <AssetChecksumSlot
             checksumsPromise={checksumsPromise}
             assetName={primaryAsset.name}
+            platform={platform}
           />
         </Suspense>
       )}
@@ -81,10 +82,12 @@ export function DownloadSection({
 function AssetChecksumSlot({
   checksumsPromise,
   assetName,
+  platform,
 }: {
   checksumsPromise: Promise<Record<string, string>>;
   assetName: string;
+  platform: Platform;
 }) {
   const checksums = use(checksumsPromise);
-  return <AssetChecksum hash={checksums[assetName] ?? null} filename={assetName} />;
+  return <AssetChecksum hash={checksums[assetName] ?? null} filename={assetName} platform={platform} />;
 }

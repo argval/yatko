@@ -84,7 +84,7 @@ function CopyBlock({ command, platform }: { command: string; platform: InstallPl
   return (
     <div className="flex items-center gap-2 rounded-lg bg-foreground/5 px-4 py-3 font-mono text-sm group">
       <span className="text-foreground/40 select-none shrink-0">$</span>
-      <div className="flex-1 min-w-0 overflow-x-auto">
+      <div className="flex-1 min-w-0 overflow-x-auto [scrollbar-width:thin] [&::-webkit-scrollbar]:h-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-foreground/20 hover:[&::-webkit-scrollbar-thumb]:bg-foreground/30">
         <code className="whitespace-pre">{command}</code>
       </div>
       <span className="shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-foreground/10 text-foreground/60 font-sans">

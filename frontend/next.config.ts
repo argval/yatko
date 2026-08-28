@@ -19,6 +19,7 @@ const nextConfig: NextConfig = {
     return {
       beforeFiles: [
         { source: "/dl/:path*", destination: `${backendURL}/dl/:path*` },
+        { source: "/code/:path*", destination: `${backendURL}/code/:path*` },
         { source: "/health", destination: `${backendURL}/health` },
       ],
       afterFiles: [

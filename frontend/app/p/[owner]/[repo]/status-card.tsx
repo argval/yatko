@@ -14,7 +14,7 @@ export function StatusCard({
       <p className="text-6xl mb-6">{emoji}</p>
       <h1 className="text-2xl font-bold mb-2">{title}</h1>
       <p className="text-foreground/50 mb-8 max-w-sm">{description}</p>
-      <div className="flex gap-3">{children}</div>
+      <div className="flex flex-wrap justify-center gap-3">{children}</div>
     </main>
   );
 }

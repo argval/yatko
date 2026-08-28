@@ -24,14 +24,14 @@ export default function robots(): MetadataRoute.Robots {
         // /p/* is an unbounded owner/repo space — general crawlers mostly
         // cause cold Fluid invocations with little SEO value. Users reach
         // release pages via direct links (github.com → yatko.app URL swap).
-        disallow: ["/api/", "/dl/", "/p/"],
+        disallow: ["/api/", "/code/", "/dl/", "/p/"],
       },
       {
         // Social unfurlers need the github-swap URL (/:owner/:repo), /p/*
-        // HTML, and opengraph/twitter images. Keep /api and /dl blocked.
+        // HTML, and opengraph/twitter images. Keep direct/API URLs blocked.
         userAgent: SOCIAL_PREVIEW_BOTS,
         allow: ["/"],
-        disallow: ["/api/", "/dl/"],
+        disallow: ["/api/", "/code/", "/dl/"],
       },
     ],
     sitemap: `${SITE_URL}/sitemap.xml`,

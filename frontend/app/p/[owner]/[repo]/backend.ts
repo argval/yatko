@@ -1,5 +1,10 @@
 import type { ReleaseData, ReleaseSummary } from "./release-page";
-import { findChecksumAsset, parseChecksumText } from "./parse-checksums";
+import {
+  checksumFilename,
+  checksumSidecarTarget,
+  findChecksumAssets,
+  parseChecksumText,
+} from "./parse-checksums";
 import type { Asset } from "./platform-utils";
 import {
   BACKEND_FETCH_REVALIDATE_SECONDS,
@@ -11,6 +16,8 @@ export type ReleaseResult =
   | { ok: true; data: ReleaseData }
   | { ok: false; notFound: true; repoExists: boolean }
   | { ok: false; notFound?: false; message: string };
+
+const MAX_CHECKSUM_FILE_BYTES = 1 << 20;
 
 function backendFetch(path: string): Promise<Response> {
   return fetch(`${BACKEND_URL}${path}`, {
@@ -105,20 +112,32 @@ export async function getReadme(owner: string, repo: string): Promise<string> {
   }
 }
 
-// Resolves the release's checksum file (if any) into a filename -> hash map.
-// Selection + parse live in parse-checksums.ts; this adapter only fetches.
+// Resolves release SHA256 manifests and sidecars into a filename -> hash map.
 export async function getChecksums(assets: Asset[]): Promise<Record<string, string>> {
-  const checksumAsset = findChecksumAsset(assets);
-  if (!checksumAsset) return {};
+  const candidates = findChecksumAssets(assets).filter((asset) => asset.size <= MAX_CHECKSUM_FILE_BYTES);
+  const assetNames = new Set(assets.map((asset) => checksumFilename(asset.name)));
+  const manifests = await Promise.all(
+    candidates.map(async (asset) => {
+      try {
+        const res = await fetch(asset.browser_download_url, {
+          next: { revalidate: BACKEND_FETCH_REVALIDATE_SECONDS },
+          signal: AbortSignal.timeout(BACKEND_FETCH_TIMEOUT_MS),
+        });
+        if (!res.ok) return {};
+        return parseChecksumText(await res.text(), checksumSidecarTarget(asset.name));
+      } catch {
+        return {};
+      }
+    }),
+  );
 
-  try {
-    const res = await fetch(checksumAsset.browser_download_url, {
-      next: { revalidate: BACKEND_FETCH_REVALIDATE_SECONDS },
-      signal: AbortSignal.timeout(BACKEND_FETCH_TIMEOUT_MS),
-    });
-    if (!res.ok) return {};
-    return parseChecksumText(await res.text());
-  } catch {
-    return {};
+  const checksums: Record<string, string> = {};
+  for (const manifest of manifests) {
+    for (const [filename, hash] of Object.entries(manifest)) {
+      if (assetNames.has(filename) && checksums[filename] === undefined) {
+        checksums[filename] = hash;
+      }
+    }
   }
+  return checksums;
 }

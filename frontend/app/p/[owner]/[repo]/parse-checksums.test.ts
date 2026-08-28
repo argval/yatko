@@ -1,10 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import {
-  findChecksumAsset,
+  findChecksumAssets,
   isChecksumAssetName,
   parseChecksumText,
 } from "./parse-checksums";
 import type { Asset } from "./pick-asset";
+
+const sha256 = "a".repeat(64);
 
 function asset(name: string): Asset {
   return { name, browser_download_url: `https://example.com/${name}`, size: 1, download_count: 0 };
@@ -15,34 +17,55 @@ describe("isChecksumAssetName", () => {
     expect(isChecksumAssetName("SHA256SUMS")).toBe(true);
     expect(isChecksumAssetName("checksums.txt")).toBe(true);
     expect(isChecksumAssetName("tool.sha256")).toBe(true);
+    expect(isChecksumAssetName("tool.SHA256")).toBe(true);
+    expect(isChecksumAssetName("SHA512SUMS")).toBe(false);
+    expect(isChecksumAssetName("checksums-sha-512.txt")).toBe(false);
+    expect(isChecksumAssetName("tool.md5")).toBe(false);
     expect(isChecksumAssetName("tool.tar.gz")).toBe(false);
   });
 });
 
-describe("findChecksumAsset", () => {
-  test("returns the checksum asset", () => {
-    const assets = [asset("app-linux.tar.gz"), asset("SHA256SUMS")];
-    expect(findChecksumAsset(assets)?.name).toBe("SHA256SUMS");
+describe("findChecksumAssets", () => {
+  test("prefers SHA256 manifests, then sidecars, then generic manifests", () => {
+    const assets = [
+      asset("checksums.txt"),
+      asset("app-linux.tar.gz.sha256"),
+      asset("SHA512SUMS"),
+      asset("SHA256SUMS"),
+    ];
+    expect(findChecksumAssets(assets).map((candidate) => candidate.name)).toEqual([
+      "SHA256SUMS",
+      "app-linux.tar.gz.sha256",
+      "checksums.txt",
+    ]);
   });
 
-  test("returns undefined when none", () => {
-    expect(findChecksumAsset([asset("app.zip")])).toBeUndefined();
+  test("returns no candidates when none match", () => {
+    expect(findChecksumAssets([asset("app.zip")])).toEqual([]);
   });
 });
 
 describe("parseChecksumText", () => {
-  test("parses spaced and starred filenames", () => {
+  test("parses GNU and BSD SHA256 manifests without losing filename spaces", () => {
     const text = `
-abc123  app-linux.tar.gz
-def456 *app-darwin.zip
+${sha256}  app linux.tar.gz
+${sha256} *app-darwin.zip
+SHA256 (./nested/app.exe) = ${sha256}
+${"b".repeat(128)}  app-with-sha512.tar.gz
 ignored
-ghi789  ./nested/app.exe
 `.trim();
     expect(parseChecksumText(text)).toEqual({
-      "app-linux.tar.gz": "abc123",
-      "app-darwin.zip": "def456",
-      "./nested/app.exe": "ghi789",
+      "app linux.tar.gz": sha256,
+      "app-darwin.zip": sha256,
+      "nested/app.exe": sha256,
     });
+  });
+
+  test("uses a standalone SHA256 only for a named sidecar", () => {
+    expect(parseChecksumText(sha256, "app-linux.tar.gz")).toEqual({
+      "app-linux.tar.gz": sha256,
+    });
+    expect(parseChecksumText(sha256)).toEqual({});
   });
 
   test("empty input yields empty map", () => {

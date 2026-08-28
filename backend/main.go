@@ -75,6 +75,7 @@ func main() {
 	limited.Use(middleware.RateLimit(limiter, rateLimitRPM, time.Minute))
 	limited.GET("/dl/:owner/:repo", redirectHandler.Handle)
 	limited.GET("/dl/:owner/:repo/:version", redirectHandler.HandleVersioned)
+	limited.GET("/code/:owner/:repo", handlers.HandleCode)
 	limited.GET("/api/release/:owner/:repo", pageHandler.Handle)
 	limited.GET("/api/link/:owner/:repo", linkHandler.Handle)
 	limited.GET("/api/link/:owner/:repo/:version", linkHandler.HandleVersioned)

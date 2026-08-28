@@ -15,6 +15,7 @@
   },
   "rewrites": [
     { "source": "/dl/(.*)", "destination": { "service": "backend" } },
+    { "source": "/code/(.*)", "destination": { "service": "backend" } },
     { "source": "/api/search", "destination": { "service": "frontend" } },
     { "source": "/api/(.*)", "destination": { "service": "backend" } },
     { "source": "/health", "destination": { "service": "backend" } },

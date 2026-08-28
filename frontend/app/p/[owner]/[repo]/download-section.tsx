@@ -55,6 +55,7 @@ export function DownloadSection({
         platform={platform}
         primaryAsset={primaryAsset}
         hasAssets={assets.length > 0}
+        tagName={tagName}
       />
       <p className="text-sm text-muted">
         {tagName} &middot; {publishedDate}

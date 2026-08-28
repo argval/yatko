@@ -17,12 +17,23 @@ export function NotFoundCard({
     : "This repo doesn't exist or hasn't published any releases yet.";
   return (
     <StatusCard emoji="📦" title={title} description={description}>
-      <Link href="/" className={statusCardPrimaryAction}>
-        Back to search
-      </Link>
+      {repoExists && owner && repo ? (
+        <a href={`/code/${owner}/${repo}`} className={statusCardPrimaryAction}>
+          Download source code
+        </a>
+      ) : (
+        <Link href="/" className={statusCardPrimaryAction}>
+          Back to search
+        </Link>
+      )}
       <a href={githubUrl} target="_blank" rel="noopener noreferrer" className={statusCardSecondaryAction}>
         Open GitHub
       </a>
+      {repoExists && (
+        <Link href="/" className={statusCardSecondaryAction}>
+          Back to search
+        </Link>
+      )}
     </StatusCard>
   );
 }

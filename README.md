@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="frontend/assets/brand/yatko-mark-256.png" alt="Yatko logo" width="96" height="96" />
+</p>
+
 # Yatko
 
 **[yatko.app](https://yatko.app)** — clean download links for any public GitHub release so that you don't have to be called a ["Smelly Nerd"](https://www.reddit.com/r/github/s/7YaS7nTVup) anymore.
@@ -7,6 +11,12 @@ Swap the domain — that's it. Same `owner/repo` path as GitHub, one click to th
 ```
 github.com/cli/cli  →  yatko.app/cli/cli
 ```
+
+<p align="center">
+  <a href="https://www.producthunt.com/products/yatko?embed=true&utm_source=badge-featured&utm_medium=badge&utm_campaign=badge-yatko" target="_blank" rel="noopener noreferrer">
+    <img src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1227238&theme=light&t=1787658051325" alt="Yatko – The download button GitHub forgot to add on Product Hunt" width="250" height="54" />
+  </a>
+</p>
 
 Website: [https://yatko.app](https://yatko.app) · Source: [github.com/argval/yatko](https://github.com/argval/yatko)
 
@@ -49,3 +59,7 @@ Most GitHub projects bury downloads in a releases page with 15+ assets. Yatko gi
 - **Download counts** — shows per-asset download counts from GitHub
 - **Share links** — copyable Yatko URLs for smart download, landing page, API, and a README Markdown snippet
 - **Dark mode** — system preference detection + manual toggle
+
+## License
+
+Yatko is free and open-source software under the [MIT License](LICENSE).

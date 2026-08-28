@@ -16,19 +16,15 @@ export default function Home() {
               {SITE_DOMAIN}
             </p>
           </div>
-          <p className="text-base sm:text-lg text-muted leading-relaxed max-w-md mx-auto tracking-normal">
-            Clean download links for any public GitHub release so that you don&apos;t have to be
-            called a{" "}
-            <a
-              target="_blank"
-              rel="noopener noreferrer"
-              href="https://www.reddit.com/r/github/s/7YaS7nTVup"
-              className="font-medium text-fg-brand hover:underline"
-            >
-              &quot;Smelly Nerd&quot;
-            </a>{" "}
-            anymore
-          </p>
+          <div className="space-y-2 max-w-md mx-auto tracking-normal">
+            <p className="text-base sm:text-lg leading-relaxed">
+              The download button GitHub forgot to add.
+            </p>
+            <p className="text-sm sm:text-base text-muted leading-relaxed">
+              Yatko turns any public GitHub repository into a clean download link that picks the
+              right release for each visitor&apos;s OS and architecture.
+            </p>
+          </div>
         </div>
 
         <div className="space-y-4">

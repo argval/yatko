@@ -3,19 +3,22 @@
 import { CopyButton } from "./copy-button";
 import { useCopy } from "./use-copy";
 import { verifyChecksumCommand } from "./verify-checksum";
+import type { Platform } from "./pick-asset";
 
 export function AssetChecksum({
   hash,
   filename,
+  platform,
 }: {
   hash: string | null;
   filename: string;
+  platform: Platform;
 }) {
   const [verifyCopied, copyVerify] = useCopy();
 
   if (!hash) return null;
 
-  const verifyCmd = verifyChecksumCommand(hash, filename);
+  const verifyCmd = verifyChecksumCommand(hash, filename, platform);
 
   return (
     <div className="flex flex-col items-center gap-1 max-w-xs sm:max-w-sm">

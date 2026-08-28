@@ -25,6 +25,11 @@ export function ShareLinks({ owner, repo }: { owner: string; repo: string }) {
       description: "Shareable download page with release notes and all assets",
     },
     {
+      label: "Source code",
+      text: `${base}/code/${owner}/${repo}`,
+      description: "Downloads a ZIP archive of the repository's default branch",
+    },
+    {
       label: "Direct link API",
       text: `${base}/api/link/${owner}/${repo}`,
       description: "Returns JSON with the resolved download URL - for CI/scripts",

@@ -28,6 +28,7 @@ Most GitHub projects bury downloads in a releases page with 15+ assets. Yatko gi
 | `/p/:owner/:repo/:version` | Landing page for a specific release tag |
 | `/dl/:owner/:repo` | Detects platform + arch, redirects straight to the right binary (`?platform=`, `?arch=`, `?prefer=`, `?libc=` overrides) |
 | `/dl/:owner/:repo/:version` | Same, but for a specific release tag |
+| `/code/:owner/:repo` | Downloads the default branch as a ZIP source archive (`?tag=v1.2.3` pins a release tag) |
 | `/api/link/:owner/:repo` | JSON with resolved download URL — for CI/scripts (same query overrides as `/dl`) |
 | `/api/releases/:owner/:repo` | List of recent releases (tag, date, prerelease flag) |
 | `/api/readme/:owner/:repo` | Raw README markdown (install commands / About section) |
@@ -39,6 +40,7 @@ Most GitHub projects bury downloads in a releases page with 15+ assets. Yatko gi
 - **Platform detection** — Windows / macOS / Linux from User-Agent
 - **Architecture detection** — amd64 / arm64 / arm / 386 from User-Agent and `navigator.userAgentData`
 - **Format & libc overrides** — pin package type (`?prefer=deb`) or musl/gnu/static (`?libc=musl`) on `/dl` and `/api/link`
+- **Source code downloads** — grab a ZIP of the default branch or the release currently on screen
 - **Version selector** — browse and switch between recent releases in the UI
 - **Pre-release toggle** — opt into alpha/beta builds when available
 - **Asset checksums** — automatically fetches and displays SHA256 for the selected binary, with a copyable verify command

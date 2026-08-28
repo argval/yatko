@@ -10,12 +10,14 @@ export function DownloadButton({
   platform,
   primaryAsset,
   hasAssets,
+  tagName,
 }: {
   owner: string;
   repo: string;
   platform: Platform;
   primaryAsset: Asset | null;
   hasAssets: boolean;
+  tagName: string;
 }) {
   const { href, label, external } = downloadCta({
     platform,
@@ -57,6 +59,12 @@ export function DownloadButton({
           No downloads available for this release
         </p>
       )}
+      <a
+        href={`/code/${owner}/${repo}?tag=${encodeURIComponent(tagName)}`}
+        className="text-sm text-muted underline underline-offset-4 hover:text-foreground transition-colors"
+      >
+        Download source code
+      </a>
     </div>
   );
 }

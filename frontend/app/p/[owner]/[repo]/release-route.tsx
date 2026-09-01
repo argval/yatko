@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { ReleasePageBody } from "./release-page";
-import { getChecksums, getReadme, getRelease, getReleases } from "./backend";
+import { getChecksums, getReadme, getRelease, getReleases, getRepoMeta } from "./backend";
 import { ReleaseError } from "./release-error";
 import { NotFoundCard } from "./not-found";
 
@@ -85,17 +85,16 @@ export async function renderReleasePage({
       />
     );
   }
-  // Releases are usually already on the release payload (backend embeds them).
-  // Checksums stay non-blocking via Suspense and need assets from the release.
-  const releasesPromise = Array.isArray(result.data.releases)
-    ? Promise.resolve(result.data.releases)
-    : getReleases(owner, repo);
+  // Repo metadata, version list, and checksums are all non-critical.
+  const repoMetaPromise = getRepoMeta(owner, repo);
+  const releasesPromise = getReleases(owner, repo);
   const checksumsPromise = getChecksums(result.data.assets);
   return (
     <ReleasePageBody
       owner={owner}
       repo={repo}
       release={result.data}
+      repoMetaPromise={repoMetaPromise}
       readmePromise={readmePromise}
       releasesPromise={releasesPromise}
       checksumsPromise={checksumsPromise}

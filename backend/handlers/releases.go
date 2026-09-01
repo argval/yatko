@@ -5,9 +5,9 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/gin-gonic/gin"
 	"github.com/argval/yatko/cache"
 	"github.com/argval/yatko/github"
+	"github.com/gin-gonic/gin"
 )
 
 // ReleasesHandler serves /api/releases/:owner/:repo — a lightweight list of
@@ -35,5 +35,6 @@ func (h *ReleasesHandler) Handle(c *gin.Context) {
 		return
 	}
 
+	setPublicDataCacheControl(c)
 	c.JSON(http.StatusOK, releases)
 }

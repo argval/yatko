@@ -3,6 +3,7 @@ package github
 import (
 	"context"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -243,6 +244,41 @@ func TestRepoAPIPath_EscapesSegments(t *testing.T) {
 	}
 	if got := repoAPIPath("o#wner", "re/po", ""); got != "https://api.github.com/repos/o%23wner/re%2Fpo" {
 		t.Fatalf("unexpected escape of owner/repo: %q", got)
+	}
+}
+
+func TestMarkdownResponsesAreClipped(t *testing.T) {
+	tooLong := strings.Repeat("x", 100_001)
+	c := &Client{
+		httpClient: &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+			body := tooLong
+			if r.URL.Path == "/repos/acme/tool/releases/latest" {
+				body = `{"body":"` + tooLong + `"}`
+			}
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     make(http.Header),
+				Body:       io.NopCloser(strings.NewReader(body)),
+				Request:    r,
+			}, nil
+		})},
+		remaining: -1,
+	}
+
+	release, _, _, err := c.GetLatestRelease(context.Background(), "acme", "tool", "")
+	if err != nil {
+		t.Fatalf("GetLatestRelease: %v", err)
+	}
+	readme, _, _, err := c.GetREADME(context.Background(), "acme", "tool", "")
+	if err != nil {
+		t.Fatalf("GetREADME: %v", err)
+	}
+	want := strings.Repeat("x", 100_000) + "\n\n…\n"
+	if release.Body != want {
+		t.Fatalf("release body = %d bytes, want clipped markdown", len(release.Body))
+	}
+	if readme != want {
+		t.Fatalf("readme = %d bytes, want clipped markdown", len(readme))
 	}
 }
 

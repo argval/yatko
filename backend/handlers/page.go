@@ -9,7 +9,6 @@ import (
 	"github.com/argval/yatko/cache"
 	"github.com/argval/yatko/github"
 	"github.com/gin-gonic/gin"
-	"golang.org/x/sync/errgroup"
 )
 
 type PageHandler struct {
@@ -31,13 +30,35 @@ func (h *PageHandler) HandleVersioned(c *gin.Context) {
 	h.handle(c, c.Param("owner"), c.Param("repo"), c.Param("version"))
 }
 
-// HandleREADME serves /api/readme/:owner/:repo — raw README for install-command
-// extraction and the About section. Kept off the critical /api/release path so
-// the download CTA can paint without waiting on a potentially large README.
+// HandleRepoMeta serves non-critical repo decoration separately from the
+// release payload so the download CTA does not wait on GitHub's repo endpoint.
+func (h *PageHandler) HandleRepoMeta(c *gin.Context) {
+	owner := c.Param("owner")
+	repo := c.Param("repo")
+	refresh := cacheRefreshRequested(c)
+	if refresh {
+		_ = h.cache.Invalidate(c.Request.Context(), cache.DescriptionKey(owner, repo))
+	}
+	meta, found := h.getRepoMeta(c, owner, repo)
+	if !found {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Repository not found"})
+		return
+	}
+	if refresh {
+		c.Header("Cache-Control", "private, no-store")
+	} else {
+		setPublicDataCacheControl(c)
+	}
+	c.JSON(http.StatusOK, meta)
+}
+
+// HandleREADME serves /api/readme/:owner/:repo — bounded README content for
+// install-command extraction and the About section. Kept off the critical
+// /api/release path so the download CTA can paint without waiting on it.
 func (h *PageHandler) HandleREADME(c *gin.Context) {
 	owner := c.Param("owner")
 	repo := c.Param("repo")
-	if secret := os.Getenv("CACHE_REFRESH_SECRET"); secret != "" && c.Query("refresh") == secret {
+	if cacheRefreshRequested(c) {
 		_ = h.cache.Invalidate(c.Request.Context(), cache.ReadmeKey(owner, repo))
 	}
 	c.JSON(http.StatusOK, gin.H{"readme": h.getREADME(c, owner, repo)})
@@ -47,57 +68,45 @@ func (h *PageHandler) handle(c *gin.Context, owner, repo, version string) {
 	// Cache bust is gated on CACHE_REFRESH_SECRET so unauthenticated
 	// ?refresh=1 can't force GitHub re-fetches. When the secret is unset,
 	// refresh is ignored (no public escape hatch).
-	if secret := os.Getenv("CACHE_REFRESH_SECRET"); secret != "" && c.Query("refresh") == secret {
+	refresh := cacheRefreshRequested(c)
+	if refresh {
 		key := cache.ReleaseKey(owner, repo)
 		if version != "" {
 			key = cache.ReleaseTagKey(owner, repo, version)
 		}
 		_ = h.cache.Invalidate(c.Request.Context(), key)
 		_ = h.cache.Invalidate(c.Request.Context(), cache.ReleasesKey(owner, repo))
-		_ = h.cache.Invalidate(c.Request.Context(), cache.DescriptionKey(owner, repo))
 	}
 
-	// Release, repo metadata, and the version list are independent lookups —
-	// run them concurrently. README is served from /api/readme instead so it
-	// does not block this response. c.Copy() is gin's documented way to pass a
-	// *gin.Context into a goroutine.
-	var release *github.Release
-	var meta repoMeta
-	var repoFound bool
-	var releases []github.ReleaseSummary
-	var g errgroup.Group
-	g.Go(func() error {
-		var err error
-		release, err = h.redirect.getRelease(c.Copy(), owner, repo, version)
-		return err
-	})
-	g.Go(func() error {
-		meta, repoFound = h.getRepoMeta(c.Copy(), owner, repo)
-		return nil
-	})
-	g.Go(func() error {
-		releases = h.getReleases(c.Copy(), owner, repo)
-		return nil
-	})
-	if err := g.Wait(); err != nil {
+	// Repo metadata, the version list, and README are all separate non-critical
+	// responses. Only the 404 path needs repo metadata to distinguish a missing
+	// repo from one that has not published a release yet.
+	release, err := h.redirect.getRelease(c, owner, repo, version)
+	if err != nil {
 		log.Printf("page: error fetching release %q for %s/%s: %v", version, owner, repo, err)
 		status := httpStatusFromError(err)
 		body := gin.H{"error": publicErrorMessage(err)}
 		// GitHub's releases/latest 404s both for a repo that doesn't exist and
 		// for a real repo with zero releases; repoFound (from the separately
 		// fetched repo metadata) disambiguates the two for the frontend.
-		if status == http.StatusNotFound && repoFound {
-			body["reason"] = "no_releases"
+		if status == http.StatusNotFound {
+			_, repoFound := h.getRepoMeta(c, owner, repo)
+			if repoFound {
+				body["reason"] = "no_releases"
+			}
 		}
 		c.JSON(status, body)
 		return
 	}
 
+	if refresh {
+		c.Header("Cache-Control", "private, no-store")
+	} else {
+		setPublicDataCacheControl(c)
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"owner":        owner,
 		"repo":         repo,
-		"description":  meta.Description,
-		"avatar_url":   meta.AvatarURL,
 		"tag_name":     release.TagName,
 		"name":         release.Name,
 		"body":         release.Body,
@@ -105,8 +114,14 @@ func (h *PageHandler) handle(c *gin.Context, owner, repo, version string) {
 		"html_url":     release.HTMLURL,
 		"prerelease":   release.Prerelease,
 		"assets":       release.Assets,
-		"releases":     releases,
 	})
+}
+
+// cacheRefreshRequested is deliberately private/no-store: an authorized
+// refresh must reach the origin and must not place its secret query in edge cache.
+func cacheRefreshRequested(c *gin.Context) bool {
+	secret := os.Getenv("CACHE_REFRESH_SECRET")
+	return secret != "" && c.Query("refresh") == secret
 }
 
 // repoMeta is the subset of repo metadata cached for the page/OG-image
@@ -147,16 +162,4 @@ func (h *PageHandler) getREADME(c *gin.Context, owner, repo string) string {
 		return ""
 	}
 	return content
-}
-
-func (h *PageHandler) getReleases(c *gin.Context, owner, repo string) []github.ReleaseSummary {
-	key := cache.ReleasesKey(owner, repo)
-	releases, err := cache.FetchCached(c.Request.Context(), h.cache, key, func(ctx context.Context, etag string) ([]github.ReleaseSummary, string, bool, error) {
-		return h.gh.GetReleases(ctx, owner, repo, etag)
-	})
-	if err != nil {
-		log.Printf("releases fetch error for %s/%s: %v", owner, repo, err)
-		return nil
-	}
-	return releases
 }

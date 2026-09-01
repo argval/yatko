@@ -15,8 +15,6 @@ import type { Asset } from "./platform-utils";
 export type ReleaseData = {
   owner: string;
   repo: string;
-  description: string;
-  avatar_url: string;
   tag_name: string;
   name: string;
   body: string;
@@ -24,8 +22,11 @@ export type ReleaseData = {
   html_url: string;
   prerelease: boolean;
   assets: Asset[];
-  /** Embedded by /api/release so the page skips a second round-trip. */
-  releases?: ReleaseSummary[];
+};
+
+export type RepoMeta = {
+  description: string;
+  avatar_url: string;
 };
 
 export type ReleaseSummary = {
@@ -39,6 +40,7 @@ export function ReleasePageBody({
   owner,
   repo,
   release,
+  repoMetaPromise,
   readmePromise,
   releasesPromise,
   checksumsPromise,
@@ -46,6 +48,7 @@ export function ReleasePageBody({
   owner: string;
   repo: string;
   release: ReleaseData;
+  repoMetaPromise: Promise<RepoMeta | null>;
   readmePromise: Promise<string>;
   releasesPromise: Promise<ReleaseSummary[]>;
   checksumsPromise: Promise<Record<string, string>>;
@@ -69,6 +72,8 @@ export function ReleasePageBody({
               width={64}
               height={64}
               unoptimized
+              fetchPriority="low"
+              decoding="async"
               className="rounded-2xl mx-auto"
             />
             <h1 className="text-4xl sm:text-5xl font-semibold tracking-tighter leading-none">{repo}</h1>
@@ -91,7 +96,9 @@ export function ReleasePageBody({
 
           {/* Download section */}
           <div className="flex flex-col items-center gap-3">
-            {release.description && <RepoDescription>{release.description}</RepoDescription>}
+            <Suspense fallback={null}>
+              <RepoDescriptionContent repoMetaPromise={repoMetaPromise} />
+            </Suspense>
             <DownloadSection
               owner={owner}
               repo={repo}
@@ -135,7 +142,7 @@ export function ReleasePageBody({
 
           {/* Release notes — markdown parses client-side to spare Fluid CPU on ISR */}
           {release.body && (
-            <CollapsibleCard title="Release Notes">
+            <CollapsibleCard title="Release Notes" defaultOpen={false} mountChildren="when-opened">
               <DeferredRepoMarkdown owner={owner} repo={repo} refName={release.tag_name}>
                 {release.body}
               </DeferredRepoMarkdown>
@@ -152,6 +159,11 @@ export function ReleasePageBody({
       </main>
     </>
   );
+}
+
+async function RepoDescriptionContent({ repoMetaPromise }: { repoMetaPromise: Promise<RepoMeta | null> }) {
+  const repoMeta = await repoMetaPromise;
+  return repoMeta?.description ? <RepoDescription>{repoMeta.description}</RepoDescription> : null;
 }
 
 async function ReleaseVersionControls({

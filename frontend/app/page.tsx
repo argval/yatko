@@ -42,6 +42,8 @@ export default function Home() {
             width={250}
             height={54}
             className="dark:hidden"
+            loading="lazy"
+            decoding="async"
           />
           <img
             src="https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=1227238&theme=dark&t=1787658051325"
@@ -49,6 +51,8 @@ export default function Home() {
             width={250}
             height={54}
             className="hidden dark:block"
+            loading="lazy"
+            decoding="async"
           />
         </a>
 

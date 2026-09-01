@@ -1,46 +1,9 @@
-"use client";
-
-import { useSyncExternalStore } from "react";
-import { FaXTwitter } from "react-icons/fa6";
 import { GITHUB_REPO_URL, TWITTER_URL } from "@/lib/site";
 import { chromeIconButton } from "./chrome";
+import { ThemeButton } from "./theme-button";
 
-// The <html> `.dark` class (set pre-paint by the inline script in layout.tsx) is the
-// single source of truth for theme. Read it via useSyncExternalStore so ThemeToggle
-// has no init effect and stays React-Compiler-eligible.
-const themeListeners = new Set<() => void>();
-function onStorage(e: StorageEvent) {
-  if (e.key !== "theme") return;
-  // A storage event only means localStorage changed in another tab - this
-  // tab's own <html> class is untouched, so apply it here before notifying,
-  // or getIsDark() would just re-read the same (stale) local class.
-  document.documentElement.classList.toggle("dark", e.newValue === "dark");
-  themeListeners.forEach((cb) => cb());
-}
-function subscribeTheme(cb: () => void) {
-  themeListeners.add(cb);
-  window.addEventListener("storage", onStorage);
-  return () => {
-    themeListeners.delete(cb);
-    window.removeEventListener("storage", onStorage);
-  };
-}
-function getIsDark() {
-  return document.documentElement.classList.contains("dark");
-}
-function setTheme(next: boolean) {
-  document.documentElement.classList.toggle("dark", next);
-  localStorage.setItem("theme", next ? "dark" : "light");
-  themeListeners.forEach((cb) => cb()); // same-tab notify (storage event won't)
-}
-
+/** Static links render without hydration; only the theme control is interactive. */
 export function ThemeToggle() {
-  const dark = useSyncExternalStore(subscribeTheme, getIsDark, () => false);
-
-  function toggle() {
-    setTheme(!dark);
-  }
-
   return (
     <div className="fixed top-4 right-4 flex items-center gap-2 z-50">
       <a
@@ -61,17 +24,9 @@ export function ThemeToggle() {
         aria-label="Follow on X"
         title="Follow on X"
       >
-        <FaXTwitter size={16} aria-hidden />
+        <XIcon />
       </a>
-      <button
-        type="button"
-        onClick={toggle}
-        className={chromeIconButton}
-        aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}
-        title={dark ? "Switch to light mode" : "Switch to dark mode"}
-      >
-        {dark ? <SunIcon /> : <MoonIcon />}
-      </button>
+      <ThemeButton />
     </div>
   );
 }
@@ -84,19 +39,10 @@ function GitHubIcon() {
   );
 }
 
-function SunIcon() {
+function XIcon() {
   return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="5" />
-      <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
-    </svg>
-  );
-}
-
-function MoonIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+    <svg width="16" height="16" viewBox="0 0 1200 1227" fill="currentColor" aria-hidden>
+      <path d="M714 519 1160 0h-106L667 450 361 0H0l468 681L0 1227h106l409-476 327 476h361L714 519Zm-145 169-48-69L136 69h164l310 444 48 69 404 578H898L569 688Z" />
     </svg>
   );
 }

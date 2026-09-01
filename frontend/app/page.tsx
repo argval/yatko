@@ -1,4 +1,5 @@
 import { HomeSearchSection } from "./home-search-section";
+import { HomeExamples } from "./home-examples";
 import { HomeHowItWorks } from "./home-how-it-works";
 import { SITE_DOMAIN } from "@/lib/site";
 
@@ -28,6 +29,7 @@ export default function Home() {
 
         <div className="space-y-4">
           <HomeSearchSection />
+          <HomeExamples />
         </div>
 
         <a

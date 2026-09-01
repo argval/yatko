@@ -160,8 +160,33 @@ const (
 
 // PickOpts controls optional format and libc preferences for asset selection.
 type PickOpts struct {
-	Prefer string // normalized extension key without leading dot (e.g. "deb")
-	Libc   Libc
+	Prefer    string // normalized extension key without leading dot (e.g. "deb")
+	Libc      Libc
+	UserAgent string // optional; Linux deb/rpm tiebreak when Prefer is empty
+}
+
+// linuxExtensionsForUA returns Linux extension priority. Fedora/RHEL/CentOS UAs
+// swap deb and rpm; AppImage and archives stay above both. Explicit ?prefer=
+// still wins via extRankFor prefer boost.
+func linuxExtensionsForUA(userAgent string) []string {
+	if ResolveLinuxPackagePrefer(userAgent) == "rpm" {
+		return []string{".AppImage", ".rpm", ".deb", ".tar.gz", ".tar.xz", ".zip", ".jar"}
+	}
+	return platformExtensions[Linux]
+}
+
+// ResolveLinuxPackagePrefer returns a package-format hint from the User-Agent
+// for deb-vs-rpm tiebreaks on Linux. Empty when the UA carries no distro signal.
+func ResolveLinuxPackagePrefer(userAgent string) string {
+	ua := strings.ToLower(userAgent)
+	switch {
+	case strings.Contains(ua, "ubuntu") || strings.Contains(ua, "debian"):
+		return "deb"
+	case strings.Contains(ua, "fedora") || strings.Contains(ua, "rhel") || strings.Contains(ua, "centos"):
+		return "rpm"
+	default:
+		return ""
+	}
 }
 
 // ResolvePrefer normalizes a ?prefer= query value to an extension key
@@ -282,6 +307,9 @@ func PickAssetForArchOpts(assets []github.Asset, platform Platform, arch Arch, o
 	exts, ok := platformExtensions[platform]
 	if !ok {
 		return nil
+	}
+	if platform == Linux && opts.Prefer == "" && opts.UserAgent != "" {
+		exts = linuxExtensionsForUA(opts.UserAgent)
 	}
 
 	prefer := ResolvePrefer(opts.Prefer)

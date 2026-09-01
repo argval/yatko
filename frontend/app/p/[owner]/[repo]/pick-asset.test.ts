@@ -12,6 +12,7 @@ type FixtureCase = {
   arch: string;
   prefer?: string;
   libc?: string;
+  userAgent?: string;
   assets: string[];
   expected: string | null;
 };
@@ -23,6 +24,7 @@ describe("pickBestAsset shared fixtures", () => {
       const got = pickBestAsset(assets, tc.platform as Platform, tc.arch as Arch, {
         prefer: tc.prefer,
         libc: (tc.libc ?? "") as Libc,
+        userAgent: tc.userAgent,
       });
       if (tc.expected === null) {
         expect(got).toBeNull();

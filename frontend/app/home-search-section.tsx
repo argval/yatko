@@ -19,7 +19,7 @@ export function HomeSearchSection() {
 
   return (
     <>
-      <HomeSearchForm onNavigate={navigate} />
+      <HomeSearchForm onNavigate={navigate} onStartNavigating={() => setNavigating(true)} />
       <HomeExamples onNavigate={() => setNavigating(true)} />
     </>
   );

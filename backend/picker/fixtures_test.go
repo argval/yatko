@@ -15,13 +15,14 @@ type fixtureFile struct {
 }
 
 type fixtureCase struct {
-	Name     string   `json:"name"`
-	Platform string   `json:"platform"`
-	Arch     string   `json:"arch"`
-	Prefer   string   `json:"prefer"`
-	Libc     string   `json:"libc"`
-	Assets   []string `json:"assets"`
-	Expected *string  `json:"expected"`
+	Name      string   `json:"name"`
+	Platform  string   `json:"platform"`
+	Arch      string   `json:"arch"`
+	Prefer    string   `json:"prefer"`
+	Libc      string   `json:"libc"`
+	UserAgent string   `json:"userAgent"`
+	Assets    []string `json:"assets"`
+	Expected  *string  `json:"expected"`
 }
 
 func loadSharedFixtures(t *testing.T) []fixtureCase {
@@ -94,7 +95,7 @@ func TestPickAssetForArch_SharedFixtures(t *testing.T) {
 				assets,
 				platformFromFixture(t, tc.Platform),
 				archFromFixture(t, tc.Arch),
-				PickOpts{Prefer: tc.Prefer, Libc: ResolveLibc(tc.Libc)},
+				PickOpts{Prefer: tc.Prefer, Libc: ResolveLibc(tc.Libc), UserAgent: tc.UserAgent},
 			)
 			if tc.Expected == nil {
 				if got != nil {

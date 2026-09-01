@@ -45,7 +45,9 @@ export function DownloadSection({
   }
 
   const { platform, arch } = detected;
-  const primaryAsset = pickBestAsset(assets, platform, arch);
+  const primaryAsset = pickBestAsset(assets, platform, arch, {
+    userAgent: navigator.userAgent,
+  });
 
   return (
     <div className="flex flex-col items-center gap-2">

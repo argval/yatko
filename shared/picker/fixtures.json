@@ -452,6 +452,63 @@
         "tool-linux-amd64-static.tar.gz"
       ],
       "expected": "tool-linux-amd64-static.tar.gz"
+    },
+    {
+      "name": "linux-ubuntu-ua-prefers-deb-over-rpm",
+      "platform": "linux",
+      "arch": "amd64",
+      "userAgent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/537.36",
+      "assets": [
+        "tool-linux-amd64.deb",
+        "tool-linux-amd64.rpm"
+      ],
+      "expected": "tool-linux-amd64.deb"
+    },
+    {
+      "name": "linux-fedora-ua-prefers-rpm-over-deb",
+      "platform": "linux",
+      "arch": "amd64",
+      "userAgent": "Mozilla/5.0 (X11; Fedora; Linux x86_64) AppleWebKit/537.36",
+      "assets": [
+        "tool-linux-amd64.deb",
+        "tool-linux-amd64.rpm"
+      ],
+      "expected": "tool-linux-amd64.rpm"
+    },
+    {
+      "name": "linux-generic-ua-falls-back-to-deb-before-rpm",
+      "platform": "linux",
+      "arch": "amd64",
+      "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36",
+      "assets": [
+        "tool-linux-amd64.deb",
+        "tool-linux-amd64.rpm"
+      ],
+      "expected": "tool-linux-amd64.deb"
+    },
+    {
+      "name": "linux-ubuntu-ua-appimage-still-wins",
+      "platform": "linux",
+      "arch": "amd64",
+      "userAgent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/537.36",
+      "assets": [
+        "tool-linux-amd64.AppImage",
+        "tool-linux-amd64.deb",
+        "tool-linux-amd64.rpm"
+      ],
+      "expected": "tool-linux-amd64.AppImage"
+    },
+    {
+      "name": "linux-explicit-prefer-overrides-ua",
+      "platform": "linux",
+      "arch": "amd64",
+      "prefer": "rpm",
+      "userAgent": "Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/537.36",
+      "assets": [
+        "tool-linux-amd64.deb",
+        "tool-linux-amd64.rpm"
+      ],
+      "expected": "tool-linux-amd64.rpm"
     }
   ]
 }

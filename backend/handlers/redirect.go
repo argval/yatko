@@ -44,8 +44,9 @@ func (h *RedirectHandler) handle(c *gin.Context, owner, repo, version string) {
 	prefer := picker.ResolvePrefer(c.Query("prefer"))
 	libc := picker.ResolveLibc(c.Query("libc"))
 	asset := picker.PickAssetForArchOpts(release.Assets, platform, arch, picker.PickOpts{
-		Prefer: prefer,
-		Libc:   libc,
+		Prefer:    prefer,
+		Libc:      libc,
+		UserAgent: ua,
 	})
 	if asset == nil {
 		respondDownloadMiss(c, owner, repo, release, platform, arch, prefer, libc)

@@ -47,6 +47,8 @@ export type Libc = "" | "musl" | "gnu" | "static";
 export type PickOpts = {
   prefer?: string;
   libc?: Libc;
+  /** Optional Linux deb/rpm tiebreak when prefer is unset. */
+  userAgent?: string;
 };
 
 /** Normalize ?prefer= to an extension key (no leading dot). Unknown → "". */
@@ -90,6 +92,21 @@ export function resolveLibc(param: string | undefined): Libc {
     default:
       return "";
   }
+}
+
+/** Linux deb/rpm tiebreak from User-Agent when ?prefer= is unset. */
+export function resolveLinuxPackagePrefer(userAgent: string): string {
+  const ua = userAgent.toLowerCase();
+  if (ua.includes("ubuntu") || ua.includes("debian")) return "deb";
+  if (ua.includes("fedora") || ua.includes("rhel") || ua.includes("centos")) return "rpm";
+  return "";
+}
+
+function linuxExtensionsForUA(userAgent: string): string[] {
+  if (resolveLinuxPackagePrefer(userAgent) === "rpm") {
+    return [".appimage", ".rpm", ".deb", ".tar.gz", ".tar.xz", ".zip", ".jar"];
+  }
+  return platformExtensions.linux;
 }
 
 function libcPenalty(name: string, want: Libc): number {
@@ -316,7 +333,10 @@ export function pickBestAsset(
 ): Asset | null {
   if (assets.length === 0) return null;
 
-  const exts = platformExtensions[platform];
+  let exts = platformExtensions[platform];
+  if (platform === "linux" && !opts.prefer && opts.userAgent) {
+    exts = linuxExtensionsForUA(opts.userAgent);
+  }
   const prefer = resolvePrefer(opts.prefer);
   const libcWant = resolveLibc(opts.libc);
   type Scored = {

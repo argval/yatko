@@ -212,3 +212,21 @@ func TestResolveLibc(t *testing.T) {
 		}
 	}
 }
+
+func TestResolveLinuxPackagePrefer(t *testing.T) {
+	cases := []struct {
+		ua   string
+		want string
+	}{
+		{"Mozilla/5.0 (X11; Ubuntu; Linux x86_64) AppleWebKit/537.36", "deb"},
+		{"Mozilla/5.0 (X11; Debian; Linux x86_64) AppleWebKit/537.36", "deb"},
+		{"Mozilla/5.0 (X11; Fedora; Linux x86_64) AppleWebKit/537.36", "rpm"},
+		{"Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0", ""},
+		{"curl/8.5.0", ""},
+	}
+	for _, tc := range cases {
+		if got := ResolveLinuxPackagePrefer(tc.ua); got != tc.want {
+			t.Errorf("ResolveLinuxPackagePrefer(%q) = %q, want %q", tc.ua, got, tc.want)
+		}
+	}
+}

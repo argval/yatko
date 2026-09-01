@@ -1,7 +1,7 @@
 import { ImageResponse } from "next/og";
 import { EXAMPLE_REPOS } from "@/lib/example-repos";
 import { outfitFontOption } from "@/lib/og-font";
-import { getRelease } from "./backend";
+import { getRelease, getRepoMeta } from "./backend";
 
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
@@ -19,8 +19,9 @@ type Props = { params: Promise<{ owner: string; repo: string }> };
 export default async function Image({ params }: Props) {
   const { owner, repo } = await params;
   const result = await getRelease(owner, repo);
-  const description = result.ok ? result.data.description : undefined;
-  const avatarUrl = result.ok ? result.data.avatar_url : undefined;
+  const repoMeta = result.ok ? await getRepoMeta(owner, repo) : null;
+  const description = repoMeta?.description;
+  const avatarUrl = repoMeta?.avatar_url;
   const tagline =
     description && description.length > 140
       ? description.slice(0, 140).trimEnd() + "…"

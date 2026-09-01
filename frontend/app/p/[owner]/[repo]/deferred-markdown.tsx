@@ -19,8 +19,9 @@ const RepoMarkdown = dynamic(
 /**
  * Client-only markdown so ISR/SSR generations skip react-markdown + sanitize
  * on the server (the main Active CPU cost on /p pages). Robots already
- * disallow /p/, so missing markdown in the cached HTML is fine.
- * Clips oversized sources here so the pipeline never sees megabyte READMEs.
+ * disallow /p/, so missing markdown in the cached HTML is fine. The backend
+ * bounds Markdown before it reaches this client component; this remains a
+ * defensive cap for future callers.
  */
 export function DeferredRepoMarkdown({
   children,

@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"sync/atomic"
 	"time"
+	"unicode/utf8"
 )
 
 // APIError is returned when the GitHub API responds with a non-200 status.
@@ -106,8 +107,9 @@ func (c *Client) HasToken() bool {
 }
 
 const (
-	// maxREADMESize caps README fetches at 1 MB.
-	maxREADMESize = 1 << 20
+	// maxMarkdownBytes bounds release notes and READMEs before they reach the
+	// frontend/RSC payload.
+	maxMarkdownBytes = 100_000
 	// maxAPIResponseSize caps JSON API responses (releases, repo metadata) at 5 MB,
 	// generous enough for releases with hundreds of assets.
 	maxAPIResponseSize = 5 << 20
@@ -278,6 +280,7 @@ func (c *Client) GetLatestRelease(ctx context.Context, owner, repo, etag string)
 	if err := json.Unmarshal(body, &release); err != nil {
 		return nil, "", false, fmt.Errorf("decoding release: %w", err)
 	}
+	release.Body = clipMarkdown(release.Body)
 	return &release, newETag, false, nil
 }
 
@@ -294,6 +297,7 @@ func (c *Client) GetReleaseByTag(ctx context.Context, owner, repo, tag, etag str
 	if err := json.Unmarshal(body, &release); err != nil {
 		return nil, "", false, fmt.Errorf("decoding release: %w", err)
 	}
+	release.Body = clipMarkdown(release.Body)
 	return &release, newETag, false, nil
 }
 
@@ -452,9 +456,20 @@ func (c *Client) GetREADME(ctx context.Context, owner, repo, etag string) (strin
 	if resp.StatusCode != http.StatusOK {
 		return "", "", false, nil // non-critical, skip
 	}
-	body, err := io.ReadAll(io.LimitReader(resp.Body, maxREADMESize))
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxMarkdownBytes+utf8.UTFMax))
 	if err != nil {
 		return "", "", false, fmt.Errorf("reading readme: %w", err)
 	}
-	return string(body), resp.Header.Get("ETag"), false, nil
+	return clipMarkdown(string(body)), resp.Header.Get("ETag"), false, nil
+}
+
+func clipMarkdown(source string) string {
+	if len(source) <= maxMarkdownBytes {
+		return source
+	}
+	clipped := source[:maxMarkdownBytes]
+	for !utf8.ValidString(clipped) {
+		clipped = clipped[:len(clipped)-1]
+	}
+	return clipped + "\n\n…\n"
 }

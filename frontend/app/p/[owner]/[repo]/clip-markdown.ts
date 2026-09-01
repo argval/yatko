@@ -1,5 +1,5 @@
 /** Soft cap so a megabyte README cannot dominate Fluid Active CPU (or the
- *  browser main thread). Backend fetch is still capped separately at 1 MB. */
+ * browser main thread). Backend fetch is still capped separately at 100 KB. */
 export const MAX_MARKDOWN_CHARS = 100_000;
 
 /** Truncate oversized markdown before the remark/rehype pipeline. */

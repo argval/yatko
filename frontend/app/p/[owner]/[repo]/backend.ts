@@ -1,4 +1,4 @@
-import type { ReleaseData, ReleaseSummary } from "./release-page";
+import type { ReleaseData, ReleaseSummary, RepoMeta } from "./release-page";
 import {
   checksumFilename,
   checksumSidecarTarget,
@@ -93,6 +93,27 @@ export async function getReleases(owner: string, repo: string): Promise<ReleaseS
     return await res.json();
   } catch {
     return [];
+  }
+}
+
+export async function getRepoMeta(owner: string, repo: string): Promise<RepoMeta | null> {
+  try {
+    const res = await backendFetch(`/api/repo/${owner}/${repo}`);
+    if (!res.ok) return null;
+    const body: unknown = await res.json();
+    if (
+      typeof body === "object" &&
+      body !== null &&
+      "description" in body &&
+      typeof body.description === "string" &&
+      "avatar_url" in body &&
+      typeof body.avatar_url === "string"
+    ) {
+      return { description: body.description, avatar_url: body.avatar_url };
+    }
+    return null;
+  } catch {
+    return null;
   }
 }
 

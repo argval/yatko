@@ -80,6 +80,7 @@ func main() {
 	limited.GET("/api/link/:owner/:repo", linkHandler.Handle)
 	limited.GET("/api/link/:owner/:repo/:version", linkHandler.HandleVersioned)
 	limited.GET("/api/release/:owner/:repo/:version", pageHandler.HandleVersioned)
+	limited.GET("/api/repo/:owner/:repo", pageHandler.HandleRepoMeta)
 	limited.GET("/api/readme/:owner/:repo", pageHandler.HandleREADME)
 	limited.GET("/api/releases/:owner/:repo", releasesHandler.Handle)
 	// Prefixed key so this budget does not share the global per-IP counter.

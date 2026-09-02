@@ -43,6 +43,7 @@ Most GitHub projects bury downloads in a releases page with 15+ assets. Yatko gi
 | `/api/releases/:owner/:repo` | List of recent releases (tag, date, prerelease flag) |
 | `/api/readme/:owner/:repo` | Raw README markdown (install commands / About section) |
 | `/api/search?q=` | GitHub repo search — homepage autocomplete suggestions |
+| `/badge.svg` | Store-style “Get it on Yatko” badge for READMEs (`height="54"`) |
 
 ## Features
 
@@ -57,8 +58,25 @@ Most GitHub projects bury downloads in a releases page with 15+ assets. Yatko gi
 - **Quick Install** — extracts package manager commands from the README (`pip`, `npm`, `cargo`, `brew`, `winget`, `choco`, `scoop`, `apt`, and more)
 - **Platform filter** — "My platform only" toggle in the All Downloads list
 - **Download counts** — shows per-asset download counts from GitHub
-- **Share links** — copyable Yatko URLs for smart download, landing page, API, and a README Markdown snippet
+- **Share links** — copyable Yatko URLs for smart download, landing page, API, a README Markdown snippet, and an embed button
+- **Embed button** — store-style “Get it on Yatko” badge for READMEs
 - **Dark mode** — system preference detection + manual toggle
+
+---
+
+## Embed
+
+Drop this in your README to send visitors to your Yatko download page:
+
+<p>
+  <a href="https://yatko.app/cli/cli">
+    <img alt="Get it on Yatko" src="frontend/public/badge.svg" height="54" />
+  </a>
+</p>
+
+```html
+<a href="https://yatko.app/OWNER/REPO"><img alt="Get it on Yatko" src="https://yatko.app/badge.svg" height="54"></a>
+```
 
 ## License
 

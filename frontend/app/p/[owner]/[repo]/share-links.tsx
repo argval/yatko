@@ -9,10 +9,15 @@ type ShareItem = {
   description: string;
 };
 
+export function embedButtonHtml(owner: string, repo: string, base = "https://yatko.app") {
+  return `<a href="${base}/${owner}/${repo}"><img alt="Get it on Yatko" src="${base}/badge.svg" height="54"></a>`;
+}
+
 export function ShareLinks({ owner, repo }: { owner: string; repo: string }) {
   const base = "https://yatko.app";
   // Landing page uses the github.com → yatko.app path (no /p/), so shared
   // links match the product URL and resolve to the same release page.
+  const embedHtml = embedButtonHtml(owner, repo, base);
   const items: ShareItem[] = [
     {
       label: "Smart download",
@@ -44,6 +49,17 @@ export function ShareLinks({ owner, repo }: { owner: string; repo: string }) {
   return (
     <CollapsibleCard title="Share">
       <ul className="space-y-4">
+        <li className="space-y-1.5">
+          <div className="flex items-center justify-between gap-4">
+            <span className="text-sm font-medium">Embed button</span>
+            <CopyButton text={embedHtml} label="Copy embed button" />
+          </div>
+          <img src="/badge.svg" alt="Get it on Yatko" height={54} width={135} className="h-[54px] w-auto" />
+          <div className="flex items-center gap-2 rounded-lg bg-foreground/5 px-3 py-2">
+            <code className="flex-1 text-xs font-mono truncate text-muted">{embedHtml}</code>
+          </div>
+          <p className="text-xs text-muted">Store-style badge for your README — links to this landing page</p>
+        </li>
         {items.map((item) => (
           <ShareRow key={item.label} {...item} />
         ))}

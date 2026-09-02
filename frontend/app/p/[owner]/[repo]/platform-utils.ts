@@ -53,15 +53,82 @@ export function detectPlatform(): Platform {
   return detectPlatformFromUA(navigator.userAgent);
 }
 
+/**
+ * Safari (and many Chrome builds) still ship "Intel Mac OS X" in the UA on
+ * Apple Silicon, with no arm64 token. Probe the GPU renderer — Apple GPUs mean
+ * arm64; Intel/AMD/NVIDIA mean amd64. Returns "" when WebGL is unavailable.
+ * Cached: detectArch is used as a useSyncExternalStore getSnapshot and must
+ * stay cheap and Object.is-stable.
+ */
+let cachedWebGLArch: Arch | undefined;
+
+export function detectArchFromWebGL(): Arch {
+  if (cachedWebGLArch !== undefined) return cachedWebGLArch;
+  if (typeof document === "undefined") {
+    cachedWebGLArch = "";
+    return cachedWebGLArch;
+  }
+  try {
+    const canvas = document.createElement("canvas");
+    const gl =
+      canvas.getContext("webgl") ||
+      canvas.getContext("experimental-webgl");
+    if (!gl || typeof (gl as WebGLRenderingContext).getExtension !== "function") {
+      cachedWebGLArch = "";
+      return cachedWebGLArch;
+    }
+    const ctx = gl as WebGLRenderingContext;
+    const ext = ctx.getExtension("WEBGL_debug_renderer_info");
+    if (!ext) {
+      cachedWebGLArch = "";
+      return cachedWebGLArch;
+    }
+    const renderer = String(ctx.getParameter(ext.UNMASKED_RENDERER_WEBGL) ?? "").toLowerCase();
+    if (!renderer) {
+      cachedWebGLArch = "";
+      return cachedWebGLArch;
+    }
+    // "Apple Software Renderer" can appear in VMs — treat as unknown.
+    if (/\bapple\s+software\b/.test(renderer)) {
+      cachedWebGLArch = "";
+      return cachedWebGLArch;
+    }
+    if (/\bapple\b/.test(renderer)) {
+      cachedWebGLArch = "arm64";
+      return cachedWebGLArch;
+    }
+    if (/\b(intel|amd|nvidia|radeon|geforce|iris|quadro)\b/.test(renderer)) {
+      cachedWebGLArch = "amd64";
+      return cachedWebGLArch;
+    }
+  } catch {
+    // WebGL can throw in locked-down / headless environments.
+  }
+  cachedWebGLArch = "";
+  return cachedWebGLArch;
+}
+
+/** Test-only: clear the WebGL arch memo. */
+export function resetDetectArchFromWebGLCache(): void {
+  cachedWebGLArch = undefined;
+}
+
 export function detectArch(): Arch {
   if (typeof navigator === "undefined") return "";
   const fromUA = detectArchFromUA(navigator.userAgent);
   if (fromUA) return fromUA;
-  const uad = (navigator as Navigator & { userAgentData?: { architecture?: string } }).userAgentData;
+  const uad = (
+    navigator as Navigator & { userAgentData?: { architecture?: string } }
+  ).userAgentData;
   if (uad?.architecture) {
     const arch = uad.architecture.toLowerCase();
     if (arch.includes("arm")) return "arm64";
     if (arch.includes("x86") || arch.includes("amd64")) return "amd64";
+  }
+  // Macintosh UAs omit arch; WebGL distinguishes Apple Silicon from Intel.
+  if (detectPlatformFromUA(navigator.userAgent) === "macos") {
+    const fromGPU = detectArchFromWebGL();
+    if (fromGPU) return fromGPU;
   }
   return "";
 }

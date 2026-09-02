@@ -20,6 +20,30 @@ export function isUnsafeInstallCommand(command: string): boolean {
   return /[|`]|\biex\b/i.test(command);
 }
 
+/** Drop trailing `# …` comments so build-step captions aren't treated as args. */
+export function stripShellComment(command: string): string {
+  return command.replace(/\s+#.*$/, "").trim();
+}
+
+/**
+ * True for project-local dependency installs (README build steps), not
+ * "install this published tool": bare `npm install`, `npm i --flags-only`,
+ * `yarn install` / `pnpm install`, `pip install -r requirements.txt`.
+ */
+export function isLocalDependencyInstall(command: string): boolean {
+  const c = stripShellComment(command);
+  const npm = c.match(/^(?:sudo\s+)?npm\s+(?:install|i|ci)(?:\s+(.*))?$/i);
+  if (npm) {
+    const rest = (npm[1] ?? "").trim();
+    if (!rest) return true;
+    // Package names are tokens that don't start with `-` (flags / `--`).
+    return !rest.split(/\s+/).some((t) => t.length > 0 && !t.startsWith("-"));
+  }
+  if (/^(?:sudo\s+)?(?:yarn|pnpm)(?:\s+install(?:\s+.*)?)?$/i.test(c)) return true;
+  if (/^(?:sudo\s+)?pip3?\s+install\s+(?:-[rR]\b|--requirement\b)/i.test(c)) return true;
+  return false;
+}
+
 /** curl|sh, wget|bash, irm|iex, iex (irm …), powershell -c "…|iex". */
 export function isInstallScriptOneLiner(command: string): boolean {
   const c = command.trim();
@@ -104,13 +128,18 @@ export function extractInstallCommands(
   ];
   let match;
   while ((match = codeBlockRe.exec(readme)) !== null) {
-    for (const line of match[1].split("\n")) {
+    for (const rawLine of match[1].split("\n")) {
+      // Strip `# Install dependencies`-style captions before matching so bare
+      // `npm install` build steps don't look like `npm install <pkg>`.
+      const line = stripShellComment(rawLine);
+      if (!line) continue;
       for (const { platform, re } of patterns) {
         const m = line.match(re);
         if (m) {
           // m[1] = optional sudo/doas, m[2] = command — or a single capture for PS patterns.
           const command = (m[2] !== undefined ? `${m[1]}${m[2]}` : m[1]).trim();
           if (isUnsafeInstallCommand(command)) continue;
+          if (isLocalDependencyInstall(command)) continue;
           commands.set(command, platform);
         }
       }

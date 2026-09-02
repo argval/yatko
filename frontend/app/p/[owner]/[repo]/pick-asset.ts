@@ -33,7 +33,9 @@ export const platformExtensions: Record<Platform, string[]> = {
 
 const archKeywords: Record<Exclude<Arch, "">, string[]> = {
   amd64: ["amd64", "x86_64", "x86-64", "x64", "win64", "intel"],
-  arm64: ["arm64", "aarch64", "m1", "m2", "m3", "m4"],
+  // Bare "arm" (bounded) covers Electron-style Dopamine-*-arm.dmg Apple Silicon
+  // builds; 32-bit ARM stays on armv7/armhf/arm- so "armhf" does not match via "arm".
+  arm64: ["arm64", "aarch64", "m1", "m2", "m3", "m4", "arm"],
   arm: ["armv7", "armv6", "armhf", "arm-"],
   "386": ["i386", "i686", "x86_32", "386", "win32"],
 };

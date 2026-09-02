@@ -31,9 +31,11 @@ const (
 // archKeywords maps each Arch to the substrings that identify it in asset filenames.
 // win64/win32 are arch signals used by many Windows builds (Godot, x16emu, …);
 // intel/m1 cover macOS asset names that omit amd64/arm64 tokens.
+// Bare "arm" (bounded) covers Electron-style Dopamine-*-arm.dmg Apple Silicon
+// builds; 32-bit ARM stays on armv7/armhf/arm- so "armhf" does not match via "arm".
 var archKeywords = map[Arch][]string{
 	AMD64: {"amd64", "x86_64", "x86-64", "x64", "win64", "intel"},
-	ARM64: {"arm64", "aarch64", "m1", "m2", "m3", "m4"},
+	ARM64: {"arm64", "aarch64", "m1", "m2", "m3", "m4", "arm"},
 	ARM:   {"armv7", "armv6", "armhf", "arm-"},
 	X86:   {"i386", "i686", "x86_32", "386", "win32"},
 }

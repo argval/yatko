@@ -124,6 +124,35 @@ describe("extractInstallCommands", () => {
       extractInstallCommands(readme, { owner: "BurntSushi", repo: "ripgrep" }),
     ).toEqual([{ command: "brew install rg", platform: "macos" }]);
   });
+
+  test("drops bare npm install build steps (even with # captions)", () => {
+    const readme = [
+      "## Build instructions",
+      "```bash",
+      "$ npm install                # Install dependencies",
+      "$ npm start                  # Start Dopamine",
+      "$ npm install -g cowsay",
+      "```",
+    ].join("\n");
+    expect(
+      extractInstallCommands(readme, { owner: "digimezzo", repo: "dopamine" }),
+    ).toEqual([{ command: "npm install -g cowsay", platform: "universal" }]);
+  });
+
+  test("drops npm install with flags only and yarn/pnpm install", () => {
+    const readme = [
+      "```",
+      "npm install --legacy-peer-deps",
+      "yarn install",
+      "pnpm install",
+      "pip install -r requirements.txt",
+      "pip install httpx",
+      "```",
+    ].join("\n");
+    expect(extractInstallCommands(readme)).toEqual([
+      { command: "pip install httpx", platform: "universal" },
+    ]);
+  });
 });
 
 describe("isInstallScriptOneLiner / isUnsafeInstallCommand", () => {

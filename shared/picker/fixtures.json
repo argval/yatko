@@ -509,6 +509,36 @@
         "tool-linux-amd64.rpm"
       ],
       "expected": "tool-linux-amd64.rpm"
+    },
+    {
+      "name": "macos-bare-arm-vs-intel-arm64",
+      "platform": "macos",
+      "arch": "arm64",
+      "assets": [
+        "Dopamine-3.0.10-intel.dmg",
+        "Dopamine-3.0.10-arm.dmg"
+      ],
+      "expected": "Dopamine-3.0.10-arm.dmg"
+    },
+    {
+      "name": "macos-bare-arm-vs-intel-amd64",
+      "platform": "macos",
+      "arch": "amd64",
+      "assets": [
+        "Dopamine-3.0.10-arm.dmg",
+        "Dopamine-3.0.10-intel.dmg"
+      ],
+      "expected": "Dopamine-3.0.10-intel.dmg"
+    },
+    {
+      "name": "macos-bare-arm-not-confused-with-armhf",
+      "platform": "linux",
+      "arch": "arm",
+      "assets": [
+        "tool-linux-armhf.deb",
+        "tool-linux-arm64.deb"
+      ],
+      "expected": "tool-linux-armhf.deb"
     }
   ]
 }

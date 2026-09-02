@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { Window } from "happy-dom";
 import { createElement, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { detectArch, detectPlatform } from "./platform-utils";
+import { detectArch, detectPlatform, resetDetectArchFromWebGLCache } from "./platform-utils";
 import { usePlatform } from "./use-platform";
 
 const MAC_UA =
@@ -67,6 +67,8 @@ function render(node: ReactNode): Promise<void> {
 beforeEach(() => {
   activeUA = MAC_UA;
   installDom();
+  // Avoid a sticky WebGL memo from a prior test leaking into this suite.
+  resetDetectArchFromWebGLCache();
 });
 
 afterEach(async () => {

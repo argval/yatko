@@ -69,6 +69,15 @@ export function commandMentionsRepo(command: string, owner: string, repo: string
   if (lower.includes(`${o}/${r}`)) return true;
   if (lower.includes(`@${o}/${r}`)) return true;
   if (lower.includes(r)) return true;
+  // Package managers commonly use a different separator (`t3-code` vs `t3code`).
+  const compactRepo = compactIdentifier(r);
+  if (compactRepo && compactIdentifier(lower).includes(compactRepo)) return true;
+  // `npx t3@latest` is the published CLI name for the `t3code` repository.
+  const npxPackage = lower.match(/\bnpx\s+(?:-[^\s]+\s+)*([@a-z0-9][a-z0-9./_-]*)/i)?.[1];
+  if (npxPackage) {
+    const compactPackage = compactIdentifier(npxPackage);
+    if (compactPackage.length >= 2 && compactRepo.startsWith(compactPackage)) return true;
+  }
   // Primary token of multi-segment names (hermes-agent → hermes) when long enough
   // to avoid matching short noise like "go" / "ai".
   const primary = r.split(/[-_]/)[0];
@@ -81,6 +90,10 @@ export function commandMentionsRepo(command: string, owner: string, repo: string
 
 function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function compactIdentifier(value: string): string {
+  return value.replace(/[^a-z0-9]/gi, "");
 }
 
 export function extractInstallCommands(
@@ -107,6 +120,7 @@ export function extractInstallCommands(
     { platform: "linux", re: new RegExp(lead + String.raw`(yum\s+install\s+.+)`) },
     { platform: "linux", re: new RegExp(lead + String.raw`(zypper\s+install\s+.+)`) },
     { platform: "linux", re: new RegExp(lead + String.raw`(pacman\s+-S\s+.+)`) },
+    { platform: "linux", re: new RegExp(lead + String.raw`((?:yay|paru)\s+-S\s+.+)`) },
     { platform: "windows", re: new RegExp(lead + String.raw`(winget install\s+.+)`) },
     { platform: "windows", re: new RegExp(lead + String.raw`(choco install\s+.+)`) },
     { platform: "windows", re: new RegExp(lead + String.raw`(scoop install\s+.+)`) },

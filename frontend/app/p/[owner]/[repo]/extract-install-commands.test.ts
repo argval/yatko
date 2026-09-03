@@ -118,6 +118,38 @@ describe("extractInstallCommands", () => {
     ]);
   });
 
+  test("keeps all install methods for repos whose package names use different separators", () => {
+    const readme = [
+      "### Try it out",
+      "```bash",
+      "npx t3@latest",
+      "```",
+      "### Windows",
+      "```bash",
+      "winget install T3Tools.T3Code",
+      "```",
+      "### macOS",
+      "```bash",
+      "brew install --cask t3-code",
+      "```",
+      "### Arch Linux",
+      "```bash",
+      "yay -S t3code-bin",
+      "yay -S t3code-nightly-bin",
+      "```",
+    ].join("\n");
+
+    expect(
+      extractInstallCommands(readme, { owner: "pingdotgg", repo: "t3code" }),
+    ).toEqual([
+      { command: "npx t3@latest", platform: "universal" },
+      { command: "winget install T3Tools.T3Code", platform: "windows" },
+      { command: "brew install --cask t3-code", platform: "macos" },
+      { command: "yay -S t3code-bin", platform: "linux" },
+      { command: "yay -S t3code-nightly-bin", platform: "linux" },
+    ]);
+  });
+
   test("without relevant matches, keeps all safe commands (package name ≠ repo)", () => {
     const readme = ["```", "brew install rg", "```"].join("\n");
     expect(
@@ -165,7 +197,7 @@ describe("isInstallScriptOneLiner / isUnsafeInstallCommand", () => {
 });
 
 describe("commandMentionsRepo", () => {
-  test("matches full slug, repo name, and long primary token", () => {
+  test("matches full slug, package separators, and long primary token", () => {
     expect(
       commandMentionsRepo(
         "curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash",
@@ -173,6 +205,8 @@ describe("commandMentionsRepo", () => {
         "hermes-agent",
       ),
     ).toBe(true);
+    expect(commandMentionsRepo("brew install --cask t3-code", "pingdotgg", "t3code")).toBe(true);
+    expect(commandMentionsRepo("npx t3@latest", "pingdotgg", "t3code")).toBe(true);
     expect(commandMentionsRepo("winget install --id GitHub.cli", "NousResearch", "hermes-agent")).toBe(
       false,
     );

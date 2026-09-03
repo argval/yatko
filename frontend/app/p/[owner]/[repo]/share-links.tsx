@@ -56,7 +56,9 @@ export function ShareLinks({ owner, repo }: { owner: string; repo: string }) {
           </div>
           <img src="/badge.svg" alt="Get it on Yatko" height={54} width={135} className="h-[54px] w-auto" />
           <div className="flex items-center gap-2 rounded-lg bg-foreground/5 px-3 py-2">
-            <code className="flex-1 text-xs font-mono truncate text-muted">{embedHtml}</code>
+            <div className="flex-1 min-w-0 overflow-x-auto [scrollbar-width:thin]">
+              <code className="whitespace-pre text-xs font-mono text-muted">{embedHtml}</code>
+            </div>
           </div>
           <p className="text-xs text-muted">Store-style badge for your README — links to this landing page</p>
         </li>
@@ -76,7 +78,9 @@ function ShareRow({ label, text, description }: ShareItem) {
         <CopyButton text={text} label={`Copy ${label}`} />
       </div>
       <div className="flex items-center gap-2 rounded-lg bg-foreground/5 px-3 py-2">
-        <code className="flex-1 text-xs font-mono truncate text-muted">{text}</code>
+        <div className="flex-1 min-w-0 overflow-x-auto [scrollbar-width:thin]">
+          <code className="whitespace-pre text-xs font-mono text-muted">{text}</code>
+        </div>
       </div>
       <p className="text-xs text-muted">{description}</p>
     </li>

@@ -6,7 +6,11 @@ Terms used when talking about architecture and product behavior. Prefer these na
 
 Chooses the single best GitHub release asset for a visitor’s **platform** (OS) and **arch** (CPU). Used by `/dl` redirects and by the release-page download button so both resolve to the same binary.
 
-Canonical implementation: Go module `backend/picker`. The TypeScript port is a thin same-algorithm adapter for the browser. Shared golden fixtures in `shared/picker/fixtures.json` are the cross-runtime test surface — both adapters must pass them.
+Canonical implementation: Go module `backend/picker` (`Classify` → `DecideAsset`).
+`/dl` and `/api/link` auto-select only when confidence is not low. The release-page
+download button calls `/api/link`; the TypeScript `classify` helper is only for
+All-downloads labels. Shared fixtures in `shared/picker/fixtures.json` are exercised
+by Go tests.
 
 ## Platform
 

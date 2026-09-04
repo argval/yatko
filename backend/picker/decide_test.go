@@ -29,9 +29,6 @@ func TestDecideAsset_GenericJarAbstains(t *testing.T) {
 	if d.ShouldAutoSelect() {
 		t.Fatalf("should abstain, got %s %s", d.Confidence, d.Asset.Name)
 	}
-	if PickAssetForArch(assets, Windows, AMD64) != nil {
-		t.Fatal("PickAssetForArch should also abstain")
-	}
 }
 
 func TestDecideAsset_UntaggedExeIsHigh(t *testing.T) {

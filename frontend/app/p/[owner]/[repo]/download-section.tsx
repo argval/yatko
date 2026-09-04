@@ -1,9 +1,14 @@
 "use client";
 
-import { Suspense, use } from "react";
+import { Suspense, use, useEffect, useState } from "react";
 import { type Asset, type Platform } from "./platform-utils";
 import { usePlatform } from "./use-platform";
-import { useAuthoritativeAsset } from "./use-authoritative-asset";
+import {
+  assetFromLinkPick,
+  downloadLinkPath,
+  fetchLinkPick,
+  type LinkPick,
+} from "./link-decision";
 import { DownloadButton } from "./download-button";
 import { AssetChecksum } from "./asset-checksum";
 
@@ -23,14 +28,34 @@ export function DownloadSection({
   checksumsPromise: Promise<Record<string, string>>;
 }) {
   const detected = usePlatform();
-  const primaryAsset = useAuthoritativeAsset({
-    owner,
-    repo,
-    tagName,
-    assets,
-    platform: detected ? detected.platform : null,
-    arch: detected ? detected.arch : null,
-  });
+  const platform = detected?.platform ?? null;
+  const arch = detected?.arch ?? null;
+  const [pick, setPick] = useState<LinkPick | null | undefined>(undefined);
+
+  useEffect(() => {
+    if (!platform) {
+      setPick(undefined);
+      return;
+    }
+    const ac = new AbortController();
+    let cancelled = false;
+    setPick(undefined);
+    fetchLinkPick(downloadLinkPath(owner, repo, tagName, platform, arch ?? ""), ac.signal)
+      .then((got) => {
+        if (!cancelled) setPick(got);
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        setPick(null);
+      });
+    return () => {
+      cancelled = true;
+      ac.abort();
+    };
+  }, [owner, repo, tagName, platform, arch]);
+
+  const primaryAsset = assetFromLinkPick(assets, pick);
 
   if (!detected || primaryAsset === undefined) {
     return (
@@ -53,14 +78,14 @@ export function DownloadSection({
     );
   }
 
-  const { platform } = detected;
+  const { platform: visitorPlatform } = detected;
 
   return (
     <div className="flex flex-col items-center gap-2">
       <DownloadButton
         owner={owner}
         repo={repo}
-        platform={platform}
+        platform={visitorPlatform}
         primaryAsset={primaryAsset}
         hasAssets={assets.length > 0}
         tagName={tagName}
@@ -77,7 +102,7 @@ export function DownloadSection({
           <AssetChecksumSlot
             checksumsPromise={checksumsPromise}
             assetName={primaryAsset.name}
-            platform={platform}
+            platform={visitorPlatform}
           />
         </Suspense>
       )}

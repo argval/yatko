@@ -3,8 +3,6 @@ package picker
 import (
 	"strings"
 	"unicode"
-
-	"github.com/argval/yatko/github"
 )
 
 type Platform string
@@ -192,22 +190,6 @@ func extRankFor(name string, exts []string, prefer string) (rank int, ok bool) {
 		return i, true
 	}
 	return 0, false
-}
-
-// PickAssetForArch selects the best matching release asset for the given platform and
-// CPU architecture. When arch is UnknownArch, architecture is ignored.
-func PickAssetForArch(assets []github.Asset, platform Platform, arch Arch) *github.Asset {
-	return PickAssetForArchOpts(assets, platform, arch, PickOpts{})
-}
-
-// PickAssetForArchOpts is PickAssetForArch with optional prefer/libc overrides.
-// It returns the auto-selected asset, or nil when DecideAsset abstains.
-func PickAssetForArchOpts(assets []github.Asset, platform Platform, arch Arch, opts PickOpts) *github.Asset {
-	d := DecideAsset(assets, platform, arch, opts)
-	if !d.ShouldAutoSelect() {
-		return nil
-	}
-	return d.Asset
 }
 
 // canonicalizeName inserts separators before an Uppercase+digit run that

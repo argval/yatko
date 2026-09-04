@@ -104,7 +104,7 @@ func (h *PageHandler) handle(c *gin.Context, owner, repo, version string) {
 	} else {
 		setPublicDataCacheControl(c)
 	}
-	c.JSON(http.StatusOK, gin.H{
+	payload := gin.H{
 		"owner":        owner,
 		"repo":         repo,
 		"tag_name":     release.TagName,
@@ -114,7 +114,13 @@ func (h *PageHandler) handle(c *gin.Context, owner, repo, version string) {
 		"html_url":     release.HTMLURL,
 		"prerelease":   release.Prerelease,
 		"assets":       release.Assets,
-	})
+	}
+	// Precomputed DecideAsset results so the release page can paint the
+	// filename as soon as platform/arch is known — without waiting on /api/link.
+	if picks := buildReleasePicks(release.Assets); picks != nil {
+		payload["picks"] = picks
+	}
+	c.JSON(http.StatusOK, payload)
 }
 
 // cacheRefreshRequested is deliberately private/no-store: an authorized

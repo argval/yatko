@@ -45,6 +45,24 @@ export function downloadRedirectPath(
   return pickerPath("/dl", owner, repo, tagName, platform, arch);
 }
 
+/** Key used by /api/release `picks` — prefer arch-specific, then platform-only. */
+export function releasePickKey(platform: Platform, arch: Arch): string {
+  return arch ? `${platform}/${arch}` : platform;
+}
+
+/**
+ * Sync lookup against the release-page picks table.
+ * Returns null when the table is present but has no auto-select for this visitor.
+ */
+export function pickFromReleaseTable(
+  picks: Record<string, LinkPick> | undefined,
+  platform: Platform,
+  arch: Arch,
+): LinkPick | null | undefined {
+  if (!picks) return undefined;
+  return picks[releasePickKey(platform, arch)] ?? null;
+}
+
 export function parseLinkPick(body: unknown): LinkPick | null {
   if (typeof body !== "object" || body === null) return null;
   const rec = body as Record<string, unknown>;

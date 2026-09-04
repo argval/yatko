@@ -9,7 +9,9 @@ Chooses the single best GitHub release asset for a visitor’s **platform** (OS)
 Canonical implementation: Go module `backend/picker` (`Classify` → `DecideAsset`).
 `/dl` and `/api/link` auto-select only when confidence is not low. The release-page
 download button points at `/dl` as soon as platform/arch is known (Go decides on
-click) and soft-fetches `/api/link` for filename and checksum. The TypeScript
+click). Filename and checksum come from the `picks` table embedded in
+`/api/release` (same `DecideAsset` results) so they paint without a second RTT;
+`/api/link` remains a fallback when that table is absent. The TypeScript
 `classify` helper is only for All-downloads labels. Shared fixtures in
 `shared/picker/fixtures.json` are exercised by Go tests.
 

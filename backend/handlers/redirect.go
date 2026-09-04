@@ -52,6 +52,13 @@ func (h *RedirectHandler) handle(c *gin.Context, owner, repo, version string) {
 		respondDownloadMiss(c, owner, repo, release, platform, arch, prefer, libc, decision)
 		return
 	}
+	if decision.Confidence != picker.ConfidenceHigh {
+		log.Printf(
+			"picker_shadow owner=%s repo=%s platform=%s arch=%s confidence=%s file=%q unknown=%q reasons=%q",
+			owner, repo, platform, arch, decision.Confidence, decision.Asset.Name,
+			picker.UnknownTokens(decision.Asset.Name), decision.Reasons,
+		)
+	}
 
 	c.Redirect(http.StatusFound, decision.Asset.BrowserDownloadURL)
 }

@@ -11,15 +11,26 @@ so `fixtures.json` can catch catalog drift. Production download decisions
 must not use it.
 
 **Alias table:** `catalog.json` — platforms, architectures, libc, variants,
-formats. Edit this file, then copy it to:
+formats. Overlapping arch aliases keep the longest span (`arm64` beats `arm`;
+`arm-` beats `arm` on rustc triples). `linux`+`android` names target android.
+Edit this file, then copy it to:
 
 - `backend/picker/catalog.json` (`go:embed` for the container image)
 - `frontend/lib/picker-catalog.json` (Vercel frontend root cannot see `shared/`)
 
 Tests fail if the three copies drift.
 
-**Test surface:** `fixtures.json` — both runtimes must agree on every case,
-including `expected: null` for abstention.
+**Real-release corpus:** `corpus.json` — snapshots of public GitHub releases with
+labeled picks. `go test ./picker/ -run TestCorpusMetrics -v` reports top-1,
+abstention, false auto-select, and wrong-platform rates. Mark a case
+`knownMiss: true` when the label is right but the picker is not; do not
+weaken the label to match the picker.
+
+**Unknown tokens:** `UnknownTokens` / `HarvestUnknownTokens` list filename
+pieces the catalog does not explain. Review high-frequency tokens from
+`TestCorpusUnknownTokenHarvest` and from `picker_shadow` / `picker_miss`
+logs, then add aliases to `catalog.json` by hand. Never promote a token
+automatically, and never let an enricher invent a download URL.
 
 When changing ranking or aliases:
 

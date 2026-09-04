@@ -3,6 +3,7 @@ package handlers
 import (
 	"log"
 	"net/http"
+	"sort"
 	"strings"
 
 	"github.com/argval/yatko/github"
@@ -60,9 +61,10 @@ func logPickerMiss(
 	if decision.Asset != nil {
 		guess = decision.Asset.Name
 	}
+	unknown := pickerUnknownTokens(assets, decision.Asset)
 	log.Printf(
-		"picker_miss owner=%s repo=%s platform=%s arch=%s prefer=%s libc=%s script=%v confidence=%s guess=%q reasons=%q assets=%d names=%q",
-		owner, repo, platform, arch, prefer, libc, script, decision.Confidence, guess, decision.Reasons, n, names,
+		"picker_miss owner=%s repo=%s platform=%s arch=%s prefer=%s libc=%s script=%v confidence=%s guess=%q reasons=%q unknown=%q assets=%d names=%q",
+		owner, repo, platform, arch, prefer, libc, script, decision.Confidence, guess, decision.Reasons, unknown, n, names,
 	)
 }
 
@@ -91,4 +93,25 @@ func respondDownloadMiss(
 		return
 	}
 	c.Redirect(http.StatusFound, release.HTMLURL)
+}
+
+func pickerUnknownTokens(assets []github.Asset, selected *github.Asset) []string {
+	names := make([]string, 0, maxMissAssetNames)
+	if selected != nil {
+		names = append(names, selected.Name)
+	} else {
+		for i, a := range assets {
+			if i >= maxMissAssetNames {
+				break
+			}
+			names = append(names, a.Name)
+		}
+	}
+	counts := picker.HarvestUnknownTokens(names)
+	out := make([]string, 0, len(counts))
+	for tok := range counts {
+		out = append(out, tok)
+	}
+	sort.Strings(out)
+	return out
 }

@@ -163,21 +163,58 @@ function isLower(ch: string | undefined): boolean {
   return !!ch && ch >= "a" && ch <= "z";
 }
 
-/** Standalone token match — mirrors picker.hasBoundedKeyword in Go. */
-export function hasBoundedKeyword(name: string, kw: string): boolean {
-  if (!kw) return false;
+type AliasHit = { start: number; end: number; key: string; kw: string };
+
+function boundedKeywordSpans(name: string, kw: string): Array<[number, number]> {
+  if (!kw) return [];
   const kwStartsWithLetter = isLower(kw[0]);
   const kwEndsWithLetter = isLower(kw[kw.length - 1]);
+  const spans: Array<[number, number]> = [];
   let start = 0;
   for (;;) {
     const idx = name.indexOf(kw, start);
-    if (idx === -1) return false;
+    if (idx === -1) return spans;
     const beforeOK = !kwStartsWithLetter || idx === 0 || !isLower(name[idx - 1]);
     const afterIdx = idx + kw.length;
-    const afterOK = !kwEndsWithLetter || afterIdx === name.length || !isLower(name[afterIdx]);
-    if (beforeOK && afterOK) return true;
+    const afterOK = !kwEndsWithLetter || afterIdx === name.length || !isLower(name[afterIdx]!);
+    if (beforeOK && afterOK) spans.push([idx, afterIdx]);
     start = idx + 1;
   }
+}
+
+/** Standalone token match — mirrors picker.hasBoundedKeyword in Go. */
+export function hasBoundedKeyword(name: string, kw: string): boolean {
+  return boundedKeywordSpans(name, kw).length > 0;
+}
+
+function selectLongestHits(hits: AliasHit[]): AliasHit[] {
+  const sorted = hits.slice().sort((a, b) => {
+    const li = a.end - a.start;
+    const lj = b.end - b.start;
+    if (li !== lj) return lj - li;
+    if (a.start !== b.start) return a.start - b.start;
+    if (a.kw < b.kw) return -1;
+    if (a.kw > b.kw) return 1;
+    return 0;
+  });
+  const kept: AliasHit[] = [];
+  for (const h of sorted) {
+    if (kept.some((k) => h.start < k.end && k.start < h.end)) continue;
+    kept.push(h);
+  }
+  return kept;
+}
+
+function archAliasHits(name: string): AliasHit[] {
+  const hits: AliasHit[] = [];
+  for (const [arch, kws] of Object.entries(archKeywords) as [Exclude<Arch, "">, string[]][]) {
+    for (const kw of kws) {
+      for (const [start, end] of boundedKeywordSpans(name, kw)) {
+        hits.push({ start, end, key: arch, kw });
+      }
+    }
+  }
+  return selectLongestHits(hits);
 }
 
 /**
@@ -222,7 +259,7 @@ export function mentionsOtherPlatform(name: string, current: Platform): boolean 
 
 function mentionsArch(name: string, arch: Arch): boolean {
   if (!arch) return false;
-  return archKeywords[arch].some((kw) => hasBoundedKeyword(name, kw));
+  return archAliasHits(name).some((h) => h.key === arch);
 }
 
 function mentionsPlatform(name: string, platform: Platform): boolean {
@@ -381,14 +418,11 @@ export function classify(name: string): ArtifactFacts {
     }
   }
 
-  for (const a of Object.keys(archKeywords) as Exclude<Arch, "">[]) {
-    for (const kw of archKeywords[a]) {
-      if (hasBoundedKeyword(canonical, kw)) {
-        facts.arches.push(a);
-        facts.evidence = appendUnique(facts.evidence, kw);
-        break;
-      }
+  for (const hit of archAliasHits(canonical)) {
+    if (!facts.arches.includes(hit.key as Exclude<Arch, "">)) {
+      facts.arches.push(hit.key as Exclude<Arch, "">);
     }
+    facts.evidence = appendUnique(facts.evidence, hit.kw);
   }
 
   const fmt = matchFormat(canonical);
@@ -430,6 +464,18 @@ function hasArch(facts: ArtifactFacts, a: Arch): boolean {
 
 function hasOtherPlatform(facts: ArtifactFacts, p: Platform): boolean {
   return facts.platforms.some((got) => got !== p);
+}
+
+function androidWithLinuxHost(facts: ArtifactFacts): boolean {
+  if (!hasPlatform(facts, "android") || !hasPlatform(facts, "linux")) return false;
+  return facts.platforms.every((p) => p === "android" || p === "linux");
+}
+
+/** linux+android names target android; linux visitors still must not receive them. */
+function incompatiblePlatform(facts: ArtifactFacts, want: Platform): boolean {
+  if (!hasOtherPlatform(facts, want)) return false;
+  if (want === "android" && androidWithLinuxHost(facts)) return false;
+  return true;
 }
 
 function hasOtherArch(facts: ArtifactFacts, want: Arch): boolean {
@@ -525,7 +571,7 @@ export function decideBestAsset(
   for (const asset of assets) {
     const facts = classify(asset.name);
     if (facts.source || facts.nonNative) continue;
-    if (hasOtherPlatform(facts, platform)) continue;
+    if (incompatiblePlatform(facts, platform)) continue;
 
     let extRank = extRankFor(facts.canonical, exts, prefer);
     if (
@@ -543,7 +589,7 @@ export function decideBestAsset(
       facts,
       extRank,
       archHit: arch !== "" && hasArch(facts, arch),
-      platformHit: hasPlatform(facts, platform),
+      platformHit: hasPlatform(facts, platform) || facts.formatPlatform === platform,
       family: archFamilyPenalty(facts.canonical, arch),
       bitWidth: archBitWidth(facts.canonical),
       libc: libcPenalty(facts.canonical, libcWant),

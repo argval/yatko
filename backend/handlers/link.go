@@ -81,6 +81,13 @@ func (h *LinkHandler) handle(c *gin.Context, owner, repo, version string) {
 		})
 		return
 	}
+	if decision.Confidence != picker.ConfidenceHigh {
+		log.Printf(
+			"picker_shadow owner=%s repo=%s platform=%s arch=%s confidence=%s file=%q unknown=%q reasons=%q",
+			owner, repo, platform, arch, decision.Confidence, decision.Asset.Name,
+			picker.UnknownTokens(decision.Asset.Name), decision.Reasons,
+		)
+	}
 
 	c.JSON(http.StatusOK, LinkResponse{
 		URL:        decision.Asset.BrowserDownloadURL,

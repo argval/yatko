@@ -402,13 +402,18 @@ func mentionsPlatform(name string, platform Platform) bool {
 }
 
 // mentionsArch returns true if the asset filename explicitly references the given arch.
+// Overlapping aliases keep the longest span so "arm" does not also claim arm32/arm64.
 func mentionsArch(name string, arch Arch) bool {
-	for _, kw := range archAliases(arch) {
-		if hasBoundedKeyword(name, kw) {
+	for _, got := range matchedArches(name) {
+		if got == arch {
 			return true
 		}
 	}
 	return false
+}
+
+type keywordSpan struct {
+	start, end int
 }
 
 // hasBoundedKeyword reports whether kw occurs in name as a standalone token,
@@ -419,23 +424,28 @@ func mentionsArch(name string, arch Arch) bool {
 // A side is only checked when the keyword doesn't already end/start with its
 // own delimiter (e.g. "win-" already asserts its right edge via the hyphen).
 func hasBoundedKeyword(name, kw string) bool {
+	return len(boundedKeywordSpans(name, kw)) > 0
+}
+
+func boundedKeywordSpans(name, kw string) []keywordSpan {
 	if kw == "" {
-		return false
+		return nil
 	}
 	kwStartsWithLetter := isLower(kw[0])
 	kwEndsWithLetter := isLower(kw[len(kw)-1])
+	var spans []keywordSpan
 	start := 0
 	for {
 		rel := strings.Index(name[start:], kw)
 		if rel == -1 {
-			return false
+			return spans
 		}
 		idx := start + rel
 		beforeOK := !kwStartsWithLetter || idx == 0 || !isLower(name[idx-1])
 		afterIdx := idx + len(kw)
 		afterOK := !kwEndsWithLetter || afterIdx == len(name) || !isLower(name[afterIdx])
 		if beforeOK && afterOK {
-			return true
+			spans = append(spans, keywordSpan{idx, afterIdx})
 		}
 		start = idx + 1
 	}

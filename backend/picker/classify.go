@@ -1,5 +1,7 @@
 package picker
 
+import "sort"
+
 // ArtifactKind is the installable shape of a release asset, inferred from
 // filename tokens and exclusive extensions. Unknown means we did not invent one.
 type ArtifactKind string
@@ -74,6 +76,86 @@ func (f ArtifactFacts) HasOtherArch(want Arch) bool {
 	return false
 }
 
+// incompatiblePlatform reports whether facts name a different OS that should
+// exclude this asset from want. Filenames that carry both linux and android
+// (NDK/cross builds) target android; a linux visitor still must not receive them.
+func incompatiblePlatform(facts ArtifactFacts, want Platform) bool {
+	if !facts.HasOtherPlatform(want) {
+		return false
+	}
+	if want == Android && androidWithLinuxHost(facts) {
+		return false
+	}
+	return true
+}
+
+func androidWithLinuxHost(f ArtifactFacts) bool {
+	if !f.HasPlatform(Android) || !f.HasPlatform(Linux) {
+		return false
+	}
+	for _, p := range f.Platforms {
+		if p != Android && p != Linux {
+			return false
+		}
+	}
+	return true
+}
+
+type aliasHit struct {
+	start, end int
+	key        string
+	kw         string
+}
+
+func selectLongestHits(hits []aliasHit) []aliasHit {
+	sort.SliceStable(hits, func(i, j int) bool {
+		li := hits[i].end - hits[i].start
+		lj := hits[j].end - hits[j].start
+		if li != lj {
+			return li > lj
+		}
+		if hits[i].start != hits[j].start {
+			return hits[i].start < hits[j].start
+		}
+		return hits[i].kw < hits[j].kw
+	})
+	var kept []aliasHit
+	for _, h := range hits {
+		overlap := false
+		for _, k := range kept {
+			if h.start < k.end && k.start < h.end {
+				overlap = true
+				break
+			}
+		}
+		if !overlap {
+			kept = append(kept, h)
+		}
+	}
+	return kept
+}
+
+func archAliasHits(name string) []aliasHit {
+	var hits []aliasHit
+	for a, kws := range catalog.Architectures {
+		for _, kw := range kws {
+			for _, span := range boundedKeywordSpans(name, kw) {
+				hits = append(hits, aliasHit{span.start, span.end, a, kw})
+			}
+		}
+	}
+	return selectLongestHits(hits)
+}
+
+func matchedArches(name string) []Arch {
+	hits := archAliasHits(name)
+	out := make([]Arch, 0, len(hits))
+	for _, h := range hits {
+		out = appendUniqueArch(out, Arch(h.key))
+	}
+	return out
+}
+
 // Classify extracts structured facts from a release asset filename.
 func Classify(name string) ArtifactFacts {
 	canonical := canonicalizeName(name)
@@ -94,14 +176,9 @@ func Classify(name string) ArtifactFacts {
 		}
 	}
 
-	for a, kws := range catalog.Architectures {
-		for _, kw := range kws {
-			if hasBoundedKeyword(canonical, kw) {
-				f.Arches = appendUniqueArch(f.Arches, Arch(a))
-				f.Evidence = appendUnique(f.Evidence, kw)
-				break
-			}
-		}
+	for _, hit := range archAliasHits(canonical) {
+		f.Arches = appendUniqueArch(f.Arches, Arch(hit.key))
+		f.Evidence = appendUnique(f.Evidence, hit.kw)
 	}
 
 	if key, entry, ok := matchFormat(canonical); ok {

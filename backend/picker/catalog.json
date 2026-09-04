@@ -6,15 +6,15 @@
     },
     "macos": {
       "aliases": ["macos", "darwin", "osx", "mac-", "mac"],
-      "extensions": [".dmg", ".pkg", ".zip", ".tar.gz", ".jar"]
+      "extensions": [".dmg", ".pkg", ".zip", ".tar.gz", ".gz", ".jar"]
     },
     "linux": {
       "aliases": ["linux", "ubuntu", "debian", "fedora", "appimage"],
-      "extensions": [".appimage", ".deb", ".rpm", ".tar.gz", ".tar.xz", ".zip", ".jar"]
+      "extensions": [".appimage", ".deb", ".rpm", ".tar.gz", ".tar.xz", ".gz", ".zip", ".jar"]
     },
     "android": {
       "aliases": ["android", "apk"],
-      "extensions": [".apk", ".aab"]
+      "extensions": [".apk", ".aab", ".zip"]
     },
     "ios": {
       "aliases": ["ios", "iphone", "ipad", "ipod"],
@@ -24,7 +24,7 @@
   "architectures": {
     "amd64": ["amd64", "x86_64", "x86-64", "x64", "win64", "intel"],
     "arm64": ["arm64", "aarch64", "m1", "m2", "m3", "m4", "arm"],
-    "arm": ["armv7", "armv6", "armhf", "arm-"],
+    "arm": ["armv7", "armv6", "armhf", "arm-", "arm32", "armel"],
     "386": ["i386", "i686", "x86_32", "386", "win32"]
   },
   "libc": {
@@ -48,6 +48,7 @@
     "aab": { "kind": "package", "platform": "android" },
     "ipa": { "kind": "package", "platform": "ios" },
     "zip": { "kind": "archive" },
+    "gz": { "kind": "archive" },
     "jar": { "kind": "archive" },
     "tar.gz": { "kind": "archive" },
     "tar.xz": { "kind": "archive" }
@@ -57,5 +58,5 @@
     "tgz": "tar.gz",
     "txz": "tar.xz"
   },
-  "linuxRpmExtensions": [".appimage", ".rpm", ".deb", ".tar.gz", ".tar.xz", ".zip", ".jar"]
+  "linuxRpmExtensions": [".appimage", ".rpm", ".deb", ".tar.gz", ".tar.xz", ".gz", ".zip", ".jar"]
 }

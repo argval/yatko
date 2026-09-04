@@ -56,6 +56,13 @@ test("classify does not invent a platform for release.zip", () => {
   expect(f.source).toBe(true);
 });
 
+test("classify keeps longest arch alias", () => {
+  expect(classify("tool-linux.arm32.zip").arches).toEqual(["arm"]);
+  expect(classify("tool-linux.arm64.zip").arches).toEqual(["arm64"]);
+  expect(classify("tool-arm-unknown-linux-gnueabihf.gz").arches).toEqual(["arm"]);
+  expect(classify("Dopamine-3.0.10-arm.dmg").arches).toEqual(["arm64"]);
+});
+
 test("generic jar abstains", () => {
   const d = decideBestAsset([asset("lib-1.0.0.jar")], "windows", "amd64");
   expect(d.shouldAutoSelect).toBe(false);

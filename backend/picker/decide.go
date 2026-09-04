@@ -81,7 +81,7 @@ func DecideAsset(assets []github.Asset, platform Platform, arch Arch, opts PickO
 		if facts.Source || facts.NonNative {
 			continue
 		}
-		if facts.HasOtherPlatform(platform) {
+		if incompatiblePlatform(facts, platform) {
 			continue
 		}
 
@@ -101,7 +101,7 @@ func DecideAsset(assets []github.Asset, platform Platform, arch Arch, opts PickO
 			facts:       facts,
 			extRank:     rank,
 			archHit:     arch != UnknownArch && facts.HasArch(arch),
-			platformHit: facts.HasPlatform(platform),
+			platformHit: facts.HasPlatform(platform) || facts.FormatPlatform == platform,
 			family:      archFamilyPenalty(name, arch),
 			bitWidth:    archBitWidth(name),
 			libc:        libcPenalty(name, libc),

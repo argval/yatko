@@ -95,10 +95,6 @@ func platformAliases(p Platform) []string {
 	return e.Aliases
 }
 
-func archAliases(a Arch) []string {
-	return catalog.Architectures[string(a)]
-}
-
 func matchFormat(canonical string) (key string, entry formatEntry, ok bool) {
 	for _, k := range catalog.formatKeysByLength {
 		if strings.HasSuffix(canonical, "."+k) {

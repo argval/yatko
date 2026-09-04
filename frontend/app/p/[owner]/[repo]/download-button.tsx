@@ -1,6 +1,6 @@
 "use client";
 
-import { platformLabels, formatSize, type Platform, type Asset } from "./platform-utils";
+import { platformLabels, formatSize, type Arch, type Platform, type Asset } from "./platform-utils";
 import { CopyButton } from "./copy-button";
 import { downloadCta } from "./download-cta";
 
@@ -8,6 +8,7 @@ export function DownloadButton({
   owner,
   repo,
   platform,
+  arch,
   primaryAsset,
   hasAssets,
   tagName,
@@ -15,12 +16,15 @@ export function DownloadButton({
   owner: string;
   repo: string;
   platform: Platform;
-  primaryAsset: Asset | null;
+  arch: Arch;
+  primaryAsset: Asset | null | undefined;
   hasAssets: boolean;
   tagName: string;
 }) {
   const { href, label, external } = downloadCta({
     platform,
+    arch,
+    tagName,
     primaryAsset,
     hasAssets,
     owner,
@@ -50,6 +54,13 @@ export function DownloadButton({
         <p className="text-xs text-muted font-mono">
           {primaryAsset.name} &middot; {formatSize(primaryAsset.size)}
         </p>
+      ) : primaryAsset === undefined && hasAssets ? (
+        <>
+          <p className="h-4 w-48 rounded bg-foreground/[0.06] animate-pulse" aria-hidden />
+          <p className="sr-only" role="status" aria-live="polite">
+            Looking up file name…
+          </p>
+        </>
       ) : hasAssets ? (
         <p className="text-xs text-muted">
           No binary found for {platformLabels[platform]} – see all downloads below

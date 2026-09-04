@@ -1,6 +1,7 @@
 // Platform detection and display helpers. Asset ranking lives in Go
-// (backend/picker); the download button calls /api/link. Keep UA detection
-// aligned with Go DetectPlatform / DetectArch / ResolveArch.
+// (backend/picker). The download button points at /dl as soon as platform
+// is known; /api/link is a background fetch for filename/checksum. Keep UA
+// detection aligned with Go DetectPlatform / DetectArch / ResolveArch.
 
 export type { Arch, Asset, Platform } from "./pick-asset";
 import { classify, primaryPlatform, type Arch, type Platform } from "./pick-asset";

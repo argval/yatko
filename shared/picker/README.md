@@ -3,12 +3,13 @@
 **Deep module:** `backend/picker` (Go) — classify filenames into structured
 facts, then rank and return an `AssetDecision` (asset, confidence, reasons,
 alternatives). `/dl` and `/api/link` auto-select only when confidence is not
-`low`. The release-page download button calls `/api/link` after detecting
-platform/arch; it does not rank on the client.
+`low`. The release-page download button points at `/dl` as soon as
+platform/arch is known (Go decides on click) and soft-fetches `/api/link`
+for filename and checksum. It does not rank on the client.
 
 **Labels:** `frontend/app/p/[owner]/[repo]/pick-asset.ts` classifies filenames
-for "All downloads" grouping. It does not rank. Production download decisions
-use `/api/link`.
+for "All downloads" grouping. It does not rank. Production download
+decisions use `/dl` (click) and `/api/link` (filename/checksum).
 
 **Alias table:** `catalog.json` — platforms, architectures, libc, variants,
 formats. Overlapping arch aliases keep the longest span (`arm64` beats `arm`;

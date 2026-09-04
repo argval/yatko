@@ -7,6 +7,7 @@ import {
   assetFromLinkPick,
   downloadLinkPath,
   fetchLinkPick,
+  pickFromReleaseTable,
   type LinkPick,
 } from "./link-decision";
 import { DownloadButton } from "./download-button";
@@ -16,6 +17,7 @@ export function DownloadSection({
   owner,
   repo,
   assets,
+  picks,
   tagName,
   publishedDate,
   checksumsPromise,
@@ -23,6 +25,7 @@ export function DownloadSection({
   owner: string;
   repo: string;
   assets: Asset[];
+  picks?: Record<string, LinkPick>;
   tagName: string;
   publishedDate: string;
   checksumsPromise: Promise<Record<string, string>>;
@@ -30,31 +33,37 @@ export function DownloadSection({
   const detected = usePlatform();
   const platform = detected?.platform ?? null;
   const arch = detected?.arch ?? null;
-  const [pick, setPick] = useState<LinkPick | null | undefined>(undefined);
+  // Fallback path when /api/release predates the picks table (rolling deploy).
+  const [fetchedPick, setFetchedPick] = useState<LinkPick | null | undefined>(undefined);
+
+  const tablePick =
+    platform != null ? pickFromReleaseTable(picks, platform, arch ?? "") : undefined;
+  const needsFetch = tablePick === undefined && !!platform && assets.length > 0;
 
   useEffect(() => {
-    if (!platform || assets.length === 0) {
-      setPick(undefined);
+    if (!needsFetch || !platform) {
+      setFetchedPick(undefined);
       return;
     }
     const ac = new AbortController();
     let cancelled = false;
-    setPick(undefined);
+    setFetchedPick(undefined);
     fetchLinkPick(downloadLinkPath(owner, repo, tagName, platform, arch ?? ""), ac.signal)
       .then((got) => {
-        if (!cancelled) setPick(got);
+        if (!cancelled) setFetchedPick(got);
       })
       .catch((err: unknown) => {
         if (cancelled) return;
         if (err instanceof DOMException && err.name === "AbortError") return;
-        setPick(null);
+        setFetchedPick(null);
       });
     return () => {
       cancelled = true;
       ac.abort();
     };
-  }, [owner, repo, tagName, platform, arch, assets.length]);
+  }, [needsFetch, owner, repo, tagName, platform, arch]);
 
+  const pick = tablePick !== undefined ? tablePick : fetchedPick;
   const primaryAsset = assetFromLinkPick(assets, pick);
 
   if (!detected) {

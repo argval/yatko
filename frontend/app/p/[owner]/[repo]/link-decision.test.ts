@@ -5,6 +5,7 @@ import {
   downloadRedirectPath,
   fetchLinkPick,
   parseLinkPick,
+  pickFromReleaseTable,
 } from "./link-decision";
 import type { Asset } from "./pick-asset";
 
@@ -42,6 +43,41 @@ describe("downloadRedirectPath", () => {
     expect(downloadRedirectPath("owner", "repo", "v1.0.0+build", "linux", "")).toBe(
       "/dl/owner/repo/v1.0.0%2Bbuild?platform=linux",
     );
+  });
+});
+
+describe("pickFromReleaseTable", () => {
+  const picks = {
+    "macos/arm64": {
+      filename: "tool-darwin-arm64.dmg",
+      url: "https://example.com/arm64.dmg",
+      size: 42,
+    },
+    macos: {
+      filename: "tool-darwin-universal.dmg",
+      url: "https://example.com/uni.dmg",
+      size: 80,
+    },
+  };
+
+  test("returns the arch-specific entry when present", () => {
+    expect(pickFromReleaseTable(picks, "macos", "arm64")).toEqual(picks["macos/arm64"]);
+  });
+
+  test("uses the platform-only key when arch is empty", () => {
+    expect(pickFromReleaseTable(picks, "macos", "")).toEqual(picks.macos);
+  });
+
+  test("does not fall back across arches", () => {
+    expect(pickFromReleaseTable(picks, "macos", "amd64")).toBeNull();
+  });
+
+  test("abstains when the table has no match for this visitor", () => {
+    expect(pickFromReleaseTable(picks, "linux", "amd64")).toBeNull();
+  });
+
+  test("signals missing table so the caller can soft-fetch", () => {
+    expect(pickFromReleaseTable(undefined, "macos", "arm64")).toBeUndefined();
   });
 });
 

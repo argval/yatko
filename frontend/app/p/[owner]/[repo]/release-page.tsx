@@ -12,6 +12,12 @@ import { extractInstallCommands } from "./extract-install-commands";
 import { BackToYatko } from "@/components/back-to-yatko";
 import type { Asset } from "./platform-utils";
 
+export type ReleasePick = {
+  filename: string;
+  url: string;
+  size: number;
+};
+
 export type ReleaseData = {
   owner: string;
   repo: string;
@@ -22,6 +28,8 @@ export type ReleaseData = {
   html_url: string;
   prerelease: boolean;
   assets: Asset[];
+  /** Precomputed Go DecideAsset results keyed by platform or platform/arch. */
+  picks?: Record<string, ReleasePick>;
 };
 
 export type RepoMeta = {
@@ -103,6 +111,7 @@ export function ReleasePageBody({
               owner={owner}
               repo={repo}
               assets={release.assets}
+              picks={release.picks}
               tagName={release.tag_name}
               publishedDate={publishedDate}
               checksumsPromise={checksumsPromise}

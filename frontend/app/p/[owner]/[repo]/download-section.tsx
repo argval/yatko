@@ -1,8 +1,14 @@
 "use client";
 
-import { Suspense, use } from "react";
-import { pickBestAsset, type Asset, type Platform } from "./platform-utils";
+import { Suspense, use, useEffect, useState } from "react";
+import { type Asset, type Platform } from "./platform-utils";
 import { usePlatform } from "./use-platform";
+import {
+  assetFromLinkPick,
+  downloadLinkPath,
+  fetchLinkPick,
+  type LinkPick,
+} from "./link-decision";
 import { DownloadButton } from "./download-button";
 import { AssetChecksum } from "./asset-checksum";
 
@@ -22,8 +28,36 @@ export function DownloadSection({
   checksumsPromise: Promise<Record<string, string>>;
 }) {
   const detected = usePlatform();
+  const platform = detected?.platform ?? null;
+  const arch = detected?.arch ?? null;
+  const [pick, setPick] = useState<LinkPick | null | undefined>(undefined);
 
-  if (!detected) {
+  useEffect(() => {
+    if (!platform) {
+      setPick(undefined);
+      return;
+    }
+    const ac = new AbortController();
+    let cancelled = false;
+    setPick(undefined);
+    fetchLinkPick(downloadLinkPath(owner, repo, tagName, platform, arch ?? ""), ac.signal)
+      .then((got) => {
+        if (!cancelled) setPick(got);
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        setPick(null);
+      });
+    return () => {
+      cancelled = true;
+      ac.abort();
+    };
+  }, [owner, repo, tagName, platform, arch]);
+
+  const primaryAsset = assetFromLinkPick(assets, pick);
+
+  if (!detected || primaryAsset === undefined) {
     return (
       <div className="flex flex-col items-center gap-2">
         <div
@@ -34,7 +68,7 @@ export function DownloadSection({
           {tagName} &middot; {publishedDate}
         </p>
         <p className="sr-only" role="status" aria-live="polite">
-          Detecting platform…
+          {detected ? "Finding a download…" : "Detecting platform…"}
         </p>
         <div
           className="h-4 w-48 rounded bg-foreground/[0.06] animate-pulse"
@@ -44,17 +78,14 @@ export function DownloadSection({
     );
   }
 
-  const { platform, arch } = detected;
-  const primaryAsset = pickBestAsset(assets, platform, arch, {
-    userAgent: navigator.userAgent,
-  });
+  const { platform: visitorPlatform } = detected;
 
   return (
     <div className="flex flex-col items-center gap-2">
       <DownloadButton
         owner={owner}
         repo={repo}
-        platform={platform}
+        platform={visitorPlatform}
         primaryAsset={primaryAsset}
         hasAssets={assets.length > 0}
         tagName={tagName}
@@ -71,7 +102,7 @@ export function DownloadSection({
           <AssetChecksumSlot
             checksumsPromise={checksumsPromise}
             assetName={primaryAsset.name}
-            platform={platform}
+            platform={visitorPlatform}
           />
         </Suspense>
       )}

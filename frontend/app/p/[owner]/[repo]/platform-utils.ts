@@ -1,20 +1,9 @@
-// Platform detection and display helpers. Asset ranking lives in pick-asset.ts
-// (mirrors backend/picker). Keep detection aligned with Go DetectPlatform /
-// DetectArch / ResolveArch where the server and browser share a User-Agent.
+// Platform detection and display helpers. Asset ranking lives in Go
+// (backend/picker); the download button calls /api/link. Keep UA detection
+// aligned with Go DetectPlatform / DetectArch / ResolveArch.
 
 export type { Arch, Asset, Platform } from "./pick-asset";
-export {
-  canonicalizeName,
-  hasBoundedKeyword,
-  isSource,
-  mentionsOtherPlatform,
-  pickBestAsset,
-  platformExtensions,
-  platformKeywords,
-} from "./pick-asset";
-
-import type { Arch, Platform } from "./pick-asset";
-import { canonicalizeName, hasBoundedKeyword, platformKeywords } from "./pick-asset";
+import { classify, primaryPlatform, type Arch, type Platform } from "./pick-asset";
 
 export const platformLabels: Record<Platform, string> = {
   windows: "Windows",
@@ -134,42 +123,8 @@ export function detectArch(): Arch {
 }
 
 export function assetPlatformLabel(name: string): string | null {
-  const lower = canonicalizeName(name);
-  if (
-    platformKeywords.windows.some((kw) => hasBoundedKeyword(lower, kw)) ||
-    lower.endsWith(".exe") ||
-    lower.endsWith(".msi")
-  ) {
-    return "Windows";
-  }
-  if (
-    platformKeywords.macos.some((kw) => hasBoundedKeyword(lower, kw)) ||
-    lower.endsWith(".dmg") ||
-    lower.endsWith(".pkg")
-  ) {
-    return "macOS";
-  }
-  if (
-    platformKeywords.android.some((kw) => hasBoundedKeyword(lower, kw)) ||
-    lower.endsWith(".apk") ||
-    lower.endsWith(".aab")
-  ) {
-    return "Android";
-  }
-  if (
-    platformKeywords.ios.some((kw) => hasBoundedKeyword(lower, kw)) ||
-    lower.endsWith(".ipa")
-  ) {
-    return "iOS";
-  }
-  if (
-    platformKeywords.linux.some((kw) => hasBoundedKeyword(lower, kw)) ||
-    lower.endsWith(".deb") ||
-    lower.endsWith(".rpm")
-  ) {
-    return "Linux";
-  }
-  return null;
+  const platform = primaryPlatform(classify(name));
+  return platform ? platformLabels[platform] : null;
 }
 
 export function formatSize(bytes: number): string {

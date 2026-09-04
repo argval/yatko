@@ -531,6 +531,16 @@
       "expected": "Dopamine-3.0.10-intel.dmg"
     },
     {
+      "name": "deb-without-linux-token-beats-linux-tarball",
+      "platform": "linux",
+      "arch": "amd64",
+      "assets": [
+        "tool-linux-amd64.tar.gz",
+        "tool_1.0.0_amd64.deb"
+      ],
+      "expected": "tool_1.0.0_amd64.deb"
+    },
+    {
       "name": "macos-bare-arm-not-confused-with-armhf",
       "platform": "linux",
       "arch": "arm",
@@ -539,6 +549,100 @@
         "tool-linux-arm64.deb"
       ],
       "expected": "tool-linux-armhf.deb"
+    },
+    {
+      "name": "generic-jar-without-evidence-abstains",
+      "platform": "windows",
+      "arch": "amd64",
+      "assets": ["lib-1.0.0.jar"],
+      "expected": null
+    },
+    {
+      "name": "windows-exe-without-name-tokens-is-selected",
+      "platform": "windows",
+      "arch": "amd64",
+      "assets": ["Setup.exe"],
+      "expected": "Setup.exe"
+    },
+    {
+      "name": "arch-only-zip-is-selected",
+      "platform": "windows",
+      "arch": "amd64",
+      "assets": [
+        "tool-x64.zip",
+        "tool-arm64.zip"
+      ],
+      "expected": "tool-x64.zip"
+    },
+    {
+      "name": "linux-arm64-not-arm32",
+      "platform": "linux",
+      "arch": "arm64",
+      "assets": [
+        "tool-linux.arm32.zip",
+        "tool-linux.arm64.zip"
+      ],
+      "expected": "tool-linux.arm64.zip"
+    },
+    {
+      "name": "linux-arm32-not-arm64",
+      "platform": "linux",
+      "arch": "arm",
+      "assets": [
+        "tool-linux.arm32.zip",
+        "tool-linux.arm64.zip"
+      ],
+      "expected": "tool-linux.arm32.zip"
+    },
+    {
+      "name": "linux-aarch64-not-arm-unknown-triple",
+      "platform": "linux",
+      "arch": "arm64",
+      "assets": [
+        "tool-arm-unknown-linux-gnueabihf.gz",
+        "tool-aarch64-unknown-linux-gnu.gz"
+      ],
+      "expected": "tool-aarch64-unknown-linux-gnu.gz"
+    },
+    {
+      "name": "linux-arm-unknown-triple-is-32bit",
+      "platform": "linux",
+      "arch": "arm",
+      "assets": [
+        "tool-arm-unknown-linux-gnueabihf.gz",
+        "tool-aarch64-unknown-linux-gnu.gz"
+      ],
+      "expected": "tool-arm-unknown-linux-gnueabihf.gz"
+    },
+    {
+      "name": "android-linux-ndk-zip-is-android",
+      "platform": "android",
+      "arch": "arm64",
+      "assets": [
+        "tool-linux-aarch64.zip",
+        "tool-linux-aarch64-android.zip"
+      ],
+      "expected": "tool-linux-aarch64-android.zip"
+    },
+    {
+      "name": "linux-drops-android-tagged-zip",
+      "platform": "linux",
+      "arch": "arm64",
+      "assets": [
+        "tool-linux-aarch64.zip",
+        "tool-linux-aarch64-android.zip"
+      ],
+      "expected": "tool-linux-aarch64.zip"
+    },
+    {
+      "name": "android-apk-beats-android-zip",
+      "platform": "android",
+      "arch": "arm64",
+      "assets": [
+        "tool-android-arm64.zip",
+        "tool-android-arm64.apk"
+      ],
+      "expected": "tool-android-arm64.apk"
     }
   ]
 }

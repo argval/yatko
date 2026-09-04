@@ -1,0 +1,769 @@
+{
+  "releases": [
+    {
+      "repo": "oven-sh/bun",
+      "tag": "bun-v1.4.0",
+      "assets": [
+        "bun-darwin-aarch64-profile.zip",
+        "bun-darwin-aarch64.zip",
+        "bun-darwin-x64-baseline-profile.zip",
+        "bun-darwin-x64-baseline.zip",
+        "bun-darwin-x64-profile.zip",
+        "bun-darwin-x64.zip",
+        "bun-freebsd-aarch64-profile.zip",
+        "bun-freebsd-aarch64.zip",
+        "bun-freebsd-x64-baseline-profile.zip",
+        "bun-freebsd-x64-baseline.zip",
+        "bun-freebsd-x64-profile.zip",
+        "bun-freebsd-x64.zip",
+        "bun-linux-aarch64-android-profile.zip",
+        "bun-linux-aarch64-android.zip",
+        "bun-linux-aarch64-musl-profile.zip",
+        "bun-linux-aarch64-musl.zip",
+        "bun-linux-aarch64-profile.zip",
+        "bun-linux-aarch64.zip",
+        "bun-linux-x64-android-baseline-profile.zip",
+        "bun-linux-x64-android-baseline.zip",
+        "bun-linux-x64-android-profile.zip",
+        "bun-linux-x64-android.zip",
+        "bun-linux-x64-baseline-profile.zip",
+        "bun-linux-x64-baseline.zip",
+        "bun-linux-x64-musl-baseline-profile.zip",
+        "bun-linux-x64-musl-baseline.zip",
+        "bun-linux-x64-musl-profile.zip",
+        "bun-linux-x64-musl.zip",
+        "bun-linux-x64-profile.zip",
+        "bun-linux-x64.zip",
+        "bun-windows-aarch64-profile.zip",
+        "bun-windows-aarch64.zip",
+        "bun-windows-x64-baseline-profile.zip",
+        "bun-windows-x64-baseline.zip",
+        "bun-windows-x64-profile.zip",
+        "bun-windows-x64.zip",
+        "SHASUMS256.txt",
+        "SHASUMS256.txt.asc"
+      ],
+      "expect": [
+        {
+          "platform": "macos",
+          "arch": "arm64",
+          "asset": "bun-darwin-aarch64.zip"
+        },
+        {
+          "platform": "macos",
+          "arch": "amd64",
+          "asset": "bun-darwin-x64.zip"
+        },
+        {
+          "platform": "windows",
+          "arch": "amd64",
+          "asset": "bun-windows-x64.zip"
+        },
+        {
+          "platform": "windows",
+          "arch": "arm64",
+          "asset": "bun-windows-aarch64.zip"
+        },
+        {
+          "platform": "linux",
+          "arch": "amd64",
+          "asset": "bun-linux-x64.zip"
+        },
+        {
+          "platform": "linux",
+          "arch": "arm64",
+          "asset": "bun-linux-aarch64.zip"
+        },
+        {
+          "platform": "android",
+          "arch": "arm64",
+          "asset": "bun-linux-aarch64-android.zip"
+        },
+        {
+          "platform": "ios",
+          "arch": "arm64",
+          "asset": null
+        }
+      ]
+    },
+    {
+      "repo": "cli/cli",
+      "tag": "v2.100.0",
+      "assets": [
+        "gh_2.100.0_checksums.txt",
+        "gh_2.100.0_linux_386.deb",
+        "gh_2.100.0_linux_386.rpm",
+        "gh_2.100.0_linux_386.tar.gz",
+        "gh_2.100.0_linux_amd64.deb",
+        "gh_2.100.0_linux_amd64.rpm",
+        "gh_2.100.0_linux_amd64.tar.gz",
+        "gh_2.100.0_linux_arm64.deb",
+        "gh_2.100.0_linux_arm64.rpm",
+        "gh_2.100.0_linux_arm64.tar.gz",
+        "gh_2.100.0_linux_armv6.deb",
+        "gh_2.100.0_linux_armv6.rpm",
+        "gh_2.100.0_linux_armv6.tar.gz",
+        "gh_2.100.0_macOS_amd64.zip",
+        "gh_2.100.0_macOS_arm64.zip",
+        "gh_2.100.0_macOS_universal.pkg",
+        "gh_2.100.0_windows_386.msi",
+        "gh_2.100.0_windows_386.zip",
+        "gh_2.100.0_windows_amd64.msi",
+        "gh_2.100.0_windows_amd64.zip",
+        "gh_2.100.0_windows_arm64.msi",
+        "gh_2.100.0_windows_arm64.zip"
+      ],
+      "expect": [
+        {
+          "platform": "macos",
+          "arch": "arm64",
+          "asset": "gh_2.100.0_macOS_arm64.zip"
+        },
+        {
+          "platform": "macos",
+          "arch": "amd64",
+          "asset": "gh_2.100.0_macOS_amd64.zip"
+        },
+        {
+          "platform": "windows",
+          "arch": "amd64",
+          "asset": "gh_2.100.0_windows_amd64.msi"
+        },
+        {
+          "platform": "windows",
+          "arch": "arm64",
+          "asset": "gh_2.100.0_windows_arm64.msi"
+        },
+        {
+          "platform": "linux",
+          "arch": "amd64",
+          "asset": "gh_2.100.0_linux_amd64.deb"
+        },
+        {
+          "platform": "linux",
+          "arch": "arm64",
+          "asset": "gh_2.100.0_linux_arm64.deb"
+        },
+        {
+          "platform": "linux",
+          "arch": "arm",
+          "asset": "gh_2.100.0_linux_armv6.deb"
+        },
+        {
+          "platform": "linux",
+          "arch": "amd64",
+          "prefer": "deb",
+          "asset": "gh_2.100.0_linux_amd64.deb"
+        }
+      ]
+    },
+    {
+      "repo": "neovim/neovim",
+      "tag": "v0.12.5",
+      "assets": [
+        "nvim-linux-arm64.appimage",
+        "nvim-linux-arm64.appimage.zsync",
+        "nvim-linux-arm64.tar.gz",
+        "nvim-linux-x86_64.appimage",
+        "nvim-linux-x86_64.appimage.zsync",
+        "nvim-linux-x86_64.tar.gz",
+        "nvim-macos-arm64.tar.gz",
+        "nvim-macos-x86_64.tar.gz",
+        "nvim-win-arm64.msi",
+        "nvim-win-arm64.zip",
+        "nvim-win64.msi",
+        "nvim-win64.zip"
+      ],
+      "expect": [
+        {
+          "platform": "macos",
+          "arch": "arm64",
+          "asset": "nvim-macos-arm64.tar.gz"
+        },
+        {
+          "platform": "macos",
+          "arch": "amd64",
+          "asset": "nvim-macos-x86_64.tar.gz"
+        },
+        {
+          "platform": "windows",
+          "arch": "amd64",
+          "asset": "nvim-win64.msi"
+        },
+        {
+          "platform": "windows",
+          "arch": "arm64",
+          "asset": "nvim-win-arm64.msi"
+        },
+        {
+          "platform": "linux",
+          "arch": "amd64",
+          "asset": "nvim-linux-x86_64.appimage"
+        },
+        {
+          "platform": "linux",
+          "arch": "arm64",
+          "asset": "nvim-linux-arm64.appimage"
+        }
+      ]
+    },
+    {
+      "repo": "rust-lang/rust-analyzer",
+      "tag": "2026-08-31",
+      "assets": [
+        "rust-analyzer-aarch64-apple-darwin.gz",
+        "rust-analyzer-aarch64-pc-windows-msvc.zip",
+        "rust-analyzer-aarch64-unknown-linux-gnu.gz",
+        "rust-analyzer-alpine-x64.vsix",
+        "rust-analyzer-arm-unknown-linux-gnueabihf.gz",
+        "rust-analyzer-darwin-arm64.vsix",
+        "rust-analyzer-darwin-x64.vsix",
+        "rust-analyzer-i686-pc-windows-msvc.zip",
+        "rust-analyzer-linux-arm64.vsix",
+        "rust-analyzer-linux-armhf.vsix",
+        "rust-analyzer-linux-x64.vsix",
+        "rust-analyzer-no-server.vsix",
+        "rust-analyzer-win32-arm64.vsix",
+        "rust-analyzer-win32-x64.vsix",
+        "rust-analyzer-x86_64-apple-darwin.gz",
+        "rust-analyzer-x86_64-pc-windows-msvc.zip",
+        "rust-analyzer-x86_64-unknown-linux-gnu.gz",
+        "rust-analyzer-x86_64-unknown-linux-musl.gz"
+      ],
+      "expect": [
+        {
+          "platform": "macos",
+          "arch": "arm64",
+          "asset": "rust-analyzer-aarch64-apple-darwin.gz"
+        },
+        {
+          "platform": "macos",
+          "arch": "amd64",
+          "asset": "rust-analyzer-x86_64-apple-darwin.gz"
+        },
+        {
+          "platform": "windows",
+          "arch": "amd64",
+          "asset": "rust-analyzer-x86_64-pc-windows-msvc.zip"
+        },
+        {
+          "platform": "windows",
+          "arch": "arm64",
+          "asset": "rust-analyzer-aarch64-pc-windows-msvc.zip"
+        },
+        {
+          "platform": "linux",
+          "arch": "amd64",
+          "asset": "rust-analyzer-x86_64-unknown-linux-gnu.gz"
+        },
+        {
+          "platform": "linux",
+          "arch": "arm64",
+          "asset": "rust-analyzer-aarch64-unknown-linux-gnu.gz"
+        }
+      ]
+    },
+    {
+      "repo": "starship/starship",
+      "tag": "v1.26.0",
+      "assets": [
+        "starship-aarch64-apple-darwin.tar.gz",
+        "starship-aarch64-apple-darwin.tar.gz.sha256",
+        "starship-aarch64-pc-windows-msvc.msi",
+        "starship-aarch64-pc-windows-msvc.msi.sha256",
+        "starship-aarch64-pc-windows-msvc.zip",
+        "starship-aarch64-pc-windows-msvc.zip.sha256",
+        "starship-aarch64-unknown-linux-musl.tar.gz",
+        "starship-aarch64-unknown-linux-musl.tar.gz.sha256",
+        "starship-arm-unknown-linux-musleabihf.tar.gz",
+        "starship-arm-unknown-linux-musleabihf.tar.gz.sha256",
+        "starship-i686-pc-windows-msvc.msi",
+        "starship-i686-pc-windows-msvc.msi.sha256",
+        "starship-i686-pc-windows-msvc.zip",
+        "starship-i686-pc-windows-msvc.zip.sha256",
+        "starship-i686-unknown-linux-musl.tar.gz",
+        "starship-i686-unknown-linux-musl.tar.gz.sha256",
+        "starship-riscv64gc-unknown-linux-musl.tar.gz",
+        "starship-riscv64gc-unknown-linux-musl.tar.gz.sha256",
+        "starship-x86_64-apple-darwin.tar.gz",
+        "starship-x86_64-apple-darwin.tar.gz.sha256",
+        "starship-x86_64-pc-windows-msvc.msi",
+        "starship-x86_64-pc-windows-msvc.msi.sha256",
+        "starship-x86_64-pc-windows-msvc.zip",
+        "starship-x86_64-pc-windows-msvc.zip.sha256",
+        "starship-x86_64-unknown-freebsd.tar.gz",
+        "starship-x86_64-unknown-freebsd.tar.gz.sha256",
+        "starship-x86_64-unknown-linux-gnu.tar.gz",
+        "starship-x86_64-unknown-linux-gnu.tar.gz.sha256",
+        "starship-x86_64-unknown-linux-musl.tar.gz",
+        "starship-x86_64-unknown-linux-musl.tar.gz.sha256"
+      ],
+      "expect": [
+        {
+          "platform": "macos",
+          "arch": "arm64",
+          "asset": "starship-aarch64-apple-darwin.tar.gz"
+        },
+        {
+          "platform": "macos",
+          "arch": "amd64",
+          "asset": "starship-x86_64-apple-darwin.tar.gz"
+        },
+        {
+          "platform": "windows",
+          "arch": "amd64",
+          "asset": "starship-x86_64-pc-windows-msvc.msi"
+        },
+        {
+          "platform": "windows",
+          "arch": "arm64",
+          "asset": "starship-aarch64-pc-windows-msvc.msi"
+        },
+        {
+          "platform": "linux",
+          "arch": "amd64",
+          "asset": "starship-x86_64-unknown-linux-gnu.tar.gz"
+        },
+        {
+          "platform": "linux",
+          "arch": "arm64",
+          "asset": "starship-aarch64-unknown-linux-musl.tar.gz"
+        },
+        {
+          "platform": "linux",
+          "arch": "amd64",
+          "libc": "musl",
+          "asset": "starship-x86_64-unknown-linux-musl.tar.gz"
+        }
+      ]
+    },
+    {
+      "repo": "sharkdp/fd",
+      "tag": "v10.5.0",
+      "assets": [
+        "fd-musl_10.5.0_amd64.deb",
+        "fd-musl_10.5.0_arm64.deb",
+        "fd-musl_10.5.0_armhf.deb",
+        "fd-musl_10.5.0_i686.deb",
+        "fd-v10.5.0-aarch64-apple-darwin.tar.gz",
+        "fd-v10.5.0-aarch64-pc-windows-msvc.zip",
+        "fd-v10.5.0-aarch64-unknown-linux-gnu.tar.gz",
+        "fd-v10.5.0-aarch64-unknown-linux-musl.tar.gz",
+        "fd-v10.5.0-arm-unknown-linux-gnueabihf.tar.gz",
+        "fd-v10.5.0-arm-unknown-linux-musleabihf.tar.gz",
+        "fd-v10.5.0-i686-pc-windows-msvc.zip",
+        "fd-v10.5.0-i686-unknown-linux-gnu.tar.gz",
+        "fd-v10.5.0-i686-unknown-linux-musl.tar.gz",
+        "fd-v10.5.0-x86_64-apple-darwin.tar.gz",
+        "fd-v10.5.0-x86_64-pc-windows-gnu.zip",
+        "fd-v10.5.0-x86_64-pc-windows-msvc.zip",
+        "fd-v10.5.0-x86_64-unknown-linux-gnu.tar.gz",
+        "fd-v10.5.0-x86_64-unknown-linux-musl.tar.gz",
+        "fd_10.5.0_amd64.deb",
+        "fd_10.5.0_arm64.deb",
+        "fd_10.5.0_armhf.deb",
+        "fd_10.5.0_i686.deb"
+      ],
+      "expect": [
+        {
+          "platform": "macos",
+          "arch": "arm64",
+          "asset": "fd-v10.5.0-aarch64-apple-darwin.tar.gz"
+        },
+        {
+          "platform": "macos",
+          "arch": "amd64",
+          "asset": "fd-v10.5.0-x86_64-apple-darwin.tar.gz"
+        },
+        {
+          "platform": "windows",
+          "arch": "amd64",
+          "asset": "fd-v10.5.0-x86_64-pc-windows-msvc.zip"
+        },
+        {
+          "platform": "windows",
+          "arch": "arm64",
+          "asset": "fd-v10.5.0-aarch64-pc-windows-msvc.zip"
+        },
+        {
+          "platform": "linux",
+          "arch": "amd64",
+          "asset": "fd_10.5.0_amd64.deb"
+        },
+        {
+          "platform": "linux",
+          "arch": "amd64",
+          "prefer": "deb",
+          "asset": "fd_10.5.0_amd64.deb"
+        },
+        {
+          "platform": "linux",
+          "arch": "arm64",
+          "libc": "musl",
+          "asset": "fd-musl_10.5.0_arm64.deb"
+        }
+      ]
+    },
+    {
+      "repo": "BurntSushi/ripgrep",
+      "tag": "15.2.0",
+      "assets": [
+        "ripgrep-15.2.0-aarch64-apple-darwin.tar.gz",
+        "ripgrep-15.2.0-aarch64-apple-darwin.tar.gz.sha256",
+        "ripgrep-15.2.0-aarch64-pc-windows-msvc.zip",
+        "ripgrep-15.2.0-aarch64-pc-windows-msvc.zip.sha256",
+        "ripgrep-15.2.0-aarch64-unknown-linux-gnu.tar.gz",
+        "ripgrep-15.2.0-aarch64-unknown-linux-gnu.tar.gz.sha256",
+        "ripgrep-15.2.0-aarch64-unknown-linux-musl.tar.gz",
+        "ripgrep-15.2.0-aarch64-unknown-linux-musl.tar.gz.sha256",
+        "ripgrep-15.2.0-armv7-unknown-linux-gnueabihf.tar.gz",
+        "ripgrep-15.2.0-armv7-unknown-linux-gnueabihf.tar.gz.sha256",
+        "ripgrep-15.2.0-armv7-unknown-linux-musleabi.tar.gz",
+        "ripgrep-15.2.0-armv7-unknown-linux-musleabi.tar.gz.sha256",
+        "ripgrep-15.2.0-armv7-unknown-linux-musleabihf.tar.gz",
+        "ripgrep-15.2.0-armv7-unknown-linux-musleabihf.tar.gz.sha256",
+        "ripgrep-15.2.0-i686-pc-windows-msvc.zip",
+        "ripgrep-15.2.0-i686-pc-windows-msvc.zip.sha256",
+        "ripgrep-15.2.0-s390x-unknown-linux-gnu.tar.gz",
+        "ripgrep-15.2.0-s390x-unknown-linux-gnu.tar.gz.sha256",
+        "ripgrep-15.2.0-x86_64-apple-darwin.tar.gz",
+        "ripgrep-15.2.0-x86_64-apple-darwin.tar.gz.sha256",
+        "ripgrep-15.2.0-x86_64-pc-windows-gnu.zip",
+        "ripgrep-15.2.0-x86_64-pc-windows-gnu.zip.sha256",
+        "ripgrep-15.2.0-x86_64-pc-windows-msvc.zip",
+        "ripgrep-15.2.0-x86_64-pc-windows-msvc.zip.sha256",
+        "ripgrep-15.2.0-x86_64-unknown-linux-musl.tar.gz",
+        "ripgrep-15.2.0-x86_64-unknown-linux-musl.tar.gz.sha256",
+        "ripgrep_15.2.0-1_amd64.deb",
+        "ripgrep_15.2.0-1_amd64.deb.sha256"
+      ],
+      "expect": [
+        {
+          "platform": "macos",
+          "arch": "arm64",
+          "asset": "ripgrep-15.2.0-aarch64-apple-darwin.tar.gz"
+        },
+        {
+          "platform": "macos",
+          "arch": "amd64",
+          "asset": "ripgrep-15.2.0-x86_64-apple-darwin.tar.gz"
+        },
+        {
+          "platform": "windows",
+          "arch": "amd64",
+          "asset": "ripgrep-15.2.0-x86_64-pc-windows-msvc.zip"
+        },
+        {
+          "platform": "linux",
+          "arch": "amd64",
+          "prefer": "deb",
+          "asset": "ripgrep_15.2.0-1_amd64.deb"
+        },
+        {
+          "platform": "linux",
+          "arch": "amd64",
+          "asset": "ripgrep_15.2.0-1_amd64.deb"
+        },
+        {
+          "platform": "linux",
+          "arch": "arm64",
+          "asset": "ripgrep-15.2.0-aarch64-unknown-linux-gnu.tar.gz"
+        }
+      ]
+    },
+    {
+      "repo": "obsproject/obs-studio",
+      "tag": "32.2.2",
+      "assets": [
+        "OBS-Studio-32.2.2-macOS-Apple-dSYMs.tar.xz",
+        "OBS-Studio-32.2.2-macOS-Apple.dmg",
+        "OBS-Studio-32.2.2-macOS-Intel-dSYMs.tar.xz",
+        "OBS-Studio-32.2.2-macOS-Intel.dmg",
+        "OBS-Studio-32.2.2-Sources.tar.gz",
+        "OBS-Studio-32.2.2-Ubuntu-24.04-x86_64-dbsym.ddeb",
+        "OBS-Studio-32.2.2-Ubuntu-24.04-x86_64.deb",
+        "OBS-Studio-32.2.2-Ubuntu-26.04-x86_64-dbsym.ddeb",
+        "OBS-Studio-32.2.2-Ubuntu-26.04-x86_64.deb",
+        "OBS-Studio-32.2.2-Windows-arm64-PDBs.zip",
+        "OBS-Studio-32.2.2-Windows-arm64.zip",
+        "OBS-Studio-32.2.2-Windows-x64-Installer.exe",
+        "OBS-Studio-32.2.2-Windows-x64-PDBs.zip",
+        "OBS-Studio-32.2.2-Windows-x64.zip"
+      ],
+      "expect": [
+        {
+          "platform": "macos",
+          "arch": "arm64",
+          "asset": "OBS-Studio-32.2.2-macOS-Apple.dmg"
+        },
+        {
+          "platform": "macos",
+          "arch": "amd64",
+          "asset": "OBS-Studio-32.2.2-macOS-Intel.dmg"
+        },
+        {
+          "platform": "windows",
+          "arch": "amd64",
+          "asset": "OBS-Studio-32.2.2-Windows-x64-Installer.exe"
+        },
+        {
+          "platform": "windows",
+          "arch": "arm64",
+          "asset": "OBS-Studio-32.2.2-Windows-arm64.zip"
+        },
+        {
+          "platform": "linux",
+          "arch": "amd64",
+          "asset": "OBS-Studio-32.2.2-Ubuntu-24.04-x86_64.deb"
+        },
+        {
+          "platform": "android",
+          "arch": "arm64",
+          "asset": null
+        }
+      ]
+    },
+    {
+      "repo": "godotengine/godot",
+      "tag": "4.7.2-stable",
+      "assets": [
+        "godot-4.7.2-stable.tar.xz",
+        "godot-4.7.2-stable.tar.xz.sha256",
+        "godot-lib.4.7.2.stable.mono.template_release.aar",
+        "godot-lib.4.7.2.stable.template_release.aar",
+        "godot-lib.4.7.2.stable.template_release.perfetto.aar",
+        "Godot_native_debug_symbols.4.7.2.stable.editor.android.zip",
+        "Godot_native_debug_symbols.4.7.2.stable.template_release.android.zip",
+        "Godot_v4.7.2-stable_android_debug.perfetto.apk",
+        "Godot_v4.7.2-stable_android_editor.aab",
+        "Godot_v4.7.2-stable_android_editor.apk",
+        "Godot_v4.7.2-stable_android_editor_horizonos.apk",
+        "Godot_v4.7.2-stable_android_editor_picoos.apk",
+        "Godot_v4.7.2-stable_android_release.perfetto.apk",
+        "Godot_v4.7.2-stable_android_source.perfetto.zip",
+        "Godot_v4.7.2-stable_export_templates.tpz",
+        "Godot_v4.7.2-stable_linux.arm32.zip",
+        "Godot_v4.7.2-stable_linux.arm64.zip",
+        "Godot_v4.7.2-stable_linux.x86_32.zip",
+        "Godot_v4.7.2-stable_linux.x86_64.zip",
+        "Godot_v4.7.2-stable_macos.universal.zip",
+        "Godot_v4.7.2-stable_mono_export_templates.tpz",
+        "Godot_v4.7.2-stable_mono_linux_arm32.zip",
+        "Godot_v4.7.2-stable_mono_linux_arm64.zip",
+        "Godot_v4.7.2-stable_mono_linux_x86_32.zip",
+        "Godot_v4.7.2-stable_mono_linux_x86_64.zip",
+        "Godot_v4.7.2-stable_mono_macos.universal.zip",
+        "Godot_v4.7.2-stable_mono_win32.zip",
+        "Godot_v4.7.2-stable_mono_win64.zip",
+        "Godot_v4.7.2-stable_mono_windows_arm64.zip",
+        "Godot_v4.7.2-stable_web_editor.zip",
+        "Godot_v4.7.2-stable_win32.exe.zip",
+        "Godot_v4.7.2-stable_win64.exe.zip",
+        "Godot_v4.7.2-stable_windows_arm64.exe.zip",
+        "SHA512-SUMS.txt"
+      ],
+      "expect": [
+        {
+          "platform": "windows",
+          "arch": "amd64",
+          "asset": "Godot_v4.7.2-stable_win64.exe.zip"
+        },
+        {
+          "platform": "windows",
+          "arch": "arm64",
+          "asset": "Godot_v4.7.2-stable_windows_arm64.exe.zip"
+        },
+        {
+          "platform": "windows",
+          "arch": "386",
+          "asset": "Godot_v4.7.2-stable_win32.exe.zip"
+        },
+        {
+          "platform": "linux",
+          "arch": "amd64",
+          "asset": "Godot_v4.7.2-stable_linux.x86_64.zip"
+        },
+        {
+          "platform": "linux",
+          "arch": "arm64",
+          "asset": "Godot_v4.7.2-stable_linux.arm64.zip"
+        },
+        {
+          "platform": "macos",
+          "arch": "arm64",
+          "asset": "Godot_v4.7.2-stable_macos.universal.zip"
+        },
+        {
+          "platform": "android",
+          "arch": "arm64",
+          "asset": "Godot_v4.7.2-stable_android_editor.apk"
+        },
+        {
+          "platform": "ios",
+          "arch": "arm64",
+          "asset": null
+        }
+      ]
+    },
+    {
+      "repo": "logseq/logseq",
+      "tag": "2.0.1",
+      "assets": [
+        "latest-arm64-mac.yml",
+        "latest-arm64.yml",
+        "latest-linux-arm64.yml",
+        "latest-linux.yml",
+        "latest-x64-mac.yml",
+        "latest-x64.yml",
+        "Logseq-android-2.0.1.apk",
+        "Logseq-darwin-arm64-2.0.1.dmg",
+        "Logseq-darwin-arm64-2.0.1.dmg.blockmap",
+        "Logseq-darwin-arm64-2.0.1.zip",
+        "Logseq-darwin-arm64-2.0.1.zip.blockmap",
+        "Logseq-darwin-x64-2.0.1.dmg",
+        "Logseq-darwin-x64-2.0.1.dmg.blockmap",
+        "Logseq-darwin-x64-2.0.1.zip",
+        "Logseq-darwin-x64-2.0.1.zip.blockmap",
+        "Logseq-linux-arm64-2.0.1.AppImage",
+        "Logseq-linux-arm64-2.0.1.zip",
+        "Logseq-linux-x86_64-2.0.1.AppImage",
+        "Logseq-linux-x86_64-2.0.1.zip",
+        "Logseq-win-arm64-2.0.1-nsis.exe",
+        "Logseq-win-arm64-2.0.1-nsis.exe.blockmap",
+        "Logseq-win-arm64-2.0.1.zip",
+        "Logseq-win-x64-2.0.1-nsis.exe",
+        "Logseq-win-x64-2.0.1-nsis.exe.blockmap",
+        "Logseq-win-x64-2.0.1.zip",
+        "SHA256SUMS.txt",
+        "VERSION"
+      ],
+      "expect": [
+        {
+          "platform": "macos",
+          "arch": "arm64",
+          "asset": "Logseq-darwin-arm64-2.0.1.dmg"
+        },
+        {
+          "platform": "macos",
+          "arch": "amd64",
+          "asset": "Logseq-darwin-x64-2.0.1.dmg"
+        },
+        {
+          "platform": "windows",
+          "arch": "amd64",
+          "asset": "Logseq-win-x64-2.0.1-nsis.exe"
+        },
+        {
+          "platform": "windows",
+          "arch": "arm64",
+          "asset": "Logseq-win-arm64-2.0.1-nsis.exe"
+        },
+        {
+          "platform": "linux",
+          "arch": "amd64",
+          "asset": "Logseq-linux-x86_64-2.0.1.AppImage"
+        },
+        {
+          "platform": "linux",
+          "arch": "arm64",
+          "asset": "Logseq-linux-arm64-2.0.1.AppImage"
+        },
+        {
+          "platform": "android",
+          "arch": "arm64",
+          "asset": "Logseq-android-2.0.1.apk"
+        }
+      ]
+    },
+    {
+      "repo": "jdx/mise",
+      "tag": "v2026.9.1",
+      "assets": [
+        "install.sh",
+        "install.sh.minisig",
+        "install.sh.sig",
+        "mise-v2026.9.1-linux-arm64",
+        "mise-v2026.9.1-linux-arm64-musl",
+        "mise-v2026.9.1-linux-arm64-musl.tar.gz",
+        "mise-v2026.9.1-linux-arm64-musl.tar.xz",
+        "mise-v2026.9.1-linux-arm64-musl.tar.zst",
+        "mise-v2026.9.1-linux-arm64.tar.gz",
+        "mise-v2026.9.1-linux-arm64.tar.xz",
+        "mise-v2026.9.1-linux-arm64.tar.zst",
+        "mise-v2026.9.1-linux-armv7",
+        "mise-v2026.9.1-linux-armv7-musl",
+        "mise-v2026.9.1-linux-armv7-musl.tar.gz",
+        "mise-v2026.9.1-linux-armv7-musl.tar.xz",
+        "mise-v2026.9.1-linux-armv7-musl.tar.zst",
+        "mise-v2026.9.1-linux-armv7.tar.gz",
+        "mise-v2026.9.1-linux-armv7.tar.xz",
+        "mise-v2026.9.1-linux-armv7.tar.zst",
+        "mise-v2026.9.1-linux-x64",
+        "mise-v2026.9.1-linux-x64-musl",
+        "mise-v2026.9.1-linux-x64-musl.tar.gz",
+        "mise-v2026.9.1-linux-x64-musl.tar.xz",
+        "mise-v2026.9.1-linux-x64-musl.tar.zst",
+        "mise-v2026.9.1-linux-x64.tar.gz",
+        "mise-v2026.9.1-linux-x64.tar.xz",
+        "mise-v2026.9.1-linux-x64.tar.zst",
+        "mise-v2026.9.1-macos-arm64",
+        "mise-v2026.9.1-macos-arm64.tar.gz",
+        "mise-v2026.9.1-macos-arm64.tar.xz",
+        "mise-v2026.9.1-macos-arm64.tar.zst",
+        "mise-v2026.9.1-macos-x64",
+        "mise-v2026.9.1-macos-x64.tar.gz",
+        "mise-v2026.9.1-macos-x64.tar.xz",
+        "mise-v2026.9.1-macos-x64.tar.zst",
+        "mise-v2026.9.1-windows-arm64.exe",
+        "mise-v2026.9.1-windows-arm64.zip",
+        "mise-v2026.9.1-windows-x64.exe",
+        "mise-v2026.9.1-windows-x64.zip",
+        "SHASUMS256.asc",
+        "SHASUMS256.txt",
+        "SHASUMS256.txt.minisig",
+        "SHASUMS512.asc",
+        "SHASUMS512.txt",
+        "SHASUMS512.txt.minisig",
+        "v2026.9.1.tar.gz.sig"
+      ],
+      "expect": [
+        {
+          "platform": "macos",
+          "arch": "arm64",
+          "asset": "mise-v2026.9.1-macos-arm64.tar.gz"
+        },
+        {
+          "platform": "macos",
+          "arch": "amd64",
+          "asset": "mise-v2026.9.1-macos-x64.tar.gz"
+        },
+        {
+          "platform": "windows",
+          "arch": "amd64",
+          "asset": "mise-v2026.9.1-windows-x64.exe"
+        },
+        {
+          "platform": "windows",
+          "arch": "arm64",
+          "asset": "mise-v2026.9.1-windows-arm64.exe"
+        },
+        {
+          "platform": "linux",
+          "arch": "amd64",
+          "asset": "mise-v2026.9.1-linux-x64.tar.gz"
+        },
+        {
+          "platform": "linux",
+          "arch": "arm64",
+          "asset": "mise-v2026.9.1-linux-arm64.tar.gz"
+        },
+        {
+          "platform": "linux",
+          "arch": "amd64",
+          "libc": "musl",
+          "asset": "mise-v2026.9.1-linux-x64-musl.tar.gz"
+        }
+      ]
+    }
+  ]
+}

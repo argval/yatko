@@ -1,8 +1,9 @@
 "use client";
 
 import { Suspense, use } from "react";
-import { pickBestAsset, type Asset, type Platform } from "./platform-utils";
+import { type Asset, type Platform } from "./platform-utils";
 import { usePlatform } from "./use-platform";
+import { useAuthoritativeAsset } from "./use-authoritative-asset";
 import { DownloadButton } from "./download-button";
 import { AssetChecksum } from "./asset-checksum";
 
@@ -22,8 +23,16 @@ export function DownloadSection({
   checksumsPromise: Promise<Record<string, string>>;
 }) {
   const detected = usePlatform();
+  const primaryAsset = useAuthoritativeAsset({
+    owner,
+    repo,
+    tagName,
+    assets,
+    platform: detected ? detected.platform : null,
+    arch: detected ? detected.arch : null,
+  });
 
-  if (!detected) {
+  if (!detected || primaryAsset === undefined) {
     return (
       <div className="flex flex-col items-center gap-2">
         <div
@@ -34,7 +43,7 @@ export function DownloadSection({
           {tagName} &middot; {publishedDate}
         </p>
         <p className="sr-only" role="status" aria-live="polite">
-          Detecting platform…
+          {detected ? "Finding a download…" : "Detecting platform…"}
         </p>
         <div
           className="h-4 w-48 rounded bg-foreground/[0.06] animate-pulse"
@@ -44,10 +53,7 @@ export function DownloadSection({
     );
   }
 
-  const { platform, arch } = detected;
-  const primaryAsset = pickBestAsset(assets, platform, arch, {
-    userAgent: navigator.userAgent,
-  });
+  const { platform } = detected;
 
   return (
     <div className="flex flex-col items-center gap-2">

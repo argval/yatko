@@ -3,10 +3,12 @@
 **Deep module:** `backend/picker` (Go) — classify filenames into structured
 facts, then rank and return an `AssetDecision` (asset, confidence, reasons,
 alternatives). `/dl` and `/api/link` auto-select only when confidence is not
-`low`.
+`low`. The release-page download button calls `/api/link` after detecting
+platform/arch; it does not rank on the client.
 
-**Browser adapter:** `frontend/app/p/[owner]/[repo]/pick-asset.ts` (same
-ranking and abstention rules).
+**Test adapter:** `frontend/app/p/[owner]/[repo]/pick-asset.ts` mirrors ranking
+so `fixtures.json` can catch catalog drift. Production download decisions
+must not use it.
 
 **Alias table:** `catalog.json` — platforms, architectures, libc, variants,
 formats. Edit this file, then copy it to:

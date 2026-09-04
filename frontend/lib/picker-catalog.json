@@ -1,0 +1,61 @@
+{
+  "platforms": {
+    "windows": {
+      "aliases": ["windows", "win32", "win64", "win-", "win"],
+      "extensions": [".exe", ".msi", ".zip", ".jar"]
+    },
+    "macos": {
+      "aliases": ["macos", "darwin", "osx", "mac-", "mac"],
+      "extensions": [".dmg", ".pkg", ".zip", ".tar.gz", ".jar"]
+    },
+    "linux": {
+      "aliases": ["linux", "ubuntu", "debian", "fedora", "appimage"],
+      "extensions": [".appimage", ".deb", ".rpm", ".tar.gz", ".tar.xz", ".zip", ".jar"]
+    },
+    "android": {
+      "aliases": ["android", "apk"],
+      "extensions": [".apk", ".aab"]
+    },
+    "ios": {
+      "aliases": ["ios", "iphone", "ipad", "ipod"],
+      "extensions": [".ipa"]
+    }
+  },
+  "architectures": {
+    "amd64": ["amd64", "x86_64", "x86-64", "x64", "win64", "intel"],
+    "arm64": ["arm64", "aarch64", "m1", "m2", "m3", "m4", "arm"],
+    "arm": ["armv7", "armv6", "armhf", "arm-"],
+    "386": ["i386", "i686", "x86_32", "386", "win32"]
+  },
+  "libc": {
+    "musl": ["musl"],
+    "gnu": ["gnu", "glibc"],
+    "static": ["static"]
+  },
+  "variants": ["profile", "debug", "symbols", "dbg", "baseline", "mono", "pdb", "pdbs"],
+  "nonNative": ["wasm", "wasi"],
+  "source": ["source", "src"],
+  "ambiguousArchives": [".tar.gz", ".tar.xz", ".tgz", ".txz", ".zip"],
+  "formats": {
+    "exe": { "kind": "installer", "platform": "windows" },
+    "msi": { "kind": "installer", "platform": "windows" },
+    "dmg": { "kind": "installer", "platform": "macos" },
+    "pkg": { "kind": "installer", "platform": "macos" },
+    "appimage": { "kind": "executable", "platform": "linux" },
+    "deb": { "kind": "package", "platform": "linux" },
+    "rpm": { "kind": "package", "platform": "linux" },
+    "apk": { "kind": "package", "platform": "android" },
+    "aab": { "kind": "package", "platform": "android" },
+    "ipa": { "kind": "package", "platform": "ios" },
+    "zip": { "kind": "archive" },
+    "jar": { "kind": "archive" },
+    "tar.gz": { "kind": "archive" },
+    "tar.xz": { "kind": "archive" }
+  },
+  "preferAliases": {
+    "app-image": "appimage",
+    "tgz": "tar.gz",
+    "txz": "tar.xz"
+  },
+  "linuxRpmExtensions": [".appimage", ".rpm", ".deb", ".tar.gz", ".tar.xz", ".zip", ".jar"]
+}

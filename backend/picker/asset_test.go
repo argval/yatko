@@ -163,7 +163,7 @@ func TestResolvePlatform(t *testing.T) {
 		{param: "mac", ua: "", want: MacOS},
 		{param: "", ua: macUA, want: MacOS},
 		{param: "garbage", ua: macUA, want: MacOS}, // unrecognised → UA
-		{param: "", ua: "", want: Windows},          // unknown UA → Windows
+		{param: "", ua: "", want: Windows},         // unknown UA → Windows
 		{param: "android", ua: macUA, want: Android},
 		{param: "ios", ua: macUA, want: IOS},
 	}

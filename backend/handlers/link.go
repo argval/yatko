@@ -4,8 +4,8 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/gin-gonic/gin"
 	"github.com/argval/yatko/picker"
+	"github.com/gin-gonic/gin"
 )
 
 // LinkHandler serves /api/link/:owner/:repo[/:version], returning JSON with the
@@ -30,14 +30,16 @@ func NewLinkHandler(r *RedirectHandler) *LinkHandler {
 
 // LinkResponse is the JSON payload returned by the link endpoint.
 type LinkResponse struct {
-	URL      string `json:"url"`
-	Filename string `json:"filename"`
-	Size     int64  `json:"size"`
-	Platform string `json:"platform"`
-	Arch     string `json:"arch"`
-	Version  string `json:"version"`
-	Prefer   string `json:"prefer,omitempty"`
-	Libc     string `json:"libc,omitempty"`
+	URL        string   `json:"url"`
+	Filename   string   `json:"filename"`
+	Size       int64    `json:"size"`
+	Platform   string   `json:"platform"`
+	Arch       string   `json:"arch"`
+	Version    string   `json:"version"`
+	Prefer     string   `json:"prefer,omitempty"`
+	Libc       string   `json:"libc,omitempty"`
+	Confidence string   `json:"confidence,omitempty"`
+	Reasons    []string `json:"reasons,omitempty"`
 }
 
 func (h *LinkHandler) Handle(c *gin.Context) {
@@ -62,30 +64,34 @@ func (h *LinkHandler) handle(c *gin.Context, owner, repo, version string) {
 	arch := picker.ResolveArch(c.Query("arch"), ua)
 	prefer := picker.ResolvePrefer(c.Query("prefer"))
 	libc := picker.ResolveLibc(c.Query("libc"))
-	asset := picker.PickAssetForArchOpts(release.Assets, platform, arch, picker.PickOpts{
+	decision := picker.DecideAsset(release.Assets, platform, arch, picker.PickOpts{
 		Prefer:    prefer,
 		Libc:      libc,
 		UserAgent: ua,
 	})
-	if asset == nil {
-		logPickerMiss(owner, repo, platform, arch, prefer, libc, IsScriptUA(ua), release.Assets)
+	if !decision.ShouldAutoSelect() {
+		logPickerMiss(owner, repo, platform, arch, prefer, libc, IsScriptUA(ua), release.Assets, decision)
 		c.JSON(http.StatusNotFound, gin.H{
-			"error":    "no suitable asset found for platform",
-			"platform": string(platform),
-			"arch":     string(arch),
-			"url":      release.HTMLURL,
+			"error":      "no suitable asset found for platform",
+			"platform":   string(platform),
+			"arch":       string(arch),
+			"url":        release.HTMLURL,
+			"confidence": string(decision.Confidence),
+			"reasons":    decision.Reasons,
 		})
 		return
 	}
 
 	c.JSON(http.StatusOK, LinkResponse{
-		URL:      asset.BrowserDownloadURL,
-		Filename: asset.Name,
-		Size:     asset.Size,
-		Platform: string(platform),
-		Arch:     string(arch),
-		Version:  release.TagName,
-		Prefer:   prefer,
-		Libc:     string(libc),
+		URL:        decision.Asset.BrowserDownloadURL,
+		Filename:   decision.Asset.Name,
+		Size:       decision.Asset.Size,
+		Platform:   string(platform),
+		Arch:       string(arch),
+		Version:    release.TagName,
+		Prefer:     prefer,
+		Libc:       string(libc),
+		Confidence: string(decision.Confidence),
+		Reasons:    decision.Reasons,
 	})
 }

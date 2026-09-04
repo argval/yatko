@@ -5,9 +5,9 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/gin-gonic/gin"
 	"github.com/argval/yatko/github"
 	"github.com/argval/yatko/picker"
+	"github.com/gin-gonic/gin"
 )
 
 // IsScriptUA reports whether ua looks like curl/wget/CI HTTP clients rather
@@ -46,6 +46,7 @@ func logPickerMiss(
 	libc picker.Libc,
 	script bool,
 	assets []github.Asset,
+	decision picker.AssetDecision,
 ) {
 	n := len(assets)
 	names := make([]string, 0, maxMissAssetNames)
@@ -55,14 +56,19 @@ func logPickerMiss(
 		}
 		names = append(names, a.Name)
 	}
+	guess := ""
+	if decision.Asset != nil {
+		guess = decision.Asset.Name
+	}
 	log.Printf(
-		"picker_miss owner=%s repo=%s platform=%s arch=%s prefer=%s libc=%s script=%v assets=%d names=%q",
-		owner, repo, platform, arch, prefer, libc, script, n, names,
+		"picker_miss owner=%s repo=%s platform=%s arch=%s prefer=%s libc=%s script=%v confidence=%s guess=%q reasons=%q assets=%d names=%q",
+		owner, repo, platform, arch, prefer, libc, script, decision.Confidence, guess, decision.Reasons, n, names,
 	)
 }
 
-// respondDownloadMiss handles /dl when no asset matched: scripts get 404 JSON;
-// browsers keep the historical redirect to the GitHub release HTML page.
+// respondDownloadMiss handles /dl when no asset matched or confidence is too
+// low to auto-select: scripts get 404 JSON; browsers keep the historical
+// redirect to the GitHub release HTML page.
 func respondDownloadMiss(
 	c *gin.Context,
 	owner, repo string,
@@ -71,9 +77,10 @@ func respondDownloadMiss(
 	arch picker.Arch,
 	prefer string,
 	libc picker.Libc,
+	decision picker.AssetDecision,
 ) {
 	script := IsScriptUA(c.GetHeader("User-Agent"))
-	logPickerMiss(owner, repo, platform, arch, prefer, libc, script, release.Assets)
+	logPickerMiss(owner, repo, platform, arch, prefer, libc, script, release.Assets, decision)
 	if script {
 		c.JSON(http.StatusNotFound, gin.H{
 			"error":    "no suitable asset found for platform",

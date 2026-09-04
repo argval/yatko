@@ -539,6 +539,30 @@
         "tool-linux-arm64.deb"
       ],
       "expected": "tool-linux-armhf.deb"
+    },
+    {
+      "name": "generic-jar-without-evidence-abstains",
+      "platform": "windows",
+      "arch": "amd64",
+      "assets": ["lib-1.0.0.jar"],
+      "expected": null
+    },
+    {
+      "name": "windows-exe-without-name-tokens-is-selected",
+      "platform": "windows",
+      "arch": "amd64",
+      "assets": ["Setup.exe"],
+      "expected": "Setup.exe"
+    },
+    {
+      "name": "arch-only-zip-is-selected",
+      "platform": "windows",
+      "arch": "amd64",
+      "assets": [
+        "tool-x64.zip",
+        "tool-arm64.zip"
+      ],
+      "expected": "tool-x64.zip"
     }
   ]
 }

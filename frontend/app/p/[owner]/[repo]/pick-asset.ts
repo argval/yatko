@@ -1,9 +1,14 @@
-// Asset Picker browser adapter — ranking rules mirror backend/picker (Go).
-// Shared golden fixtures: shared/picker/fixtures.json. Keep both in sync;
-// see shared/picker/README.md.
+// Asset Picker browser adapter — classify + rank, mirroring backend/picker.
+// Shared golden fixtures: shared/picker/fixtures.json. Alias table:
+// frontend/lib/picker-catalog.json (copy of shared/picker/catalog.json).
+
+import catalogJson from "../../../../lib/picker-catalog.json";
 
 export type Platform = "windows" | "macos" | "linux" | "android" | "ios";
 export type Arch = "amd64" | "arm64" | "arm" | "386" | "";
+export type Libc = "" | "musl" | "gnu" | "static";
+export type ArtifactKind = "installer" | "package" | "archive" | "executable" | "";
+export type Confidence = "high" | "medium" | "low";
 
 export type Asset = {
   name: string;
@@ -12,39 +17,43 @@ export type Asset = {
   download_count: number;
 };
 
+type FormatEntry = { kind: string; platform?: string };
+type Catalog = {
+  platforms: Record<Platform, { aliases: string[]; extensions: string[] }>;
+  architectures: Record<Exclude<Arch, "">, string[]>;
+  libc: Record<"musl" | "gnu" | "static", string[]>;
+  variants: string[];
+  nonNative: string[];
+  source: string[];
+  ambiguousArchives: string[];
+  formats: Record<string, FormatEntry>;
+  preferAliases: Record<string, string>;
+  linuxRpmExtensions: string[];
+};
+
+const catalog = catalogJson as Catalog;
+
+const formatKeysLongestFirst = Object.keys(catalog.formats).sort(
+  (a, b) => b.length - a.length,
+);
+
 export const platformKeywords: Record<Platform, string[]> = {
-  // Bare "win"/"mac" are safe with hasBoundedKeyword ("win" inside "darwin"
-  // fails the leading-letter boundary). Needed for winX64 / -mac.jar names.
-  windows: ["windows", "win32", "win64", "win-", "win"],
-  macos: ["macos", "darwin", "osx", "mac-", "mac"],
-  linux: ["linux", "ubuntu", "debian", "fedora", "appimage"],
-  android: ["android", "apk"],
-  ios: ["ios", "iphone", "ipad", "ipod"],
+  windows: catalog.platforms.windows.aliases,
+  macos: catalog.platforms.macos.aliases,
+  linux: catalog.platforms.linux.aliases,
+  android: catalog.platforms.android.aliases,
+  ios: catalog.platforms.ios.aliases,
 };
 
-// Preferred extensions per platform, priority order (lower index wins).
 export const platformExtensions: Record<Platform, string[]> = {
-  windows: [".exe", ".msi", ".zip", ".jar"],
-  macos: [".dmg", ".pkg", ".zip", ".tar.gz", ".jar"],
-  linux: [".appimage", ".deb", ".rpm", ".tar.gz", ".tar.xz", ".zip", ".jar"],
-  android: [".apk", ".aab"],
-  ios: [".ipa"],
+  windows: catalog.platforms.windows.extensions,
+  macos: catalog.platforms.macos.extensions,
+  linux: catalog.platforms.linux.extensions,
+  android: catalog.platforms.android.extensions,
+  ios: catalog.platforms.ios.extensions,
 };
 
-const archKeywords: Record<Exclude<Arch, "">, string[]> = {
-  amd64: ["amd64", "x86_64", "x86-64", "x64", "win64", "intel"],
-  // Bare "arm" (bounded) covers Electron-style Dopamine-*-arm.dmg Apple Silicon
-  // builds; 32-bit ARM stays on armv7/armhf/arm- so "armhf" does not match via "arm".
-  arm64: ["arm64", "aarch64", "m1", "m2", "m3", "m4", "arm"],
-  arm: ["armv7", "armv6", "armhf", "arm-"],
-  "386": ["i386", "i686", "x86_32", "386", "win32"],
-};
-
-const variantKeywords = ["profile", "debug", "symbols", "dbg", "baseline", "mono", "pdb", "pdbs"];
-
-const nonNativeKeywords = ["wasm", "wasi"];
-
-export type Libc = "" | "musl" | "gnu" | "static";
+const archKeywords = catalog.architectures;
 
 export type PickOpts = {
   prefer?: string;
@@ -53,32 +62,41 @@ export type PickOpts = {
   userAgent?: string;
 };
 
+export type ArtifactFacts = {
+  original: string;
+  canonical: string;
+  platforms: Platform[];
+  arches: Arch[];
+  libc: Libc;
+  kind: ArtifactKind;
+  extension: string;
+  variants: string[];
+  source: boolean;
+  nonNative: boolean;
+  evidence: string[];
+  formatPlatform: Platform | "";
+};
+
+export type RankedAsset = {
+  asset: Asset;
+  reasons: string[];
+};
+
+export type AssetDecision = {
+  asset: Asset | null;
+  confidence: Confidence;
+  reasons: string[];
+  alternatives: RankedAsset[];
+  facts: ArtifactFacts | null;
+  shouldAutoSelect: boolean;
+};
+
 /** Normalize ?prefer= to an extension key (no leading dot). Unknown → "". */
 export function resolvePrefer(param: string | undefined): string {
   let p = (param ?? "").trim().toLowerCase();
   if (p.startsWith(".")) p = p.slice(1);
-  if (p === "app-image") p = "appimage";
-  if (p === "tgz") p = "tar.gz";
-  if (p === "txz") p = "tar.xz";
-  switch (p) {
-    case "exe":
-    case "msi":
-    case "zip":
-    case "jar":
-    case "dmg":
-    case "pkg":
-    case "appimage":
-    case "deb":
-    case "rpm":
-    case "tar.gz":
-    case "tar.xz":
-    case "apk":
-    case "aab":
-    case "ipa":
-      return p;
-    default:
-      return "";
-  }
+  if (catalog.preferAliases[p]) p = catalog.preferAliases[p];
+  return catalog.formats[p] ? p : "";
 }
 
 /** Normalize ?libc=. Unknown → "". */
@@ -106,7 +124,7 @@ export function resolveLinuxPackagePrefer(userAgent: string): string {
 
 function linuxExtensionsForUA(userAgent: string): string[] {
   if (resolveLinuxPackagePrefer(userAgent) === "rpm") {
-    return [".appimage", ".rpm", ".deb", ".tar.gz", ".tar.xz", ".zip", ".jar"];
+    return catalog.linuxRpmExtensions;
   }
   return platformExtensions.linux;
 }
@@ -190,35 +208,8 @@ export function canonicalizeName(name: string): string {
   return out;
 }
 
-const ambiguousArchiveExts = [".tar.gz", ".tar.xz", ".tgz", ".txz", ".zip"];
-
 function isAmbiguousArchive(name: string): boolean {
-  return ambiguousArchiveExts.some((ext) => name.endsWith(ext));
-}
-
-function mentionsAnyPlatform(name: string): boolean {
-  for (const keywords of Object.values(platformKeywords)) {
-    if (keywords.some((kw) => hasBoundedKeyword(name, kw))) return true;
-  }
-  return false;
-}
-
-function mentionsAnyArch(name: string): boolean {
-  for (const keywords of Object.values(archKeywords)) {
-    if (keywords.some((kw) => hasBoundedKeyword(name, kw))) return true;
-  }
-  return false;
-}
-
-export function isSource(name: string): boolean {
-  const lower = name.toLowerCase();
-  if (lower.includes("source") || lower.includes("src")) return true;
-  // Bare versioned archives (htop-3.5.2.tar.xz, v1.0.0.zip) are source dists.
-  // A .zip with a platform/arch keyword is a real binary — keep it.
-  if (isAmbiguousArchive(lower) && !mentionsAnyPlatform(lower) && !mentionsAnyArch(lower)) {
-    return true;
-  }
-  return false;
+  return catalog.ambiguousArchives.some((ext) => name.endsWith(ext));
 }
 
 export function mentionsOtherPlatform(name: string, current: Platform): boolean {
@@ -231,28 +222,34 @@ export function mentionsOtherPlatform(name: string, current: Platform): boolean 
 
 function mentionsArch(name: string, arch: Arch): boolean {
   if (!arch) return false;
-  const keywords = archKeywords[arch];
-  return keywords.some((kw) => hasBoundedKeyword(name, kw));
+  return archKeywords[arch].some((kw) => hasBoundedKeyword(name, kw));
 }
 
 function mentionsPlatform(name: string, platform: Platform): boolean {
   return platformKeywords[platform].some((kw) => hasBoundedKeyword(name, kw));
 }
 
-function mentionsOtherArch(name: string, want: Arch): boolean {
-  if (!want) return false;
-  for (const arch of Object.keys(archKeywords) as Exclude<Arch, "">[]) {
-    if (arch === want) continue;
-    if (mentionsArch(name, arch)) return true;
+function mentionsAnyPlatform(name: string): boolean {
+  return (Object.keys(platformKeywords) as Platform[]).some((p) => mentionsPlatform(name, p));
+}
+
+function mentionsAnyArch(name: string): boolean {
+  return (Object.keys(archKeywords) as Exclude<Arch, "">[]).some((a) => mentionsArch(name, a));
+}
+
+export function isSource(name: string): boolean {
+  const lower = name.toLowerCase();
+  if (catalog.source.some((tok) => lower.includes(tok))) return true;
+  if (isAmbiguousArchive(lower) && !mentionsAnyPlatform(lower) && !mentionsAnyArch(lower)) {
+    return true;
   }
   return false;
 }
 
 function isNonNative(name: string): boolean {
-  return nonNativeKeywords.some((kw) => hasBoundedKeyword(name, kw));
+  return catalog.nonNative.some((kw) => hasBoundedKeyword(name, kw));
 }
 
-/** 0 = 64-bit, 1 = unspecified, 2 = 32-bit. */
 function archBitWidth(name: string): number {
   if (mentionsArch(name, "amd64") || mentionsArch(name, "arm64")) return 0;
   if (mentionsArch(name, "386") || mentionsArch(name, "arm")) return 2;
@@ -261,7 +258,7 @@ function archBitWidth(name: string): number {
 
 function variantPenalty(name: string): number {
   let penalty = 0;
-  for (const kw of variantKeywords) {
+  for (const kw of catalog.variants) {
     if (hasBoundedKeyword(name, kw)) penalty++;
   }
   return penalty;
@@ -286,7 +283,27 @@ function candidateBetter(
   return variant < bestVariant;
 }
 
-/** Closer CPU family wins when an exact arch asset is missing. */
+function candidateEqual(
+  ext: number,
+  family: number,
+  bits: number,
+  libc: number,
+  variant: number,
+  bestExt: number,
+  bestFamily: number,
+  bestBits: number,
+  bestLibc: number,
+  bestVariant: number,
+): boolean {
+  return (
+    ext === bestExt &&
+    family === bestFamily &&
+    bits === bestBits &&
+    libc === bestLibc &&
+    variant === bestVariant
+  );
+}
+
 function archFamilyPenalty(name: string, want: Arch): number {
   if (!want) return 0;
   if (mentionsArch(name, want)) return 0;
@@ -323,17 +340,179 @@ function archFamilyPenalty(name: string, want: Arch): number {
   return 5;
 }
 
+function matchFormat(canonical: string): { key: string; entry: FormatEntry } | null {
+  for (const key of formatKeysLongestFirst) {
+    if (canonical.endsWith(`.${key}`)) {
+      return { key, entry: catalog.formats[key]! };
+    }
+  }
+  return null;
+}
+
+function appendUnique(dst: string[], v: string): string[] {
+  return dst.includes(v) ? dst : [...dst, v];
+}
+
+/** Structured facts from a filename. Unknown tokens stay absent. */
+export function classify(name: string): ArtifactFacts {
+  const canonical = canonicalizeName(name);
+  const facts: ArtifactFacts = {
+    original: name,
+    canonical,
+    platforms: [],
+    arches: [],
+    libc: "",
+    kind: "",
+    extension: "",
+    variants: [],
+    source: isSource(canonical),
+    nonNative: isNonNative(canonical),
+    evidence: [],
+    formatPlatform: "",
+  };
+
+  for (const p of Object.keys(platformKeywords) as Platform[]) {
+    for (const kw of platformKeywords[p]) {
+      if (hasBoundedKeyword(canonical, kw)) {
+        facts.platforms.push(p);
+        facts.evidence = appendUnique(facts.evidence, kw);
+        break;
+      }
+    }
+  }
+
+  for (const a of Object.keys(archKeywords) as Exclude<Arch, "">[]) {
+    for (const kw of archKeywords[a]) {
+      if (hasBoundedKeyword(canonical, kw)) {
+        facts.arches.push(a);
+        facts.evidence = appendUnique(facts.evidence, kw);
+        break;
+      }
+    }
+  }
+
+  const fmt = matchFormat(canonical);
+  if (fmt) {
+    facts.extension = fmt.key;
+    facts.kind = (fmt.entry.kind as ArtifactKind) || "";
+    if (fmt.entry.platform) facts.formatPlatform = fmt.entry.platform as Platform;
+    facts.evidence = appendUnique(facts.evidence, `.${fmt.key}`);
+  }
+
+  for (const [libc, kws] of Object.entries(catalog.libc) as ["musl" | "gnu" | "static", string[]][]) {
+    for (const kw of kws) {
+      if (hasBoundedKeyword(canonical, kw)) {
+        if (libc === "musl") facts.libc = "musl";
+        else if (facts.libc === "") facts.libc = libc;
+        facts.evidence = appendUnique(facts.evidence, kw);
+        break;
+      }
+    }
+  }
+
+  for (const kw of catalog.variants) {
+    if (hasBoundedKeyword(canonical, kw)) {
+      facts.variants.push(kw);
+      facts.evidence = appendUnique(facts.evidence, kw);
+    }
+  }
+
+  return facts;
+}
+
+function hasPlatform(facts: ArtifactFacts, p: Platform): boolean {
+  return facts.platforms.includes(p);
+}
+
+function hasArch(facts: ArtifactFacts, a: Arch): boolean {
+  return a !== "" && facts.arches.includes(a);
+}
+
+function hasOtherPlatform(facts: ArtifactFacts, p: Platform): boolean {
+  return facts.platforms.some((got) => got !== p);
+}
+
+function hasOtherArch(facts: ArtifactFacts, want: Arch): boolean {
+  if (!want) return false;
+  return facts.arches.some((got) => got !== want);
+}
+
+function formatIsGeneric(ext: string): boolean {
+  const entry = catalog.formats[ext];
+  if (!entry) return true;
+  return !entry.platform;
+}
+
+type Scored = {
+  asset: Asset;
+  facts: ArtifactFacts;
+  extRank: number;
+  archHit: boolean;
+  platformHit: boolean;
+  family: number;
+  bitWidth: number;
+  libc: number;
+  variant: number;
+};
+
+function reasonsFor(c: Scored, platform: Platform, arch: Arch, tied: boolean): string[] {
+  const reasons: string[] = [];
+  if (c.platformHit) reasons.push(`platform token matches ${platform}`);
+  if (c.archHit) reasons.push(`arch token matches ${arch}`);
+  if (c.facts.formatPlatform === platform && c.facts.extension) {
+    reasons.push(`extension .${c.facts.extension} implies ${platform}`);
+  } else if (c.facts.extension) {
+    reasons.push(`extension .${c.facts.extension}`);
+  }
+  if (c.family > 0 && arch) reasons.push(`cpu family fallback for ${arch}`);
+  if (c.variant > 0) reasons.push("secondary build variant");
+  if (tied) reasons.push("tied with another candidate");
+  if (reasons.length === 0) reasons.push(`extension matched ${platform} defaults`);
+  return reasons;
+}
+
+function confidenceFor(
+  best: Scored,
+  platform: Platform,
+  arch: Arch,
+  tied: boolean,
+  candidateCount: number,
+): Confidence {
+  const formatExclusive = best.facts.formatPlatform === platform && best.facts.extension !== "";
+  const generic = formatIsGeneric(best.facts.extension);
+  const platformEvidence = best.platformHit || formatExclusive;
+  const archEvidence = !arch || best.archHit;
+
+  if (!platformEvidence && generic && !best.archHit) return "low";
+  if ((best.platformHit || formatExclusive) && archEvidence && !tied) return "high";
+  if (formatExclusive && !tied) return "high";
+  if (tied && candidateCount > 1) return "medium";
+  if (best.platformHit || formatExclusive || best.archHit) return "medium";
+  return "low";
+}
+
+function emptyDecision(reasons: string[]): AssetDecision {
+  return {
+    asset: null,
+    confidence: "low",
+    reasons,
+    alternatives: [],
+    facts: null,
+    shouldAutoSelect: false,
+  };
+}
+
 /**
- * Selects the best release asset for platform/arch — same ranking as
- * picker.PickAssetForArchOpts. No keyword-only fallback when extension is missing.
+ * Classify, rank, and decide — same rules as picker.DecideAsset.
+ * shouldAutoSelect is false when confidence is low (abstain).
  */
-export function pickBestAsset(
+export function decideBestAsset(
   assets: Asset[],
   platform: Platform,
   arch: Arch,
   opts: PickOpts = {},
-): Asset | null {
-  if (assets.length === 0) return null;
+): AssetDecision {
+  if (assets.length === 0) return emptyDecision(["no release assets"]);
 
   let exts = platformExtensions[platform];
   if (platform === "linux" && !opts.prefer && opts.userAgent) {
@@ -341,32 +520,19 @@ export function pickBestAsset(
   }
   const prefer = resolvePrefer(opts.prefer);
   const libcWant = resolveLibc(opts.libc);
-  type Scored = {
-    asset: Asset;
-    extRank: number;
-    archHit: boolean;
-    platformHit: boolean;
-    family: number;
-    bitWidth: number;
-    libc: number;
-    variant: number;
-  };
   const candidates: Scored[] = [];
 
   for (const asset of assets) {
-    const name = canonicalizeName(asset.name);
-    if (isSource(name)) continue;
-    if (isNonNative(name)) continue;
-    if (mentionsOtherPlatform(name, platform)) continue;
+    const facts = classify(asset.name);
+    if (facts.source || facts.nonNative) continue;
+    if (hasOtherPlatform(facts, platform)) continue;
 
-    let extRank = extRankFor(name, exts, prefer);
-    // Native release binaries commonly omit an extension (e.g. herdr-macos-aarch64).
-    // Only accept explicitly platform-tagged names so source files stay out.
+    let extRank = extRankFor(facts.canonical, exts, prefer);
     if (
       extRank === null &&
-      mentionsPlatform(name, platform) &&
-      (!arch || mentionsArch(name, arch)) &&
-      !name.includes(".")
+      hasPlatform(facts, platform) &&
+      (!arch || hasArch(facts, arch)) &&
+      !facts.canonical.includes(".")
     ) {
       extRank = exts.length;
     }
@@ -374,17 +540,18 @@ export function pickBestAsset(
 
     candidates.push({
       asset,
+      facts,
       extRank,
-      archHit: arch !== "" && mentionsArch(name, arch),
-      platformHit: mentionsPlatform(name, platform),
-      family: archFamilyPenalty(name, arch),
-      bitWidth: archBitWidth(name),
-      libc: libcPenalty(name, libcWant),
-      variant: variantPenalty(name),
+      archHit: arch !== "" && hasArch(facts, arch),
+      platformHit: hasPlatform(facts, platform),
+      family: archFamilyPenalty(facts.canonical, arch),
+      bitWidth: archBitWidth(facts.canonical),
+      libc: libcPenalty(facts.canonical, libcWant),
+      variant: variantPenalty(facts.canonical),
     });
   }
 
-  if (candidates.length === 0) return null;
+  if (candidates.length === 0) return emptyDecision(["no matching installable asset"]);
 
   let pool = candidates;
   if (arch) {
@@ -392,9 +559,7 @@ export function pickBestAsset(
     if (archMatches.length > 0) {
       pool = archMatches;
     } else {
-      const compatible = candidates.filter(
-        (c) => !mentionsOtherArch(canonicalizeName(c.asset.name), arch),
-      );
+      const compatible = candidates.filter((c) => !hasOtherArch(c.facts, arch));
       if (compatible.length > 0) pool = compatible;
     }
   }
@@ -421,5 +586,53 @@ export function pickBestAsset(
       best = c;
     }
   }
-  return best.asset;
+
+  let tied = false;
+  const alternatives: RankedAsset[] = [];
+  for (const c of pool) {
+    if (c.asset.name === best.asset.name) continue;
+    if (
+      candidateEqual(
+        c.extRank,
+        c.family,
+        c.bitWidth,
+        c.libc,
+        c.variant,
+        best.extRank,
+        best.family,
+        best.bitWidth,
+        best.libc,
+        best.variant,
+      )
+    ) {
+      tied = true;
+    }
+    if (alternatives.length < 3) {
+      alternatives.push({ asset: c.asset, reasons: reasonsFor(c, platform, arch, false) });
+    }
+  }
+
+  const confidence = confidenceFor(best, platform, arch, tied, pool.length);
+  return {
+    asset: best.asset,
+    confidence,
+    reasons: reasonsFor(best, platform, arch, tied),
+    alternatives,
+    facts: best.facts,
+    shouldAutoSelect: confidence !== "low",
+  };
+}
+
+/**
+ * Auto-selected asset only — same as picker.PickAssetForArchOpts.
+ * Low-confidence guesses return null so the CTA can abstain.
+ */
+export function pickBestAsset(
+  assets: Asset[],
+  platform: Platform,
+  arch: Arch,
+  opts: PickOpts = {},
+): Asset | null {
+  const d = decideBestAsset(assets, platform, arch, opts);
+  return d.shouldAutoSelect ? d.asset : null;
 }

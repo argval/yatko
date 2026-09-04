@@ -4,7 +4,6 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/argval/yatko/picker"
 	"github.com/gin-gonic/gin"
 )
 
@@ -59,46 +58,31 @@ func (h *LinkHandler) handle(c *gin.Context, owner, repo, version string) {
 		return
 	}
 
-	ua := c.GetHeader("User-Agent")
-	platform := picker.ResolvePlatform(c.Query("platform"), ua)
-	arch := picker.ResolveArch(c.Query("arch"), ua)
-	prefer := picker.ResolvePrefer(c.Query("prefer"))
-	libc := picker.ResolveLibc(c.Query("libc"))
-	decision := picker.DecideAsset(release.Assets, platform, arch, picker.PickOpts{
-		Prefer:    prefer,
-		Libc:      libc,
-		UserAgent: ua,
-	})
-	if !decision.ShouldAutoSelect() {
-		logPickerMiss(owner, repo, platform, arch, prefer, libc, IsScriptUA(ua), release.Assets, decision)
+	p := pickReleaseAsset(c, release.Assets)
+	if !p.Decision.ShouldAutoSelect() {
+		logPickerMiss(owner, repo, p, IsScriptUA(p.UA), release.Assets)
 		c.JSON(http.StatusNotFound, gin.H{
 			"error":      "no suitable asset found for platform",
-			"platform":   string(platform),
-			"arch":       string(arch),
+			"platform":   string(p.Platform),
+			"arch":       string(p.Arch),
 			"url":        release.HTMLURL,
-			"confidence": string(decision.Confidence),
-			"reasons":    decision.Reasons,
+			"confidence": string(p.Decision.Confidence),
+			"reasons":    p.Decision.Reasons,
 		})
 		return
 	}
-	if decision.Confidence != picker.ConfidenceHigh {
-		log.Printf(
-			"picker_shadow owner=%s repo=%s platform=%s arch=%s confidence=%s file=%q unknown=%q reasons=%q",
-			owner, repo, platform, arch, decision.Confidence, decision.Asset.Name,
-			picker.UnknownTokens(decision.Asset.Name), decision.Reasons,
-		)
-	}
+	logPickerShadow(owner, repo, p)
 
 	c.JSON(http.StatusOK, LinkResponse{
-		URL:        decision.Asset.BrowserDownloadURL,
-		Filename:   decision.Asset.Name,
-		Size:       decision.Asset.Size,
-		Platform:   string(platform),
-		Arch:       string(arch),
+		URL:        p.Decision.Asset.BrowserDownloadURL,
+		Filename:   p.Decision.Asset.Name,
+		Size:       p.Decision.Asset.Size,
+		Platform:   string(p.Platform),
+		Arch:       string(p.Arch),
 		Version:    release.TagName,
-		Prefer:     prefer,
-		Libc:       string(libc),
-		Confidence: string(decision.Confidence),
-		Reasons:    decision.Reasons,
+		Prefer:     p.Prefer,
+		Libc:       string(p.Libc),
+		Confidence: string(p.Decision.Confidence),
+		Reasons:    p.Decision.Reasons,
 	})
 }

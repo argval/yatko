@@ -6,9 +6,9 @@ alternatives). `/dl` and `/api/link` auto-select only when confidence is not
 `low`. The release-page download button calls `/api/link` after detecting
 platform/arch; it does not rank on the client.
 
-**Test adapter:** `frontend/app/p/[owner]/[repo]/pick-asset.ts` mirrors ranking
-so `fixtures.json` can catch catalog drift. Production download decisions
-must not use it.
+**Labels:** `frontend/app/p/[owner]/[repo]/pick-asset.ts` classifies filenames
+for "All downloads" grouping. It does not rank. Production download decisions
+use `/api/link`.
 
 **Alias table:** `catalog.json` — platforms, architectures, libc, variants,
 formats. Overlapping arch aliases keep the longest span (`arm64` beats `arm`;
@@ -36,8 +36,7 @@ When changing ranking or aliases:
 
 1. Change `catalog.json` and/or Go first; update/add fixtures.
 2. Copy the catalog to the backend and frontend paths above.
-3. Mirror ranking changes in the TypeScript adapter.
-4. Run `go test ./picker/` and `bun test` in `frontend/`.
+3. Run `go test ./picker/` and `bun test` in `frontend/`.
 
 Optional fixture fields: `prefer` (extension key), `libc` (`musl` | `gnu` |
 `static`), and `userAgent` (Linux deb/rpm tiebreak when `prefer` is unset).

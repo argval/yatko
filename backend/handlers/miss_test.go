@@ -45,7 +45,13 @@ func TestRespondDownloadMiss(t *testing.T) {
 		c, _ := gin.CreateTestContext(w)
 		c.Request = httptest.NewRequest(http.MethodGet, "/dl/cli/cli", nil)
 		c.Request.Header.Set("User-Agent", "curl/8.5.0")
-		respondDownloadMiss(c, "cli", "cli", release, picker.Linux, picker.AMD64, "deb", picker.LibcMusl, picker.AssetDecision{Confidence: picker.ConfidenceLow, Reasons: []string{"no matching installable asset"}})
+		respondDownloadMiss(c, "cli", "cli", release, assetPick{
+			Platform: picker.Linux,
+			Arch:     picker.AMD64,
+			Prefer:   "deb",
+			Libc:     picker.LibcMusl,
+			Decision: picker.AssetDecision{Confidence: picker.ConfidenceLow, Reasons: []string{"no matching installable asset"}},
+		})
 		if w.Code != http.StatusNotFound {
 			t.Fatalf("status = %d, want 404", w.Code)
 		}
@@ -63,7 +69,11 @@ func TestRespondDownloadMiss(t *testing.T) {
 		c, _ := gin.CreateTestContext(w)
 		c.Request = httptest.NewRequest(http.MethodGet, "/dl/cli/cli", nil)
 		c.Request.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X) Safari/605.1.15")
-		respondDownloadMiss(c, "cli", "cli", release, picker.MacOS, picker.ARM64, "", picker.LibcAny, picker.AssetDecision{Confidence: picker.ConfidenceLow})
+		respondDownloadMiss(c, "cli", "cli", release, assetPick{
+			Platform: picker.MacOS,
+			Arch:     picker.ARM64,
+			Decision: picker.AssetDecision{Confidence: picker.ConfidenceLow},
+		})
 		if w.Code != http.StatusFound {
 			t.Fatalf("status = %d, want 302", w.Code)
 		}

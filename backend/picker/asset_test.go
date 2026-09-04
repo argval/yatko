@@ -42,11 +42,11 @@ func TestPickAssetForArch_WindowsStillDetected(t *testing.T) {
 	}
 }
 
-func TestMentionsOtherPlatform_DarwinHyphenBoundary(t *testing.T) {
-	if mentionsOtherPlatform("logseq-darwin-arm64-2.0.1.dmg", MacOS) {
+func TestClassify_DarwinHyphenIsNotWindows(t *testing.T) {
+	if Classify("logseq-darwin-arm64-2.0.1.dmg").HasOtherPlatform(MacOS) {
 		t.Error("darwin filename should not mention another platform")
 	}
-	if !mentionsOtherPlatform("logseq-win-arm64-2.0.1.exe", MacOS) {
+	if !Classify("logseq-win-arm64-2.0.1.exe").HasOtherPlatform(MacOS) {
 		t.Error("win- filename should still be recognised as another platform")
 	}
 }

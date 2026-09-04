@@ -32,6 +32,10 @@ type ArtifactFacts struct {
 	// FormatPlatform is set only when the extension itself implies an OS
 	// (exe → windows, dmg → macos). Generic archives leave it empty.
 	FormatPlatform Platform
+	// Independent libc markers so musl+static still scores as both.
+	HasMusl   bool
+	HasGNU    bool
+	HasStatic bool
 }
 
 func (f ArtifactFacts) HasPlatform(p Platform) bool {
@@ -147,22 +151,12 @@ func archAliasHits(name string) []aliasHit {
 	return selectLongestHits(hits)
 }
 
-func matchedArches(name string) []Arch {
-	hits := archAliasHits(name)
-	out := make([]Arch, 0, len(hits))
-	for _, h := range hits {
-		out = appendUniqueArch(out, Arch(h.key))
-	}
-	return out
-}
-
 // Classify extracts structured facts from a release asset filename.
 func Classify(name string) ArtifactFacts {
 	canonical := canonicalizeName(name)
 	f := ArtifactFacts{
 		Original:  name,
 		Canonical: canonical,
-		Source:    isSource(canonical),
 		NonNative: isNonNative(canonical),
 	}
 
@@ -181,6 +175,8 @@ func Classify(name string) ArtifactFacts {
 		f.Evidence = appendUnique(f.Evidence, hit.kw)
 	}
 
+	f.Source = sourceArchive(canonical, f.Platforms, f.Arches)
+
 	if key, entry, ok := matchFormat(canonical); ok {
 		f.Extension = key
 		f.Kind = ArtifactKind(entry.Kind)
@@ -195,12 +191,15 @@ func Classify(name string) ArtifactFacts {
 			if hasBoundedKeyword(canonical, kw) {
 				switch libc {
 				case "musl":
+					f.HasMusl = true
 					f.Libc = LibcMusl
 				case "gnu":
+					f.HasGNU = true
 					if f.Libc == LibcAny {
 						f.Libc = LibcGNU
 					}
 				case "static":
+					f.HasStatic = true
 					if f.Libc == LibcAny {
 						f.Libc = LibcStatic
 					}

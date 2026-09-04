@@ -7,7 +7,6 @@ import (
 
 	"github.com/argval/yatko/cache"
 	"github.com/argval/yatko/github"
-	"github.com/argval/yatko/picker"
 	"github.com/gin-gonic/gin"
 )
 
@@ -37,30 +36,14 @@ func (h *RedirectHandler) handle(c *gin.Context, owner, repo, version string) {
 		return
 	}
 
-	ua := c.GetHeader("User-Agent")
-	// Query params mirror /api/link so scripts can pin OS/arch/format/libc.
-	platform := picker.ResolvePlatform(c.Query("platform"), ua)
-	arch := picker.ResolveArch(c.Query("arch"), ua)
-	prefer := picker.ResolvePrefer(c.Query("prefer"))
-	libc := picker.ResolveLibc(c.Query("libc"))
-	decision := picker.DecideAsset(release.Assets, platform, arch, picker.PickOpts{
-		Prefer:    prefer,
-		Libc:      libc,
-		UserAgent: ua,
-	})
-	if !decision.ShouldAutoSelect() {
-		respondDownloadMiss(c, owner, repo, release, platform, arch, prefer, libc, decision)
+	p := pickReleaseAsset(c, release.Assets)
+	if !p.Decision.ShouldAutoSelect() {
+		respondDownloadMiss(c, owner, repo, release, p)
 		return
 	}
-	if decision.Confidence != picker.ConfidenceHigh {
-		log.Printf(
-			"picker_shadow owner=%s repo=%s platform=%s arch=%s confidence=%s file=%q unknown=%q reasons=%q",
-			owner, repo, platform, arch, decision.Confidence, decision.Asset.Name,
-			picker.UnknownTokens(decision.Asset.Name), decision.Reasons,
-		)
-	}
+	logPickerShadow(owner, repo, p)
 
-	c.Redirect(http.StatusFound, decision.Asset.BrowserDownloadURL)
+	c.Redirect(http.StatusFound, p.Decision.Asset.BrowserDownloadURL)
 }
 
 // getRelease returns the release for owner/repo — the latest when version is

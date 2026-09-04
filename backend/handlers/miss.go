@@ -41,13 +41,9 @@ const maxMissAssetNames = 20
 
 func logPickerMiss(
 	owner, repo string,
-	platform picker.Platform,
-	arch picker.Arch,
-	prefer string,
-	libc picker.Libc,
+	p assetPick,
 	script bool,
 	assets []github.Asset,
-	decision picker.AssetDecision,
 ) {
 	n := len(assets)
 	names := make([]string, 0, maxMissAssetNames)
@@ -58,13 +54,13 @@ func logPickerMiss(
 		names = append(names, a.Name)
 	}
 	guess := ""
-	if decision.Asset != nil {
-		guess = decision.Asset.Name
+	if p.Decision.Asset != nil {
+		guess = p.Decision.Asset.Name
 	}
-	unknown := pickerUnknownTokens(assets, decision.Asset)
+	unknown := pickerUnknownTokens(assets, p.Decision.Asset)
 	log.Printf(
 		"picker_miss owner=%s repo=%s platform=%s arch=%s prefer=%s libc=%s script=%v confidence=%s guess=%q reasons=%q unknown=%q assets=%d names=%q",
-		owner, repo, platform, arch, prefer, libc, script, decision.Confidence, guess, decision.Reasons, unknown, n, names,
+		owner, repo, p.Platform, p.Arch, p.Prefer, p.Libc, script, p.Decision.Confidence, guess, p.Decision.Reasons, unknown, n, names,
 	)
 }
 
@@ -75,19 +71,15 @@ func respondDownloadMiss(
 	c *gin.Context,
 	owner, repo string,
 	release *github.Release,
-	platform picker.Platform,
-	arch picker.Arch,
-	prefer string,
-	libc picker.Libc,
-	decision picker.AssetDecision,
+	p assetPick,
 ) {
 	script := IsScriptUA(c.GetHeader("User-Agent"))
-	logPickerMiss(owner, repo, platform, arch, prefer, libc, script, release.Assets, decision)
+	logPickerMiss(owner, repo, p, script, release.Assets)
 	if script {
 		c.JSON(http.StatusNotFound, gin.H{
 			"error":    "no suitable asset found for platform",
-			"platform": string(platform),
-			"arch":     string(arch),
+			"platform": string(p.Platform),
+			"arch":     string(p.Arch),
 			"url":      release.HTMLURL,
 		})
 		return

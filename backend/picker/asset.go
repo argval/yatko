@@ -107,18 +107,6 @@ func DetectPlatform(userAgent string) Platform {
 	}
 }
 
-// variantPenalty counts how many secondary-build markers appear in name.
-// Lower is better; 0 means a vanilla release asset.
-func variantPenalty(name string) int {
-	penalty := 0
-	for _, kw := range catalog.Variants {
-		if hasBoundedKeyword(name, kw) {
-			penalty++
-		}
-	}
-	return penalty
-}
-
 // Libc is an optional C library / linkage preference for Linux-style assets.
 type Libc string
 
@@ -189,45 +177,6 @@ func ResolveLibc(param string) Libc {
 	}
 }
 
-// libcPenalty ranks filename libc/linkage markers. Lower is better.
-// When want is LibcAny, prefer untagged names over musl/gnu/glibc tags.
-// Explicit musl/gnu/static treats static as compatible with musl or gnu.
-func libcPenalty(name string, want Libc) int {
-	musl := hasBoundedKeyword(name, "musl")
-	gnu := hasBoundedKeyword(name, "gnu") || hasBoundedKeyword(name, "glibc")
-	static := hasBoundedKeyword(name, "static")
-	tagged := musl || gnu
-
-	switch want {
-	case LibcMusl:
-		if musl || static {
-			return 0
-		}
-		if gnu {
-			return 2
-		}
-		return 1
-	case LibcGNU:
-		if gnu || static {
-			return 0
-		}
-		if musl {
-			return 2
-		}
-		return 1
-	case LibcStatic:
-		if static {
-			return 0
-		}
-		return 1
-	default:
-		if tagged {
-			return 1
-		}
-		return 0
-	}
-}
-
 // extRankFor returns the platform extension rank for name. When prefer matches
 // the asset's extension, rank is -1 so it beats the default order.
 func extRankFor(name string, exts []string, prefer string) (rank int, ok bool) {
@@ -261,79 +210,6 @@ func PickAssetForArchOpts(assets []github.Asset, platform Platform, arch Arch, o
 	return d.Asset
 }
 
-// candidateBetter reports whether a candidate outranks the current best.
-func candidateBetter(ext, family, bits, libc, variant, bestExt, bestFamily, bestBits, bestLibc, bestVariant int) bool {
-	if ext != bestExt {
-		return ext < bestExt
-	}
-	if family != bestFamily {
-		return family < bestFamily
-	}
-	if bits != bestBits {
-		return bits < bestBits
-	}
-	if libc != bestLibc {
-		return libc < bestLibc
-	}
-	return variant < bestVariant
-}
-
-// archFamilyPenalty ranks how close name's arch is to want when an exact
-// match is unavailable. Lower is better. Same-family 64-bit (386→amd64,
-// arm→arm64) beats the opposite family, so Windows 386 hosts don't get an
-// arm64 build just because it was listed first.
-func archFamilyPenalty(name string, want Arch) int {
-	if want == UnknownArch {
-		return 0
-	}
-	if mentionsArch(name, want) {
-		return 0
-	}
-	hasAMD64 := mentionsArch(name, AMD64)
-	hasARM64 := mentionsArch(name, ARM64)
-	hasX86 := mentionsArch(name, X86)
-	hasARM := mentionsArch(name, ARM)
-	switch want {
-	case AMD64:
-		switch {
-		case hasX86:
-			return 2
-		case hasARM64:
-			return 3
-		case hasARM:
-			return 4
-		}
-	case X86:
-		switch {
-		case hasAMD64:
-			return 1
-		case hasARM64:
-			return 3
-		case hasARM:
-			return 4
-		}
-	case ARM64:
-		switch {
-		case hasARM:
-			return 2
-		case hasAMD64:
-			return 3
-		case hasX86:
-			return 4
-		}
-	case ARM:
-		switch {
-		case hasARM64:
-			return 1
-		case hasAMD64:
-			return 3
-		case hasX86:
-			return 4
-		}
-	}
-	return 5
-}
-
 // canonicalizeName inserts separators before an Uppercase+digit run that
 // follows a lowercase letter (winX64 → win-x64), then lowercases. The digit
 // look-ahead avoids splitting normal PascalCase tokens like AppImage into
@@ -360,52 +236,6 @@ func canonicalizeName(name string) string {
 func isNonNative(name string) bool {
 	for _, kw := range catalog.NonNative {
 		if hasBoundedKeyword(name, kw) {
-			return true
-		}
-	}
-	return false
-}
-
-// archBitWidth ranks 64-bit above unspecified above 32-bit. Used when the
-// client arch is unknown so we still prefer win64 over win32.
-func archBitWidth(name string) int {
-	if mentionsArch(name, AMD64) || mentionsArch(name, ARM64) {
-		return 0
-	}
-	if mentionsArch(name, X86) || mentionsArch(name, ARM) {
-		return 2
-	}
-	return 1
-}
-
-// mentionsOtherArch reports whether name explicitly names an arch other than want.
-func mentionsOtherArch(name string, want Arch) bool {
-	for arch := range catalog.Architectures {
-		if Arch(arch) == want {
-			continue
-		}
-		if mentionsArch(name, Arch(arch)) {
-			return true
-		}
-	}
-	return false
-}
-
-// mentionsPlatform reports whether the filename explicitly references platform.
-func mentionsPlatform(name string, platform Platform) bool {
-	for _, kw := range platformAliases(platform) {
-		if hasBoundedKeyword(name, kw) {
-			return true
-		}
-	}
-	return false
-}
-
-// mentionsArch returns true if the asset filename explicitly references the given arch.
-// Overlapping aliases keep the longest span so "arm" does not also claim arm32/arm64.
-func mentionsArch(name string, arch Arch) bool {
-	for _, got := range matchedArches(name) {
-		if got == arch {
 			return true
 		}
 	}
@@ -464,50 +294,11 @@ func isAmbiguousArchive(name string) bool {
 	return false
 }
 
-func mentionsAnyPlatform(name string) bool {
-	for p := range catalog.Platforms {
-		if mentionsPlatform(name, Platform(p)) {
-			return true
-		}
-	}
-	return false
-}
-
-func mentionsAnyArch(name string) bool {
-	for a := range catalog.Architectures {
-		if mentionsArch(name, Arch(a)) {
-			return true
-		}
-	}
-	return false
-}
-
-// isSource returns true if the filename looks like a source archive.
-func isSource(name string) bool {
-	lower := strings.ToLower(name)
+func sourceArchive(canonical string, platforms []Platform, arches []Arch) bool {
 	for _, tok := range catalog.Source {
-		if strings.Contains(lower, tok) {
+		if strings.Contains(canonical, tok) {
 			return true
 		}
 	}
-	// Bare versioned archives with no OS/arch tokens are source dists
-	// (e.g. htop-3.5.2.tar.xz, v1.0.0.zip). A .zip that carries a platform
-	// or arch keyword is a real binary and must not be filtered out.
-	if isAmbiguousArchive(lower) && !mentionsAnyPlatform(lower) && !mentionsAnyArch(lower) {
-		return true
-	}
-	return false
-}
-
-// mentionsOtherPlatform checks if a filename explicitly references a different platform.
-func mentionsOtherPlatform(name string, current Platform) bool {
-	for p := range catalog.Platforms {
-		if Platform(p) == current {
-			continue
-		}
-		if mentionsPlatform(name, Platform(p)) {
-			return true
-		}
-	}
-	return false
+	return isAmbiguousArchive(canonical) && len(platforms) == 0 && len(arches) == 0
 }

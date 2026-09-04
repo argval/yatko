@@ -85,12 +85,11 @@ func DecideAsset(assets []github.Asset, platform Platform, arch Arch, opts PickO
 			continue
 		}
 
-		name := facts.Canonical
-		rank, matched := extRankFor(name, exts, prefer)
+		rank, matched := extRankFor(facts.Canonical, exts, prefer)
 		// Native release binaries commonly omit an extension (e.g. herdr-macos-aarch64).
 		// Only accept them when the filename identifies this platform, so source files
 		// and unrelated extensionless assets still stay out of the CTA.
-		if !matched && facts.HasPlatform(platform) && (arch == UnknownArch || facts.HasArch(arch)) && !containsDot(name) {
+		if !matched && facts.HasPlatform(platform) && (arch == UnknownArch || facts.HasArch(arch)) && !containsDot(facts.Canonical) {
 			rank, matched = len(exts), true
 		}
 		if !matched {
@@ -102,10 +101,10 @@ func DecideAsset(assets []github.Asset, platform Platform, arch Arch, opts PickO
 			extRank:     rank,
 			archHit:     arch != UnknownArch && facts.HasArch(arch),
 			platformHit: facts.HasPlatform(platform) || facts.FormatPlatform == platform,
-			family:      archFamilyPenalty(name, arch),
-			bitWidth:    archBitWidth(name),
-			libc:        libcPenalty(name, libc),
-			variant:     variantPenalty(name),
+			family:      archFamilyPenalty(facts, arch),
+			bitWidth:    archBitWidth(facts),
+			libc:        libcPenalty(facts, libc),
+			variant:     len(facts.Variants),
 		})
 	}
 
@@ -208,8 +207,127 @@ func containsDot(name string) bool {
 	return false
 }
 
+func candidateBetter(ext, family, bits, libc, variant, bestExt, bestFamily, bestBits, bestLibc, bestVariant int) bool {
+	if ext != bestExt {
+		return ext < bestExt
+	}
+	if family != bestFamily {
+		return family < bestFamily
+	}
+	if bits != bestBits {
+		return bits < bestBits
+	}
+	if libc != bestLibc {
+		return libc < bestLibc
+	}
+	return variant < bestVariant
+}
+
 func candidateEqual(ext, family, bits, libc, variant, bestExt, bestFamily, bestBits, bestLibc, bestVariant int) bool {
 	return ext == bestExt && family == bestFamily && bits == bestBits && libc == bestLibc && variant == bestVariant
+}
+
+// archFamilyPenalty ranks how close facts' arch is to want when an exact
+// match is unavailable. Lower is better. Same-family 64-bit (386→amd64,
+// arm→arm64) beats the opposite family, so Windows 386 hosts don't get an
+// arm64 build just because it was listed first.
+func archFamilyPenalty(f ArtifactFacts, want Arch) int {
+	if want == UnknownArch {
+		return 0
+	}
+	if f.HasArch(want) {
+		return 0
+	}
+	hasAMD64 := f.HasArch(AMD64)
+	hasARM64 := f.HasArch(ARM64)
+	hasX86 := f.HasArch(X86)
+	hasARM := f.HasArch(ARM)
+	switch want {
+	case AMD64:
+		switch {
+		case hasX86:
+			return 2
+		case hasARM64:
+			return 3
+		case hasARM:
+			return 4
+		}
+	case X86:
+		switch {
+		case hasAMD64:
+			return 1
+		case hasARM64:
+			return 3
+		case hasARM:
+			return 4
+		}
+	case ARM64:
+		switch {
+		case hasARM:
+			return 2
+		case hasAMD64:
+			return 3
+		case hasX86:
+			return 4
+		}
+	case ARM:
+		switch {
+		case hasARM64:
+			return 1
+		case hasAMD64:
+			return 3
+		case hasX86:
+			return 4
+		}
+	}
+	return 5
+}
+
+// archBitWidth ranks 64-bit above unspecified above 32-bit. Used when the
+// client arch is unknown so we still prefer win64 over win32.
+func archBitWidth(f ArtifactFacts) int {
+	if f.HasArch(AMD64) || f.HasArch(ARM64) {
+		return 0
+	}
+	if f.HasArch(X86) || f.HasArch(ARM) {
+		return 2
+	}
+	return 1
+}
+
+// libcPenalty ranks classified libc/linkage markers. Lower is better.
+// When want is LibcAny, prefer untagged names over musl/gnu tags.
+// Explicit musl/gnu/static treats static as compatible with musl or gnu.
+func libcPenalty(f ArtifactFacts, want Libc) int {
+	tagged := f.HasMusl || f.HasGNU
+	switch want {
+	case LibcMusl:
+		if f.HasMusl || f.HasStatic {
+			return 0
+		}
+		if f.HasGNU {
+			return 2
+		}
+		return 1
+	case LibcGNU:
+		if f.HasGNU || f.HasStatic {
+			return 0
+		}
+		if f.HasMusl {
+			return 2
+		}
+		return 1
+	case LibcStatic:
+		if f.HasStatic {
+			return 0
+		}
+		return 1
+	default:
+		if tagged {
+			return 1
+		}
+		return 0
+	}
 }
 
 func reasonsFor(c scored, platform Platform, arch Arch, tied bool) []string {

@@ -5,10 +5,9 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/gin-gonic/gin"
 	"github.com/argval/yatko/cache"
 	"github.com/argval/yatko/github"
-	"github.com/argval/yatko/picker"
+	"github.com/gin-gonic/gin"
 )
 
 type RedirectHandler struct {
@@ -37,23 +36,14 @@ func (h *RedirectHandler) handle(c *gin.Context, owner, repo, version string) {
 		return
 	}
 
-	ua := c.GetHeader("User-Agent")
-	// Query params mirror /api/link so scripts can pin OS/arch/format/libc.
-	platform := picker.ResolvePlatform(c.Query("platform"), ua)
-	arch := picker.ResolveArch(c.Query("arch"), ua)
-	prefer := picker.ResolvePrefer(c.Query("prefer"))
-	libc := picker.ResolveLibc(c.Query("libc"))
-	asset := picker.PickAssetForArchOpts(release.Assets, platform, arch, picker.PickOpts{
-		Prefer:    prefer,
-		Libc:      libc,
-		UserAgent: ua,
-	})
-	if asset == nil {
-		respondDownloadMiss(c, owner, repo, release, platform, arch, prefer, libc)
+	p := pickReleaseAsset(c, release.Assets)
+	if !p.Decision.ShouldAutoSelect() {
+		respondDownloadMiss(c, owner, repo, release, p)
 		return
 	}
+	logPickerShadow(owner, repo, p)
 
-	c.Redirect(http.StatusFound, asset.BrowserDownloadURL)
+	c.Redirect(http.StatusFound, p.Decision.Asset.BrowserDownloadURL)
 }
 
 // getRelease returns the release for owner/repo — the latest when version is

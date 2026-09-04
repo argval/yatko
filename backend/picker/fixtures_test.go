@@ -10,6 +10,15 @@ import (
 	"github.com/argval/yatko/github"
 )
 
+// autoSelected returns the DecideAsset pick when confidence allows auto-select.
+func autoSelected(assets []github.Asset, platform Platform, arch Arch, opts PickOpts) *github.Asset {
+	d := DecideAsset(assets, platform, arch, opts)
+	if !d.ShouldAutoSelect() {
+		return nil
+	}
+	return d.Asset
+}
+
 type fixtureFile struct {
 	Cases []fixtureCase `json:"cases"`
 }
@@ -84,14 +93,14 @@ func archFromFixture(t *testing.T, s string) Arch {
 	}
 }
 
-func TestPickAssetForArch_SharedFixtures(t *testing.T) {
+func TestDecideAsset_SharedFixtures(t *testing.T) {
 	for _, tc := range loadSharedFixtures(t) {
 		t.Run(tc.Name, func(t *testing.T) {
 			assets := make([]github.Asset, len(tc.Assets))
 			for i, name := range tc.Assets {
 				assets[i] = github.Asset{Name: name}
 			}
-			got := PickAssetForArchOpts(
+			got := autoSelected(
 				assets,
 				platformFromFixture(t, tc.Platform),
 				archFromFixture(t, tc.Arch),

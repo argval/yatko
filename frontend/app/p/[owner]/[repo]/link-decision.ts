@@ -6,7 +6,24 @@ export type LinkPick = {
   size: number;
 };
 
-/** Same-origin path for the Go picker. Arch must be a query param — Mac ARM is often missing from the UA. */
+function pickerQuery(platform: Platform, arch: Arch): string {
+  const params = new URLSearchParams({ platform });
+  if (arch) params.set("arch", arch);
+  return params.toString();
+}
+
+function pickerPath(
+  prefix: "/api/link" | "/dl",
+  owner: string,
+  repo: string,
+  tagName: string,
+  platform: Platform,
+  arch: Arch,
+): string {
+  return `${prefix}/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/${encodeURIComponent(tagName)}?${pickerQuery(platform, arch)}`;
+}
+
+/** Same-origin path for the Go picker JSON. Arch must be a query param — Mac ARM is often missing from the UA. */
 export function downloadLinkPath(
   owner: string,
   repo: string,
@@ -14,9 +31,18 @@ export function downloadLinkPath(
   platform: Platform,
   arch: Arch,
 ): string {
-  const params = new URLSearchParams({ platform });
-  if (arch) params.set("arch", arch);
-  return `/api/link/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/${encodeURIComponent(tagName)}?${params}`;
+  return pickerPath("/api/link", owner, repo, tagName, platform, arch);
+}
+
+/** Click-through URL: Go still decides the asset on request. */
+export function downloadRedirectPath(
+  owner: string,
+  repo: string,
+  tagName: string,
+  platform: Platform,
+  arch: Arch,
+): string {
+  return pickerPath("/dl", owner, repo, tagName, platform, arch);
 }
 
 export function parseLinkPick(body: unknown): LinkPick | null {

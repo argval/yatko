@@ -1,6 +1,6 @@
 // Filename classifier for release-page labels. Ranking lives in backend/picker;
-// the download button calls /api/link. Catalog: frontend/lib/picker-catalog.json
-// (copy of shared/picker/catalog.json).
+// the download button points at /dl and soft-fetches /api/link. Catalog:
+// frontend/lib/picker-catalog.json (copy of shared/picker/catalog.json).
 
 import catalogJson from "../../../../lib/picker-catalog.json";
 

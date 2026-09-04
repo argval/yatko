@@ -33,7 +33,7 @@ export function DownloadSection({
   const [pick, setPick] = useState<LinkPick | null | undefined>(undefined);
 
   useEffect(() => {
-    if (!platform) {
+    if (!platform || assets.length === 0) {
       setPick(undefined);
       return;
     }
@@ -53,11 +53,11 @@ export function DownloadSection({
       cancelled = true;
       ac.abort();
     };
-  }, [owner, repo, tagName, platform, arch]);
+  }, [owner, repo, tagName, platform, arch, assets.length]);
 
   const primaryAsset = assetFromLinkPick(assets, pick);
 
-  if (!detected || primaryAsset === undefined) {
+  if (!detected) {
     return (
       <div className="flex flex-col items-center gap-2">
         <div
@@ -68,7 +68,7 @@ export function DownloadSection({
           {tagName} &middot; {publishedDate}
         </p>
         <p className="sr-only" role="status" aria-live="polite">
-          {detected ? "Finding a download…" : "Detecting platform…"}
+          Detecting platform…
         </p>
         <div
           className="h-4 w-48 rounded bg-foreground/[0.06] animate-pulse"
@@ -78,7 +78,7 @@ export function DownloadSection({
     );
   }
 
-  const { platform: visitorPlatform } = detected;
+  const { platform: visitorPlatform, arch: visitorArch } = detected;
 
   return (
     <div className="flex flex-col items-center gap-2">
@@ -86,6 +86,7 @@ export function DownloadSection({
         owner={owner}
         repo={repo}
         platform={visitorPlatform}
+        arch={visitorArch ?? ""}
         primaryAsset={primaryAsset}
         hasAssets={assets.length > 0}
         tagName={tagName}

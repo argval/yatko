@@ -10,26 +10,48 @@ const apk: Asset = {
 };
 
 describe("downloadCta", () => {
-  test("labels a matched asset with the visitor platform", () => {
+  test("points at /dl as soon as the platform is known, even before the pick returns", () => {
     expect(
       downloadCta({
         platform: "android",
+        arch: "arm64",
+        tagName: "v0.118.0",
+        primaryAsset: undefined,
+        hasAssets: true,
+        owner: "termux",
+        repo: "termux-app",
+      }),
+    ).toEqual({
+      href: "/dl/termux/termux-app/v0.118.0?platform=android&arch=arm64",
+      label: "Download for Android",
+      external: false,
+    });
+  });
+
+  test("keeps /dl after a confirmed pick so Go still decides on click", () => {
+    expect(
+      downloadCta({
+        platform: "android",
+        arch: "arm64",
+        tagName: "v0.118.0",
         primaryAsset: apk,
         hasAssets: true,
         owner: "termux",
         repo: "termux-app",
       }),
     ).toEqual({
-      href: apk.browser_download_url,
+      href: "/dl/termux/termux-app/v0.118.0?platform=android&arch=arm64",
       label: "Download for Android",
       external: false,
     });
   });
 
-  test("does not claim a platform download when no matching binary exists", () => {
+  test("does not claim a platform download when Go abstains", () => {
     expect(
       downloadCta({
         platform: "ios",
+        arch: "arm64",
+        tagName: "v0.118.0",
         primaryAsset: null,
         hasAssets: true,
         owner: "termux",
@@ -46,6 +68,8 @@ describe("downloadCta", () => {
     expect(
       downloadCta({
         platform: "ios",
+        arch: "arm64",
+        tagName: "v0.118.0",
         primaryAsset: null,
         hasAssets: false,
         owner: "termux",

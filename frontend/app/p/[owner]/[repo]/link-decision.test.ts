@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import {
   assetFromLinkPick,
   downloadLinkPath,
+  downloadRedirectPath,
   fetchLinkPick,
   parseLinkPick,
 } from "./link-decision";
@@ -26,6 +27,20 @@ describe("downloadLinkPath", () => {
   test("omits empty arch and encodes the tag", () => {
     expect(downloadLinkPath("owner", "repo", "v1.0.0+build", "linux", "")).toBe(
       "/api/link/owner/repo/v1.0.0%2Bbuild?platform=linux",
+    );
+  });
+});
+
+describe("downloadRedirectPath", () => {
+  test("mirrors /api/link query params on /dl", () => {
+    expect(downloadRedirectPath("cli", "cli", "v2.1.0", "macos", "arm64")).toBe(
+      "/dl/cli/cli/v2.1.0?platform=macos&arch=arm64",
+    );
+  });
+
+  test("omits empty arch and encodes the tag", () => {
+    expect(downloadRedirectPath("owner", "repo", "v1.0.0+build", "linux", "")).toBe(
+      "/dl/owner/repo/v1.0.0%2Bbuild?platform=linux",
     );
   });
 });

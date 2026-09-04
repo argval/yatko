@@ -1,26 +1,32 @@
-import { platformLabels, type Platform, type Asset } from "./platform-utils";
+import { downloadRedirectPath } from "./link-decision";
+import { platformLabels, type Arch, type Asset, type Platform } from "./platform-utils";
 
 export function downloadCta({
   platform,
+  arch,
+  tagName,
   primaryAsset,
   hasAssets,
   owner,
   repo,
 }: {
   platform: Platform;
-  primaryAsset: Asset | null;
+  arch: Arch;
+  tagName: string;
+  /** undefined = pick still in flight; null = Go abstained. */
+  primaryAsset: Asset | null | undefined;
   hasAssets: boolean;
   owner: string;
   repo: string;
 }): { href: string; label: string; external: boolean } {
-  if (primaryAsset) {
+  if (!hasAssets) {
     return {
-      href: primaryAsset.browser_download_url,
-      label: `Download for ${platformLabels[platform]}`,
-      external: false,
+      href: `https://github.com/${owner}/${repo}/releases/latest`,
+      label: "View Release on GitHub",
+      external: true,
     };
   }
-  if (hasAssets) {
+  if (primaryAsset === null) {
     return {
       href: "#downloads",
       label: "See all downloads",
@@ -28,8 +34,8 @@ export function downloadCta({
     };
   }
   return {
-    href: `https://github.com/${owner}/${repo}/releases/latest`,
-    label: "View Release on GitHub",
-    external: true,
+    href: downloadRedirectPath(owner, repo, tagName, platform, arch),
+    label: `Download for ${platformLabels[platform]}`,
+    external: false,
   };
 }

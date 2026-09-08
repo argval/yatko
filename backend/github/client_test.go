@@ -282,6 +282,153 @@ func TestMarkdownResponsesAreClipped(t *testing.T) {
 	}
 }
 
+func TestGetLatestRelease_FallsBackToPrerelease(t *testing.T) {
+	var paths []string
+	c := &Client{
+		httpClient: &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+			paths = append(paths, r.URL.Path)
+			switch r.URL.Path {
+			case "/repos/acme/tool/releases/latest":
+				return &http.Response{
+					StatusCode: http.StatusNotFound,
+					Header:     make(http.Header),
+					Body:       io.NopCloser(strings.NewReader(`{"message":"Not Found"}`)),
+					Request:    r,
+				}, nil
+			case "/repos/acme/tool/releases":
+				body := `[{"tag_name":"Beta","name":"v0.beta.0","prerelease":true,"draft":false,"body":"notes","assets":[{"name":"app-debug.apk","browser_download_url":"https://example.com/app-debug.apk","size":100}]}]`
+				h := make(http.Header)
+				h.Set("ETag", `"list-1"`)
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Header:     h,
+					Body:       io.NopCloser(strings.NewReader(body)),
+					Request:    r,
+				}, nil
+			default:
+				t.Fatalf("unexpected path: %s", r.URL.Path)
+				return nil, nil
+			}
+		})},
+		remaining: -1,
+	}
+
+	release, etag, notModified, err := c.GetLatestRelease(context.Background(), "acme", "tool", "")
+	if err != nil {
+		t.Fatalf("GetLatestRelease: %v", err)
+	}
+	if notModified {
+		t.Fatal("expected modified response")
+	}
+	if etag != `"list-1"` {
+		t.Fatalf("etag = %q, want list etag", etag)
+	}
+	if release.TagName != "Beta" || !release.Prerelease {
+		t.Fatalf("release = %+v, want Beta prerelease", release)
+	}
+	if len(release.Assets) != 1 || release.Assets[0].Name != "app-debug.apk" {
+		t.Fatalf("assets = %+v, want app-debug.apk", release.Assets)
+	}
+	if len(paths) != 2 || paths[0] != "/repos/acme/tool/releases/latest" || paths[1] != "/repos/acme/tool/releases" {
+		t.Fatalf("paths = %v, want latest then list", paths)
+	}
+}
+
+func TestGetLatestRelease_FallbackSkipsDrafts(t *testing.T) {
+	c := &Client{
+		httpClient: &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+			if r.URL.Path == "/repos/acme/tool/releases/latest" {
+				return &http.Response{
+					StatusCode: http.StatusNotFound,
+					Header:     make(http.Header),
+					Body:       io.NopCloser(strings.NewReader(`{"message":"Not Found"}`)),
+					Request:    r,
+				}, nil
+			}
+			body := `[
+				{"tag_name":"draft","draft":true,"prerelease":false,"assets":[]},
+				{"tag_name":"rc1","draft":false,"prerelease":true,"assets":[{"name":"tool.apk"}]}
+			]`
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     make(http.Header),
+				Body:       io.NopCloser(strings.NewReader(body)),
+				Request:    r,
+			}, nil
+		})},
+		remaining: -1,
+	}
+
+	release, _, _, err := c.GetLatestRelease(context.Background(), "acme", "tool", "")
+	if err != nil {
+		t.Fatalf("GetLatestRelease: %v", err)
+	}
+	if release.TagName != "rc1" {
+		t.Fatalf("tag = %q, want rc1 (skipped draft)", release.TagName)
+	}
+}
+
+func TestGetLatestRelease_FallbackEmptyStillNotFound(t *testing.T) {
+	c := &Client{
+		httpClient: &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+			if r.URL.Path == "/repos/acme/tool/releases/latest" {
+				return &http.Response{
+					StatusCode: http.StatusNotFound,
+					Header:     make(http.Header),
+					Body:       io.NopCloser(strings.NewReader(`{"message":"Not Found"}`)),
+					Request:    r,
+				}, nil
+			}
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     make(http.Header),
+				Body:       io.NopCloser(strings.NewReader(`[{"tag_name":"wip","draft":true}]`)),
+				Request:    r,
+			}, nil
+		})},
+		remaining: -1,
+	}
+
+	_, _, _, err := c.GetLatestRelease(context.Background(), "acme", "tool", "")
+	var apiErr *APIError
+	if !errors.As(err, &apiErr) || apiErr.StatusCode != http.StatusNotFound {
+		t.Fatalf("expected 404 when only drafts exist, got %v", err)
+	}
+}
+
+func TestGetLatestRelease_FallbackRevalidatesListWithETag(t *testing.T) {
+	c := &Client{
+		httpClient: &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+			if r.URL.Path == "/repos/acme/tool/releases/latest" {
+				return &http.Response{
+					StatusCode: http.StatusNotFound,
+					Header:     make(http.Header),
+					Body:       io.NopCloser(strings.NewReader(`{"message":"Not Found"}`)),
+					Request:    r,
+				}, nil
+			}
+			if r.Header.Get("If-None-Match") != `"list-1"` {
+				t.Fatalf("If-None-Match = %q, want list etag", r.Header.Get("If-None-Match"))
+			}
+			return &http.Response{
+				StatusCode: http.StatusNotModified,
+				Header:     make(http.Header),
+				Body:       http.NoBody,
+				Request:    r,
+			}, nil
+		})},
+		remaining: -1,
+	}
+
+	release, etag, notModified, err := c.GetLatestRelease(context.Background(), "acme", "tool", `"list-1"`)
+	if err != nil {
+		t.Fatalf("GetLatestRelease: %v", err)
+	}
+	if !notModified || release != nil || etag != `"list-1"` {
+		t.Fatalf("notModified=%v release=%v etag=%q", notModified, release, etag)
+	}
+}
+
 type roundTripFunc func(*http.Request) (*http.Response, error)
 
 func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }

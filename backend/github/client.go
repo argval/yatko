@@ -3,6 +3,7 @@ package github
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -37,6 +38,7 @@ type Release struct {
 	Body        string  `json:"body"`
 	PublishedAt string  `json:"published_at"`
 	HTMLURL     string  `json:"html_url"`
+	Draft       bool    `json:"draft"`
 	Prerelease  bool    `json:"prerelease"`
 	Assets      []Asset `json:"assets"`
 }
@@ -264,13 +266,19 @@ func repoAPIPath(owner, repo, suffix string) string {
 	)
 }
 
-// GetLatestRelease fetches the latest release. Pass the previously-seen etag
-// (empty string if none) to revalidate cheaply; when notModified is true, the
-// returned Release is nil and the caller should keep using its cached value.
+// GetLatestRelease fetches the latest non-prerelease release via GitHub's
+// /releases/latest. When that endpoint 404s — common for repos that have only
+// published prereleases — it falls back to the newest non-draft release from
+// the releases list (which includes prereleases). Pass the previously-seen
+// etag (empty string if none) to revalidate cheaply; when notModified is true,
+// the returned Release is nil and the caller should keep using its cached value.
 func (c *Client) GetLatestRelease(ctx context.Context, owner, repo, etag string) (*Release, string, bool, error) {
 	u := repoAPIPath(owner, repo, "/releases/latest")
 	body, newETag, notModified, err := c.conditionalGet(ctx, u, "application/vnd.github.v3+json", etag, maxAPIResponseSize)
 	if err != nil {
+		if isNotFound(err) {
+			return c.newestPublishedRelease(ctx, owner, repo, etag)
+		}
 		return nil, "", false, err
 	}
 	if notModified {
@@ -282,6 +290,37 @@ func (c *Client) GetLatestRelease(ctx context.Context, owner, repo, etag string)
 	}
 	release.Body = clipMarkdown(release.Body)
 	return &release, newETag, false, nil
+}
+
+// newestPublishedRelease returns the first non-draft release from GitHub's
+// list endpoint (newest-first). Used when /releases/latest 404s because the
+// repo has only prereleases (or no releases at all — then this also 404s).
+func (c *Client) newestPublishedRelease(ctx context.Context, owner, repo, etag string) (*Release, string, bool, error) {
+	u := repoAPIPath(owner, repo, "/releases?per_page=15")
+	body, newETag, notModified, err := c.conditionalGet(ctx, u, "application/vnd.github.v3+json", etag, maxAPIResponseSize)
+	if err != nil {
+		return nil, "", false, err
+	}
+	if notModified {
+		return nil, newETag, true, nil
+	}
+	var releases []Release
+	if err := json.Unmarshal(body, &releases); err != nil {
+		return nil, "", false, fmt.Errorf("decoding releases: %w", err)
+	}
+	for i := range releases {
+		if releases[i].Draft {
+			continue
+		}
+		releases[i].Body = clipMarkdown(releases[i].Body)
+		return &releases[i], newETag, false, nil
+	}
+	return nil, "", false, &APIError{StatusCode: http.StatusNotFound, Message: "Not Found"}
+}
+
+func isNotFound(err error) bool {
+	var apiErr *APIError
+	return errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusNotFound
 }
 
 func (c *Client) GetReleaseByTag(ctx context.Context, owner, repo, tag, etag string) (*Release, string, bool, error) {

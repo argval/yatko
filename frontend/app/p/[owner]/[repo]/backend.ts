@@ -107,9 +107,15 @@ export async function getRepoMeta(owner: string, repo: string): Promise<RepoMeta
       "description" in body &&
       typeof body.description === "string" &&
       "avatar_url" in body &&
-      typeof body.avatar_url === "string"
+      typeof body.avatar_url === "string" &&
+      "stars" in body &&
+      typeof body.stars === "number"
     ) {
-      return { description: body.description, avatar_url: body.avatar_url };
+      return {
+        description: body.description,
+        avatar_url: body.avatar_url,
+        stars: body.stars,
+      };
     }
     return null;
   } catch {

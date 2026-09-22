@@ -132,10 +132,11 @@ func cacheRefreshRequested(c *gin.Context) bool {
 }
 
 // repoMeta is the subset of repo metadata cached for the page/OG-image
-// response: description and owner avatar.
+// response: description, stars, and owner avatar.
 type repoMeta struct {
 	Description string `json:"description"`
 	AvatarURL   string `json:"avatar_url"`
+	Stars       int    `json:"stars"`
 }
 
 // getRepoMeta also reports whether the repo itself was confirmed to exist
@@ -150,7 +151,11 @@ func (h *PageHandler) getRepoMeta(c *gin.Context, owner, repo string) (repoMeta,
 		if notModified {
 			return repoMeta{}, newETag, true, nil
 		}
-		return repoMeta{Description: data.Description, AvatarURL: data.Owner.AvatarURL}, newETag, false, nil
+		return repoMeta{
+			Description: data.Description,
+			AvatarURL:   data.Owner.AvatarURL,
+			Stars:       data.Stars,
+		}, newETag, false, nil
 	})
 	if err != nil {
 		log.Printf("repo fetch error for %s/%s: %v", owner, repo, err)

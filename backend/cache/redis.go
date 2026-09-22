@@ -106,7 +106,8 @@ func ReadmeKey(owner, repo string) string {
 }
 
 func DescriptionKey(owner, repo string) string {
-	return fmt.Sprintf("description:%s/%s", owner, repo)
+	// v2: include stars in the cached payload.
+	return fmt.Sprintf("description:v2:%s/%s", owner, repo)
 }
 
 // SearchKey builds the cache key for a normalized GitHub repo search query.

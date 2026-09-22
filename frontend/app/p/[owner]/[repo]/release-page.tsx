@@ -35,7 +35,13 @@ export type ReleaseData = {
 export type RepoMeta = {
   description: string;
   avatar_url: string;
+  stars: number;
 };
+
+const compactStars = new Intl.NumberFormat("en", {
+  notation: "compact",
+  maximumFractionDigits: 1,
+});
 
 export type ReleaseSummary = {
   tag_name: string;
@@ -85,16 +91,21 @@ export function ReleasePageBody({
               className="rounded-2xl mx-auto"
             />
             <h1 className="text-4xl sm:text-5xl font-semibold tracking-tighter leading-none">{repo}</h1>
-            <p className="text-muted text-base sm:text-lg">
-              <a
-                href={`https://github.com/${owner}/${repo}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="hover:text-foreground transition-colors"
-              >
-                {owner}/{repo}
-              </a>
-            </p>
+            <div className="space-y-1">
+              <p className="text-muted text-base sm:text-lg">
+                <a
+                  href={`https://github.com/${owner}/${repo}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-foreground transition-colors"
+                >
+                  {owner}/{repo}
+                </a>
+              </p>
+              <Suspense fallback={null}>
+                <RepoStarsContent owner={owner} repo={repo} repoMetaPromise={repoMetaPromise} />
+              </Suspense>
+            </div>
             {release.prerelease && (
               <span className="inline-block text-xs font-medium px-2.5 py-1 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
                 Pre-release
@@ -175,6 +186,32 @@ async function RepoDescriptionContent({ repoMetaPromise }: { repoMetaPromise: Pr
   return repoMeta?.description ? <RepoDescription>{repoMeta.description}</RepoDescription> : null;
 }
 
+async function RepoStarsContent({
+  owner,
+  repo,
+  repoMetaPromise,
+}: {
+  owner: string;
+  repo: string;
+  repoMetaPromise: Promise<RepoMeta | null>;
+}) {
+  const repoMeta = await repoMetaPromise;
+  if (!repoMeta || repoMeta.stars <= 0) return null;
+  return (
+    <p className="text-sm text-muted">
+      <a
+        href={`https://github.com/${owner}/${repo}/stargazers`}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="hover:text-foreground transition-colors tabular-nums"
+        aria-label={`${compactStars.format(repoMeta.stars)} stars on GitHub`}
+      >
+        ★ {compactStars.format(repoMeta.stars)}
+      </a>
+    </p>
+  );
+}
+
 async function ReleaseVersionControls({
   owner,
   repo,
@@ -214,7 +251,7 @@ async function ReadmeSections({
       {installCommands.length > 0 && (
         <InstallCommands commands={installCommands} />
       )}
-      <CollapsibleCard title="About" defaultOpen={false} mountChildren="when-opened">
+      <CollapsibleCard title="About" mountChildren="when-opened">
         <DeferredRepoMarkdown owner={owner} repo={repo}>
           {readme}
         </DeferredRepoMarkdown>

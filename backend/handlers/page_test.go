@@ -91,8 +91,9 @@ func TestPageHandlerDefersNonCriticalData(t *testing.T) {
 	if metaResponse.Code != http.StatusOK {
 		t.Fatalf("metadata status = %d, want %d", metaResponse.Code, http.StatusOK)
 	}
-	if !bytes.Contains(metaResponse.Body.Bytes(), []byte(`"description"`)) {
-		t.Fatal("metadata payload omitted repo description")
+	if !bytes.Contains(metaResponse.Body.Bytes(), []byte(`"description"`)) ||
+		!bytes.Contains(metaResponse.Body.Bytes(), []byte(`"stars"`)) {
+		t.Fatal("metadata payload omitted repo description or stars")
 	}
 	select {
 	case path := <-nonCriticalRequested:

@@ -65,3 +65,25 @@ func TestDecideAsset_EmptyAssets(t *testing.T) {
 		t.Fatalf("got %+v", d)
 	}
 }
+
+func TestDecideAsset_VerifiedMacZip(t *testing.T) {
+	for _, tt := range []struct {
+		name, verified string
+		platform       Platform
+		want           bool
+	}{
+		{"EjectRemapper.zip", "macos", MacOS, true},
+		{"EjectRemapper.zip", "", MacOS, false},
+		{"EjectRemapper.zip", "macos", Windows, false},
+		{"EjectRemapper.zip", "macos", Linux, false},
+		{"EjectRemapper-source.zip", "macos", MacOS, false},
+		{"app-windows.zip", "macos", MacOS, false},
+	} {
+		t.Run(tt.name+"/"+tt.verified+"/"+string(tt.platform), func(t *testing.T) {
+			d := DecideAsset([]github.Asset{{Name: tt.name, ArchivePlatform: tt.verified}}, tt.platform, ARM64, PickOpts{})
+			if d.ShouldAutoSelect() != tt.want {
+				t.Fatalf("decision = %+v, want auto-select %v", d, tt.want)
+			}
+		})
+	}
+}

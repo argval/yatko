@@ -78,6 +78,11 @@ func DecideAsset(assets []github.Asset, platform Platform, arch Arch, opts PickO
 	var candidates []scored
 	for _, asset := range assets {
 		facts := Classify(asset.Name)
+		if asset.ArchivePlatform == string(MacOS) && facts.Extension == "zip" && len(facts.Platforms) == 0 {
+			facts.Platforms = []Platform{MacOS}
+			facts.Source = sourceArchive(facts.Canonical, facts.Platforms, facts.Arches)
+			facts.Evidence = append(facts.Evidence, "macOS app bundle in ZIP")
+		}
 		if facts.Source || facts.NonNative {
 			continue
 		}
@@ -333,7 +338,11 @@ func libcPenalty(f ArtifactFacts, want Libc) int {
 func reasonsFor(c scored, platform Platform, arch Arch, tied bool) []string {
 	var reasons []string
 	if c.platformHit {
-		reasons = append(reasons, "platform token matches "+string(platform))
+		if c.asset.ArchivePlatform == string(platform) {
+			reasons = append(reasons, "ZIP contains a "+string(platform)+" app bundle")
+		} else {
+			reasons = append(reasons, "platform token matches "+string(platform))
+		}
 	}
 	if c.archHit {
 		reasons = append(reasons, "arch token matches "+string(arch))

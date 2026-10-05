@@ -30,6 +30,8 @@ type Asset struct {
 	Size               int64  `json:"size"`
 	ContentType        string `json:"content_type"`
 	DownloadCount      int64  `json:"download_count"`
+	// ArchivePlatform is verified from ZIP contents, never supplied by GitHub.
+	ArchivePlatform string `json:"archive_platform,omitempty"`
 }
 
 type Release struct {

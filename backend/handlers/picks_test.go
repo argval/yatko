@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"archive/zip"
+	"bytes"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -124,8 +126,8 @@ func TestPageHandlerFallsBackToPrereleaseOnlyRepo(t *testing.T) {
 	}
 
 	var body struct {
-		TagName    string `json:"tag_name"`
-		Prerelease bool   `json:"prerelease"`
+		TagName    string                 `json:"tag_name"`
+		Prerelease bool                   `json:"prerelease"`
 		Picks      map[string]releasePick `json:"picks"`
 	}
 	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
@@ -137,5 +139,80 @@ func TestPageHandlerFallsBackToPrereleaseOnlyRepo(t *testing.T) {
 	got, ok := body.Picks["android/arm64"]
 	if !ok || got.Filename != "app-debug.apk" {
 		t.Fatalf("picks[android/arm64] = %+v, want app-debug.apk", got)
+	}
+}
+
+func TestPageHandlerMacAppZip(t *testing.T) {
+	t.Setenv("REDIS_URL", "")
+	t.Setenv("KV_URL", "")
+	t.Setenv("UPSTASH_REDIS_URL", "")
+	oldTransport := http.DefaultTransport
+	t.Cleanup(func() { http.DefaultTransport = oldTransport })
+	var archive bytes.Buffer
+	zw := zip.NewWriter(&archive)
+	for _, name := range []string{"EjectRemapper.app/Contents/Info.plist", "EjectRemapper.app/Contents/MacOS/EjectRemapper"} {
+		w, err := zw.Create(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := w.Write([]byte("fixture")); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	http.DefaultTransport = roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		if r.URL.Host == "github.com" {
+			if r.Header.Get("Range") == "" {
+				t.Fatal("ZIP inspection must request a byte range")
+			}
+			return &http.Response{StatusCode: http.StatusOK, Header: make(http.Header), Body: io.NopCloser(bytes.NewReader(archive.Bytes())), Request: r}, nil
+		}
+		body, err := json.Marshal(github.Release{TagName: "Releases", Assets: []github.Asset{{Name: "EjectRemapper.zip", BrowserDownloadURL: "https://github.com/Cacaioo/EjectRemapper/releases/download/Releases/EjectRemapper.zip", Size: int64(archive.Len())}}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return &http.Response{StatusCode: http.StatusOK, Header: make(http.Header), Body: io.NopCloser(bytes.NewReader(body)), Request: r}, nil
+	})
+	gh := github.NewClient()
+	c := cache.New()
+	redirect := NewRedirectHandler(gh, c)
+	page := NewPageHandler(redirect, gh, c)
+	router := gin.New()
+	router.GET("/api/release/:owner/:repo", page.Handle)
+	router.GET("/dl/:owner/:repo", redirect.Handle)
+	router.GET("/api/link/:owner/:repo", NewLinkHandler(redirect).Handle)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/api/release/Cacaioo/EjectRemapper", nil))
+	var body struct {
+		Picks map[string]releasePick `json:"picks"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	for _, key := range []string{"macos/arm64", "macos/amd64", "macos"} {
+		if got := body.Picks[key].Filename; got != "EjectRemapper.zip" {
+			t.Fatalf("macOS download button filename [%s] = %q, want EjectRemapper.zip", key, got)
+		}
+	}
+	for _, key := range []string{"windows/amd64", "linux/amd64", "ios/arm64"} {
+		if _, ok := body.Picks[key]; ok {
+			t.Fatalf("Mac ZIP should not be selected for %s", key)
+		}
+	}
+	response = httptest.NewRecorder()
+	router.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/dl/Cacaioo/EjectRemapper?platform=macos&arch=arm64", nil))
+	if response.Code != http.StatusFound || response.Header().Get("Location") != "https://github.com/Cacaioo/EjectRemapper/releases/download/Releases/EjectRemapper.zip" {
+		t.Fatalf("download redirect = %d %q", response.Code, response.Header().Get("Location"))
+	}
+	response = httptest.NewRecorder()
+	router.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/api/link/Cacaioo/EjectRemapper?platform=macos&arch=amd64", nil))
+	var link LinkResponse
+	if err := json.Unmarshal(response.Body.Bytes(), &link); err != nil {
+		t.Fatal(err)
+	}
+	if response.Code != http.StatusOK || link.Filename != "EjectRemapper.zip" {
+		t.Fatalf("link = %d %+v", response.Code, link)
 	}
 }

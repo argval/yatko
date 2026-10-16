@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -42,23 +43,32 @@ func TestRespondDownloadMiss(t *testing.T) {
 		Assets:  []github.Asset{{Name: "only-windows.exe"}},
 	}
 
-	t.Run("script redirects to github html", func(t *testing.T) {
+	t.Run("script gets 404 json", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
 		c.Request = httptest.NewRequest(http.MethodGet, "/dl/cli/cli", nil)
 		c.Request.Header.Set("User-Agent", "curl/8.5.0")
 		respondDownloadMiss(c, "cli", "cli", release, assetPick{
-			Platform: picker.Linux,
-			Arch:     picker.AMD64,
-			Prefer:   "deb",
-			Libc:     picker.LibcMusl,
-			Decision: picker.AssetDecision{Confidence: picker.ConfidenceLow, Reasons: []string{"no matching installable asset"}},
+			Platform:       picker.Linux,
+			Arch:           picker.AMD64,
+			Prefer:         "deb",
+			Libc:           picker.LibcMusl,
+			PlatformSource: picker.SourceDefault,
+			ArchSource:     picker.SourceDefault,
+			Decision:       picker.AssetDecision{Confidence: picker.ConfidenceLow, Reasons: []string{"no matching installable asset"}},
 		})
-		if w.Code != http.StatusFound {
-			t.Fatalf("status = %d, want 302", w.Code)
+		if w.Code != http.StatusNotFound {
+			t.Fatalf("status = %d, want 404", w.Code)
 		}
-		if loc := w.Header().Get("Location"); loc != release.HTMLURL {
-			t.Fatalf("Location = %q, want %q", loc, release.HTMLURL)
+		var body map[string]any
+		if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+			t.Fatalf("json: %v", err)
+		}
+		if body["url"] != release.HTMLURL {
+			t.Fatalf("url = %v, want %s", body["url"], release.HTMLURL)
+		}
+		if body["platform_source"] != "default" || body["arch_source"] != "default" {
+			t.Fatalf("sources = %v/%v, want default/default", body["platform_source"], body["arch_source"])
 		}
 	})
 

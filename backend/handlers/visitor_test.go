@@ -138,18 +138,25 @@ func TestDownloadAndLink_CurlMissRedirectsToGitHub(t *testing.T) {
 	req.Header.Set("User-Agent", "curl/8.5.0")
 	response := httptest.NewRecorder()
 	router.ServeHTTP(response, req)
-	if response.Code != http.StatusFound {
-		t.Fatalf("/dl miss status = %d, want 302", response.Code)
+	if response.Code != http.StatusNotFound {
+		t.Fatalf("/dl miss status = %d, want 404 body = %s", response.Code, response.Body.String())
 	}
-	if loc := response.Header().Get("Location"); loc != "https://github.com/acme/iosapp/releases/tag/v1.0.0" {
-		t.Fatalf("/dl miss Location = %q", loc)
+	var dlMiss map[string]any
+	if err := json.Unmarshal(response.Body.Bytes(), &dlMiss); err != nil {
+		t.Fatal(err)
+	}
+	if dlMiss["url"] != "https://github.com/acme/iosapp/releases/tag/v1.0.0" {
+		t.Fatalf("/dl miss url = %v", dlMiss["url"])
+	}
+	if dlMiss["platform"] != "linux" || dlMiss["arch"] != "amd64" || dlMiss["platform_source"] != "default" {
+		t.Fatalf("/dl miss still reports chosen platform: %v", dlMiss)
 	}
 
 	req = httptest.NewRequest(http.MethodGet, "/api/link/acme/iosapp", nil)
 	req.Header.Set("User-Agent", "curl/8.5.0")
 	response = httptest.NewRecorder()
 	router.ServeHTTP(response, req)
-	if response.Code != http.StatusOK {
+	if response.Code != http.StatusNotFound {
 		t.Fatalf("/api/link miss status = %d body = %s", response.Code, response.Body.String())
 	}
 	var link LinkResponse

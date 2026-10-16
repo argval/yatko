@@ -90,10 +90,11 @@ func (h *LinkHandler) handle(c *gin.Context, owner, repo, version string) {
 	}
 
 	p := pickReleaseAsset(c, release.Assets)
-	if p.Decision.ShouldAutoSelect() {
-		logPickerShadow(owner, repo, p)
-	} else {
+	if !p.Decision.ShouldAutoSelect() {
 		logPickerMiss(owner, repo, p, IsScriptUA(p.UA), release.Assets)
+		c.JSON(http.StatusNotFound, linkResponse(release, p))
+		return
 	}
+	logPickerShadow(owner, repo, p)
 	c.JSON(http.StatusOK, linkResponse(release, p))
 }

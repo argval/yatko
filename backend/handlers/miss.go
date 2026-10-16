@@ -107,15 +107,27 @@ func logPickerMiss(
 }
 
 // respondDownloadMiss handles /dl when no asset matched or confidence is too
-// low to auto-select. Everyone — browsers, curl, CI — is sent to the GitHub
-// release HTML page rather than a 404, so a miss is still a useful result.
+// low to auto-select: scripts get 404 JSON (including how the platform was
+// chosen); browsers keep the historical redirect to the GitHub release page.
 func respondDownloadMiss(
 	c *gin.Context,
 	owner, repo string,
 	release *github.Release,
 	p assetPick,
 ) {
-	logPickerMiss(owner, repo, p, IsScriptUA(c.GetHeader("User-Agent")), release.Assets)
+	script := IsScriptUA(c.GetHeader("User-Agent"))
+	logPickerMiss(owner, repo, p, script, release.Assets)
+	if script {
+		c.JSON(http.StatusNotFound, gin.H{
+			"error":           "no suitable asset found for platform",
+			"platform":        string(p.Platform),
+			"arch":            string(p.Arch),
+			"url":             release.HTMLURL,
+			"platform_source": string(p.PlatformSource),
+			"arch_source":     string(p.ArchSource),
+		})
+		return
+	}
 	c.Redirect(http.StatusFound, release.HTMLURL)
 }
 

@@ -1,6 +1,10 @@
 package picker
 
-import "github.com/argval/yatko/github"
+import (
+	"strings"
+
+	"github.com/argval/yatko/github"
+)
 
 // Confidence is how sure the picker is that Asset is the right installable.
 // Unknown tokens stay unknown: low confidence means abstain from auto-select.
@@ -22,6 +26,7 @@ type RankedAsset struct {
 // Asset may be set on a low-confidence result (the best guess); ShouldAutoSelect
 // reports whether handlers should redirect to it.
 type AssetDecision struct {
+	Status       string
 	Asset        *github.Asset
 	Confidence   Confidence
 	Reasons      []string
@@ -41,7 +46,6 @@ type scored struct {
 	extRank     int
 	archHit     bool
 	platformHit bool
-	family      int
 	bitWidth    int
 	libc        int
 	variant     int
@@ -53,6 +57,7 @@ type scored struct {
 func DecideAsset(assets []github.Asset, platform Platform, arch Arch, opts PickOpts) AssetDecision {
 	if len(assets) == 0 {
 		return AssetDecision{
+			Status:     "incompatible",
 			Confidence: ConfidenceLow,
 			Reasons:    []string{"no release assets"},
 		}
@@ -61,6 +66,7 @@ func DecideAsset(assets []github.Asset, platform Platform, arch Arch, opts PickO
 	exts, ok := platformExts(platform)
 	if !ok {
 		return AssetDecision{
+			Status:     "unknown",
 			Confidence: ConfidenceLow,
 			Reasons:    []string{"unknown platform"},
 		}
@@ -76,17 +82,35 @@ func DecideAsset(assets []github.Asset, platform Platform, arch Arch, opts PickO
 	}
 
 	var candidates []scored
+	unresolved := false
+	var conflicts []string
 	for _, asset := range assets {
-		facts := Classify(asset.Name)
-		if asset.ArchivePlatform == string(MacOS) && facts.Extension == "zip" && len(facts.Platforms) == 0 {
-			facts.Platforms = []Platform{MacOS}
-			facts.Source = sourceArchive(facts.Canonical, facts.Platforms, facts.Arches)
-			facts.Evidence = append(facts.Evidence, "macOS app bundle in ZIP")
-		}
-		if facts.Source || facts.NonNative {
+		if asset.State != "" && asset.State != "uploaded" {
 			continue
 		}
-		if incompatiblePlatform(facts, platform) {
+		facts := FactsForAsset(asset)
+		if facts.Source || facts.NonNative || facts.Role == "debug" || facts.Role == "metadata" {
+			continue
+		}
+		if len(facts.Conflicts) > 0 {
+			conflicts = append(conflicts, facts.Conflicts...)
+			continue
+		}
+		if facts.Inspection == "failed" {
+			unresolved = true
+			continue
+		}
+		if len(facts.Targets) == 0 {
+			unresolved = true
+		}
+		for _, t := range facts.Targets {
+			if t.Platform == "" {
+				unresolved = true
+			}
+		}
+		var compatible bool
+		facts, compatible = factsForTarget(facts, platform, arch, libc)
+		if !compatible {
 			continue
 		}
 
@@ -94,7 +118,8 @@ func DecideAsset(assets []github.Asset, platform Platform, arch Arch, opts PickO
 		// Native release binaries commonly omit an extension (e.g. herdr-macos-aarch64).
 		// Only accept them when the filename identifies this platform, so source files
 		// and unrelated extensionless assets still stay out of the CTA.
-		if !matched && facts.HasPlatform(platform) && (arch == UnknownArch || facts.HasArch(arch)) && !containsDot(facts.Canonical) {
+		if !matched && facts.HasPlatform(platform) && (arch == UnknownArch || facts.HasArch(arch)) &&
+			(nativeBinaryName(facts.Canonical) || (facts.Inspection == "inspected" && facts.Role == "application")) {
 			rank, matched = len(exts), true
 		}
 		if !matched {
@@ -106,7 +131,6 @@ func DecideAsset(assets []github.Asset, platform Platform, arch Arch, opts PickO
 			extRank:     rank,
 			archHit:     arch != UnknownArch && facts.HasArch(arch),
 			platformHit: facts.HasPlatform(platform) || facts.FormatPlatform == platform,
-			family:      archFamilyPenalty(facts, arch),
 			bitWidth:    archBitWidth(facts),
 			libc:        libcPenalty(facts, libc),
 			variant:     len(facts.Variants),
@@ -114,36 +138,30 @@ func DecideAsset(assets []github.Asset, platform Platform, arch Arch, opts PickO
 	}
 
 	if len(candidates) == 0 {
+		status, reasons := "incompatible", []string{"no matching installable asset"}
+		if unresolved {
+			status, reasons = "unknown", []string{"not enough evidence to determine a compatible download"}
+		}
+		if len(conflicts) > 0 {
+			status, reasons = "ambiguous", conflicts
+		}
 		return AssetDecision{
+			Status:     status,
 			Confidence: ConfidenceLow,
-			Reasons:    []string{"no matching installable asset"},
+			Reasons:    reasons,
 		}
 	}
 
-	// When we have arch context, prefer assets that explicitly match the
-	// requested arch; otherwise drop assets that name a conflicting arch so
-	// we don't hand a win32 build to a 64-bit host just because it listed first.
-	// If every candidate conflicts (e.g. only amd64+arm64 when asking for 386),
-	// keep them all and let archFamilyPenalty prefer the closer family.
+	// Prefer an explicit CPU match over assets that leave the CPU unknown.
 	if arch != UnknownArch {
-		var archMatches []scored
+		var exact []scored
 		for _, c := range candidates {
 			if c.archHit {
-				archMatches = append(archMatches, c)
+				exact = append(exact, c)
 			}
 		}
-		if len(archMatches) > 0 {
-			candidates = archMatches
-		} else {
-			var compatible []scored
-			for _, c := range candidates {
-				if !c.facts.HasOtherArch(arch) {
-					compatible = append(compatible, c)
-				}
-			}
-			if len(compatible) > 0 {
-				candidates = compatible
-			}
+		if len(exact) > 0 {
+			candidates = exact
 		}
 	}
 
@@ -163,8 +181,8 @@ func DecideAsset(assets []github.Asset, platform Platform, arch Arch, opts PickO
 	best := candidates[0]
 	for _, c := range candidates[1:] {
 		if candidateBetter(
-			c.extRank, c.family, c.bitWidth, c.libc, c.variant,
-			best.extRank, best.family, best.bitWidth, best.libc, best.variant,
+			c.extRank, c.bitWidth, c.libc, c.variant,
+			best.extRank, best.bitWidth, best.libc, best.variant,
 		) {
 			best = c
 		}
@@ -177,8 +195,8 @@ func DecideAsset(assets []github.Asset, platform Platform, arch Arch, opts PickO
 			continue
 		}
 		if candidateEqual(
-			c.extRank, c.family, c.bitWidth, c.libc, c.variant,
-			best.extRank, best.family, best.bitWidth, best.libc, best.variant,
+			c.extRank, c.bitWidth, c.libc, c.variant,
+			best.extRank, best.bitWidth, best.libc, best.variant,
 		) {
 			tied = true
 		}
@@ -192,15 +210,63 @@ func DecideAsset(assets []github.Asset, platform Platform, arch Arch, opts PickO
 
 	asset := best.asset
 	reasons := reasonsFor(best, platform, arch, tied)
-	confidence := confidenceFor(best, platform, arch, tied, len(candidates))
+	confidence := confidenceFor(best, platform, arch, tied)
+	status := "selected"
+	if confidence == ConfidenceLow {
+		status = "unknown"
+	}
+	if tied {
+		status = "ambiguous"
+	}
 
 	return AssetDecision{
+		Status:       status,
 		Asset:        &asset,
 		Confidence:   confidence,
 		Reasons:      reasons,
 		Alternatives: alternatives,
 		Facts:        best.facts,
 	}
+}
+
+// factsForTarget filters supported target tuples before ranking preferences.
+func factsForTarget(f ArtifactFacts, platform Platform, arch Arch, libc Libc) (ArtifactFacts, bool) {
+	var targets []github.ArtifactTarget
+	for _, t := range f.Targets {
+		if t.Platform != "" && t.Platform != string(platform) {
+			continue
+		}
+		if arch != UnknownArch && t.Arch != "" && t.Arch != string(arch) {
+			continue
+		}
+		if libc != LibcAny && t.Libc != "" && t.Libc != string(libc) && t.Libc != "static" {
+			continue
+		}
+		targets = append(targets, t)
+	}
+	if len(f.Targets) > 0 && len(targets) == 0 {
+		return f, false
+	}
+	f.Targets = targets
+	f.Platforms, f.Arches = nil, nil
+	for _, t := range targets {
+		if t.Platform != "" {
+			f.Platforms = appendUniquePlatform(f.Platforms, Platform(t.Platform))
+		}
+		if t.Arch != "" {
+			f.Arches = appendUniqueArch(f.Arches, Arch(t.Arch))
+		}
+	}
+	return f, true
+}
+
+func nativeBinaryName(name string) bool {
+	if !containsDot(name) {
+		return true
+	}
+	// Version dots are not file extensions; checksum and signature suffixes are.
+	suffix := name[strings.LastIndexByte(name, '.')+1:]
+	return len(suffix) > 0 && suffix[0] >= '0' && suffix[0] <= '9'
 }
 
 func containsDot(name string) bool {
@@ -212,12 +278,9 @@ func containsDot(name string) bool {
 	return false
 }
 
-func candidateBetter(ext, family, bits, libc, variant, bestExt, bestFamily, bestBits, bestLibc, bestVariant int) bool {
+func candidateBetter(ext, bits, libc, variant, bestExt, bestBits, bestLibc, bestVariant int) bool {
 	if ext != bestExt {
 		return ext < bestExt
-	}
-	if family != bestFamily {
-		return family < bestFamily
 	}
 	if bits != bestBits {
 		return bits < bestBits
@@ -228,64 +291,8 @@ func candidateBetter(ext, family, bits, libc, variant, bestExt, bestFamily, best
 	return variant < bestVariant
 }
 
-func candidateEqual(ext, family, bits, libc, variant, bestExt, bestFamily, bestBits, bestLibc, bestVariant int) bool {
-	return ext == bestExt && family == bestFamily && bits == bestBits && libc == bestLibc && variant == bestVariant
-}
-
-// archFamilyPenalty ranks how close facts' arch is to want when an exact
-// match is unavailable. Lower is better. Same-family 64-bit (386→amd64,
-// arm→arm64) beats the opposite family, so Windows 386 hosts don't get an
-// arm64 build just because it was listed first.
-func archFamilyPenalty(f ArtifactFacts, want Arch) int {
-	if want == UnknownArch {
-		return 0
-	}
-	if f.HasArch(want) {
-		return 0
-	}
-	hasAMD64 := f.HasArch(AMD64)
-	hasARM64 := f.HasArch(ARM64)
-	hasX86 := f.HasArch(X86)
-	hasARM := f.HasArch(ARM)
-	switch want {
-	case AMD64:
-		switch {
-		case hasX86:
-			return 2
-		case hasARM64:
-			return 3
-		case hasARM:
-			return 4
-		}
-	case X86:
-		switch {
-		case hasAMD64:
-			return 1
-		case hasARM64:
-			return 3
-		case hasARM:
-			return 4
-		}
-	case ARM64:
-		switch {
-		case hasARM:
-			return 2
-		case hasAMD64:
-			return 3
-		case hasX86:
-			return 4
-		}
-	case ARM:
-		switch {
-		case hasARM64:
-			return 1
-		case hasAMD64:
-			return 3
-		case hasX86:
-			return 4
-		}
-	}
-	return 5
+func candidateEqual(ext, bits, libc, variant, bestExt, bestBits, bestLibc, bestVariant int) bool {
+	return ext == bestExt && bits == bestBits && libc == bestLibc && variant == bestVariant
 }
 
 // archBitWidth ranks 64-bit above unspecified above 32-bit. Used when the
@@ -328,6 +335,9 @@ func libcPenalty(f ArtifactFacts, want Libc) int {
 		}
 		return 1
 	default:
+		if f.HasMusl && !f.HasGNU {
+			return 2
+		}
 		if tagged {
 			return 1
 		}
@@ -344,6 +354,11 @@ func reasonsFor(c scored, platform Platform, arch Arch, tied bool) []string {
 			reasons = append(reasons, "platform token matches "+string(platform))
 		}
 	}
+	for _, clue := range c.facts.Evidence {
+		if strings.Contains(clue, ": ") {
+			reasons = append(reasons, clue)
+		}
+	}
 	if c.archHit {
 		reasons = append(reasons, "arch token matches "+string(arch))
 	}
@@ -351,9 +366,6 @@ func reasonsFor(c scored, platform Platform, arch Arch, tied bool) []string {
 		reasons = append(reasons, "extension ."+c.facts.Extension+" implies "+string(platform))
 	} else if c.facts.Extension != "" {
 		reasons = append(reasons, "extension ."+c.facts.Extension)
-	}
-	if c.family > 0 && arch != UnknownArch {
-		reasons = append(reasons, "cpu family fallback for "+string(arch))
 	}
 	if c.variant > 0 {
 		reasons = append(reasons, "secondary build variant")
@@ -367,14 +379,16 @@ func reasonsFor(c scored, platform Platform, arch Arch, tied bool) []string {
 	return reasons
 }
 
-func confidenceFor(best scored, platform Platform, arch Arch, tied bool, candidateCount int) Confidence {
+func confidenceFor(best scored, platform Platform, arch Arch, tied bool) Confidence {
 	formatExclusive := best.facts.FormatPlatform == platform && best.facts.Extension != ""
 	generic := formatIsGeneric(best.facts.Extension)
 	platformEvidence := best.platformHit || formatExclusive
 	archEvidence := arch == UnknownArch || best.archHit
 
 	switch {
-	case !platformEvidence && generic && !best.archHit:
+	case tied:
+		return ConfidenceLow
+	case !platformEvidence && generic:
 		// foo.jar / untagged zip — no OS or arch evidence. Abstain.
 		return ConfidenceLow
 	case (best.platformHit || formatExclusive) && archEvidence && !tied:
@@ -382,8 +396,6 @@ func confidenceFor(best scored, platform Platform, arch Arch, tied bool, candida
 	case formatExclusive && !tied:
 		// .exe / .dmg / .apk without an arch token is still a strong OS signal.
 		return ConfidenceHigh
-	case tied && candidateCount > 1:
-		return ConfidenceMedium
 	case best.platformHit || formatExclusive || best.archHit:
 		return ConfidenceMedium
 	default:

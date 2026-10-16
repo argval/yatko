@@ -9,7 +9,19 @@ export type Arch = "amd64" | "arm64" | "arm" | "386" | "";
 export type Libc = "" | "musl" | "gnu" | "static";
 export type ArtifactKind = "installer" | "package" | "archive" | "executable" | "";
 
+export type ArtifactMetadata = {
+  targets: { platform: string; arch?: string; libc?: string }[];
+  role: "application" | "installer" | "source" | "debug" | "unknown" | "metadata";
+  evidence: { source: string; field: string; value: string }[];
+  status: "unknown" | "inspected" | "unsupported" | "failed";
+  conflicts?: string[];
+};
+
 export type Asset = {
+  id?: number;
+  digest?: string;
+  updated_at?: string;
+  artifact?: ArtifactMetadata;
   name: string;
   browser_download_url: string;
   size: number;
@@ -156,13 +168,8 @@ function appendUnique(dst: string[], v: string): string[] {
   return dst.includes(v) ? dst : [...dst, v];
 }
 
-function sourceArchive(canonical: string, facts: ArtifactFacts): boolean {
-  if (catalog.source.some((tok) => canonical.includes(tok))) return true;
-  return (
-    catalog.ambiguousArchives.some((ext) => canonical.endsWith(ext)) &&
-    facts.platforms.length === 0 &&
-    facts.arches.length === 0
-  );
+function sourceArchive(canonical: string): boolean {
+  return catalog.source.some((token) => hasBoundedKeyword(canonical, token));
 }
 
 function isNonNative(name: string): boolean {
@@ -197,14 +204,16 @@ export function classify(name: string): ArtifactFacts {
     }
   }
 
+  const macArm = facts.platforms.includes("macos") || /\.(dmg|pkg)$/.test(canonical);
   for (const hit of archAliasHits(canonical)) {
-    if (!facts.arches.includes(hit.key as Exclude<Arch, "">)) {
-      facts.arches.push(hit.key as Exclude<Arch, "">);
+    const arch = hit.kw === "arm" ? (macArm ? "arm64" : "arm") : hit.key as Exclude<Arch, "">;
+    if (!facts.arches.includes(arch)) {
+      facts.arches.push(arch);
     }
     facts.evidence = appendUnique(facts.evidence, hit.kw);
   }
 
-  facts.source = sourceArchive(canonical, facts);
+  facts.source = sourceArchive(canonical);
 
   const fmt = matchFormat(canonical);
   if (fmt) {

@@ -1,0 +1,13 @@
+version: 1.0.0
+files:
+  - url: App%20Setup%201.0.0.exe
+    sha512: c2hhNTEy
+    size: 2000
+  - url: https://github.com/acme/app/releases/download/v1/App-1.0.0-mac.zip
+    sha512: c2hhNTEy
+packages:
+  x64:
+    path: app-1.0.0-x64.nsis.7z
+  arm64:
+    path: app-1.0.0-arm64.nsis.7z
+releaseDate: '2026-10-01T00:00:00.000Z'

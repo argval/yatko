@@ -5,6 +5,7 @@ go 1.25.1
 require (
 	github.com/alicebob/miniredis/v2 v2.38.0
 	github.com/gin-gonic/gin v1.12.0
+	github.com/goccy/go-yaml v1.19.2
 	github.com/redis/go-redis/v9 v9.21.0
 	golang.org/x/sync v0.22.0
 )
@@ -21,7 +22,6 @@ require (
 	github.com/go-playground/universal-translator v0.18.1 // indirect
 	github.com/go-playground/validator/v10 v10.30.3 // indirect
 	github.com/goccy/go-json v0.10.6 // indirect
-	github.com/goccy/go-yaml v1.19.2 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/klauspost/cpuid/v2 v2.4.0 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect

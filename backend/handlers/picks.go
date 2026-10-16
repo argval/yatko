@@ -10,9 +10,33 @@ import (
 // second /api/link round trip. Click still goes through /dl (Go decides again
 // with the live UA, including Linux deb/rpm).
 type releasePick struct {
+	Filename     string               `json:"filename,omitempty"`
+	URL          string               `json:"url,omitempty"`
+	Size         int64                `json:"size,omitempty"`
+	Status       string               `json:"status"`
+	Confidence   picker.Confidence    `json:"confidence"`
+	Reasons      []string             `json:"reasons"`
+	Alternatives []releaseAlternative `json:"alternatives,omitempty"`
+}
+
+type releaseAlternative struct {
 	Filename string `json:"filename"`
 	URL      string `json:"url"`
 	Size     int64  `json:"size"`
+}
+
+func releaseDecision(d picker.AssetDecision) releasePick {
+	p := releasePick{Status: d.Status, Confidence: d.Confidence, Reasons: d.Reasons}
+	if d.ShouldAutoSelect() {
+		p.Filename, p.URL, p.Size = d.Asset.Name, d.Asset.BrowserDownloadURL, d.Asset.Size
+	}
+	if !d.ShouldAutoSelect() && d.Asset != nil {
+		p.Alternatives = append(p.Alternatives, releaseAlternative{d.Asset.Name, d.Asset.BrowserDownloadURL, d.Asset.Size})
+	}
+	for _, a := range d.Alternatives {
+		p.Alternatives = append(p.Alternatives, releaseAlternative{a.Asset.Name, a.Asset.BrowserDownloadURL, a.Asset.Size})
+	}
+	return p
 }
 
 // releasePickTargets covers the visitor combos the release page can detect.
@@ -46,8 +70,7 @@ func releasePickKey(platform picker.Platform, arch picker.Arch) string {
 	return string(platform) + "/" + string(arch)
 }
 
-// buildReleasePicks runs DecideAsset for each common visitor combo. Only
-// auto-select decisions are included; a missing key means abstain.
+// buildReleasePicks includes abstention reasons for each common visitor target.
 func buildReleasePicks(assets []github.Asset) map[string]releasePick {
 	if len(assets) == 0 {
 		return nil
@@ -55,14 +78,7 @@ func buildReleasePicks(assets []github.Asset) map[string]releasePick {
 	out := make(map[string]releasePick, len(releasePickTargets))
 	for _, t := range releasePickTargets {
 		d := picker.DecideAsset(assets, t.platform, t.arch, picker.PickOpts{})
-		if !d.ShouldAutoSelect() {
-			continue
-		}
-		out[releasePickKey(t.platform, t.arch)] = releasePick{
-			Filename: d.Asset.Name,
-			URL:      d.Asset.BrowserDownloadURL,
-			Size:     d.Asset.Size,
-		}
+		out[releasePickKey(t.platform, t.arch)] = releaseDecision(d)
 	}
 	if len(out) == 0 {
 		return nil

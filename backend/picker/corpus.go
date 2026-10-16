@@ -15,10 +15,11 @@ type corpusFile struct {
 
 // CorpusRelease is a snapshot of a real GitHub release plus labeled picks.
 type CorpusRelease struct {
-	Repo   string              `json:"repo"`
-	Tag    string              `json:"tag"`
-	Assets []string            `json:"assets"`
-	Expect []CorpusExpectation `json:"expect"`
+	Repo         string                             `json:"repo"`
+	Tag          string                             `json:"tag"`
+	Assets       []string                           `json:"assets"`
+	Expect       []CorpusExpectation                `json:"expect"`
+	TargetLabels map[string][]github.ArtifactTarget `json:"targetLabels"`
 }
 
 // CorpusExpectation is a human-labeled pick for one visitor platform/arch.
@@ -32,19 +33,22 @@ type CorpusExpectation struct {
 	UserAgent string  `json:"userAgent,omitempty"`
 	Asset     *string `json:"asset"`
 	KnownMiss bool    `json:"knownMiss,omitempty"`
+	Reason    string  `json:"reason,omitempty"`
 }
 
 // CorpusScore is the measurement surface for the labeled corpus.
 type CorpusScore struct {
-	Total             int
-	Top1              int
-	WrongPlatform     int
-	FalseAbstain      int
-	FalseAuto         int
-	Abstain           int
-	KnownMiss         int
-	KnownMissResolved int
-	DecideNanos       int64
+	Total               int
+	Top1                int
+	WrongPlatform       int
+	WrongArch           int
+	UnlabeledSelections int
+	FalseAbstain        int
+	FalseAuto           int
+	Abstain             int
+	KnownMiss           int
+	KnownMissResolved   int
+	DecideNanos         int64
 }
 
 func loadCorpusFile(path string) ([]CorpusRelease, error) {
@@ -70,7 +74,7 @@ func assetsFromNames(names []string) []github.Asset {
 	return out
 }
 
-func scoreExpectation(rel CorpusRelease, exp CorpusExpectation) (gotName string, auto bool, wrongPlatform bool, elapsed time.Duration) {
+func scoreExpectation(rel CorpusRelease, exp CorpusExpectation) (gotName string, auto, wrongPlatform, wrongArch, unlabeled bool, elapsed time.Duration) {
 	assets := assetsFromNames(rel.Assets)
 	platform := Platform(exp.Platform)
 	arch := Arch(exp.Arch)
@@ -84,12 +88,21 @@ func scoreExpectation(rel CorpusRelease, exp CorpusExpectation) (gotName string,
 	auto = d.ShouldAutoSelect()
 	if d.Asset != nil {
 		gotName = d.Asset.Name
-		facts := Classify(gotName)
-		if incompatiblePlatform(facts, platform) && facts.FormatPlatform != platform {
-			wrongPlatform = true
+		labels := rel.TargetLabels[gotName]
+		unlabeled = len(labels) == 0
+		platformMatch, archMatch := false, false
+		for _, target := range labels {
+			if target.Platform == exp.Platform {
+				platformMatch = true
+				if exp.Arch == "" || target.Arch == "" || target.Arch == exp.Arch {
+					archMatch = true
+				}
+			}
 		}
+		wrongPlatform = !unlabeled && !platformMatch
+		wrongArch = !unlabeled && platformMatch && !archMatch
 	}
-	return gotName, auto, wrongPlatform, elapsed
+	return gotName, auto, wrongPlatform, wrongArch, unlabeled, elapsed
 }
 
 func scoreCorpus(releases []CorpusRelease) (CorpusScore, []string) {
@@ -98,10 +111,17 @@ func scoreCorpus(releases []CorpusRelease) (CorpusScore, []string) {
 	for _, rel := range releases {
 		for _, exp := range rel.Expect {
 			score.Total++
-			gotName, auto, wrongPlatform, elapsed := scoreExpectation(rel, exp)
+			gotName, auto, wrongPlatform, wrongArch, unlabeled, elapsed := scoreExpectation(rel, exp)
 			score.DecideNanos += elapsed.Nanoseconds()
 			if auto && wrongPlatform {
 				score.WrongPlatform++
+			}
+			if auto && wrongArch {
+				score.WrongArch++
+			}
+			if auto && unlabeled {
+				score.UnlabeledSelections++
+				mismatches = append(mismatches, fmt.Sprintf("%s: selected %s without independent target labels", rel.Repo, gotName))
 			}
 			if !auto {
 				score.Abstain++

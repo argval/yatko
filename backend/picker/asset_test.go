@@ -141,6 +141,8 @@ func TestDetectArch_CLITriples(t *testing.T) {
 	}{
 		{ua: "curl/8.4.0 (x86_64-apple-darwin23.0)", want: AMD64},
 		{ua: "curl/8.5.0 (aarch64-unknown-linux-gnu)", want: ARM64},
+		{ua: "curl/8.5.0 (arm-unknown-linux-gnueabihf)", want: ARM},
+		{ua: "charm-client/1.0", want: UnknownArch},
 		{ua: "curl/8.5.0 (x86_64-w64-mingw32)", want: AMD64},
 		{ua: "Mozilla/5.0 (Windows NT 10.0; Win64; x64)", want: AMD64},
 		{ua: "curl/8.5.0", want: UnknownArch},
@@ -353,5 +355,19 @@ func TestResolveLinuxPackagePrefer(t *testing.T) {
 		if got := ResolveLinuxPackagePrefer(tc.ua); got != tc.want {
 			t.Errorf("ResolveLinuxPackagePrefer(%q) = %q, want %q", tc.ua, got, tc.want)
 		}
+	}
+}
+
+func TestResolveVisitor_ARMTripleSelectsARMAsset(t *testing.T) {
+	visitor := ResolveVisitor("", "", "curl/8.5.0 (arm-unknown-linux-gnueabihf)", true)
+	if visitor.Arch != ARM || visitor.ArchSource != SourceUA {
+		t.Fatalf("visitor = %+v, want ARM from UA", visitor)
+	}
+	decision := DecideAsset([]github.Asset{
+		{Name: "tool-linux-amd64.tar.gz"},
+		{Name: "tool-linux-arm.tar.gz"},
+	}, visitor.Platform, visitor.Arch, PickOpts{})
+	if !decision.ShouldAutoSelect() || decision.Asset.Name != "tool-linux-arm.tar.gz" {
+		t.Fatalf("decision = %+v, want ARM asset", decision)
 	}
 }

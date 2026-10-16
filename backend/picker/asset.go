@@ -116,7 +116,7 @@ func DetectArch(userAgent string) Arch {
 	switch {
 	case strings.Contains(ua, "arm64") || strings.Contains(ua, "aarch64"):
 		return ARM64
-	case strings.Contains(ua, "armv7") || strings.Contains(ua, "armv6") || strings.Contains(ua, "armhf"):
+	case strings.Contains(ua, "armv7") || strings.Contains(ua, "armv6") || strings.Contains(ua, "armhf") || hasBoundedKeyword(ua, "arm"):
 		return ARM
 	case strings.Contains(ua, "x86_64") || strings.Contains(ua, "amd64") || strings.Contains(ua, "win64") || strings.Contains(ua, "x64"):
 		return AMD64

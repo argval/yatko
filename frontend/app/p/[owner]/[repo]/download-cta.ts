@@ -34,7 +34,7 @@ export function downloadCta({
     };
   }
   return {
-    href: downloadRedirectPath(owner, repo, tagName, platform, arch),
+    href: downloadRedirectPath(owner, repo, tagName, platform, arch, primaryAsset?.name),
     label: `Download for ${platformLabels[platform]}`,
     external: false,
   };

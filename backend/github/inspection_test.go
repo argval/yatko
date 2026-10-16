@@ -293,14 +293,14 @@ func TestInspectArtifact(t *testing.T) {
 		{"inflate cap", "bomb.tgz", tarGzFixture(t, tarEntry{"zeros", 0o644, make([]byte, 64<<20)}, tarEntry{"tool", 0o755, musl}),
 			"inspected", nil, "unknown", "tar.listing"},
 		{"deb", "app_1.0_armhf.deb", debFixture(t, "control.tar.gz", control), "inspected", []ArtifactTarget{{Platform: "linux", Arch: "arm"}}, "installer", "deb.architecture"},
-		{"deb xz control", "app.deb", debFixture(t, "control.tar.xz", []byte("xz")), "inspected", nil, "installer", "deb.control_compression"},
+		{"truncated deb xz control", "app.deb", debFixture(t, "control.tar.xz", []byte("xz")), "failed", nil, "installer", ""},
 		{"bad deb", "app.deb", []byte("!<arch>\n" + strings.Repeat("x", 70)), "failed", nil, "unknown", ""},
 		{"standalone", "tool-linux", musl, "inspected", []ArtifactTarget{{Platform: "linux", Arch: "amd64", Libc: "musl"}}, "application", "elf.interp"},
 		{"standalone versioned", "tool-1.2.3", fixture(t, "go-linux-arm64.head"), "inspected", []ArtifactTarget{{Arch: "arm64"}}, "application", "elf.machine"},
 		{"unrecognized", "notes", []byte("plain text"), "inspected", nil, "unknown", "format"},
 		{"truncated ELF", "tool", []byte("\x7fELF\x02\x01\x01"), "failed", nil, "unknown", ""},
 		{"corrupt zip", "x.zip", []byte("PK\x03\x04 nope"), "failed", nil, "unknown", ""},
-		{"dmg skipped", "App.dmg", []byte("koly"), "unsupported", nil, "unknown", "inspection.skipped"},
+		{"truncated dmg", "App.dmg", []byte("koly"), "failed", nil, "unknown", ""},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			s := newFakeDownloads(t)
@@ -551,6 +551,43 @@ func TestTarAppCombinesOnlyMatchingMainHeader(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !slices.Equal(m.Targets, []ArtifactTarget{{Platform: "macos", Arch: "amd64"}}) || m.Role != "application" {
+		t.Fatalf("%+v", m)
+	}
+}
+
+func TestELFPositionIndependentExecutableWithoutInterpreter(t *testing.T) {
+	b := elfFixture(0, elf.ET_DYN, "", false)
+	binary.LittleEndian.PutUint64(b[24:], 0x1000)
+	var m ArtifactMetadata
+	if err := readELF(bytes.NewReader(b), &m, ""); err != nil {
+		t.Fatal(err)
+	}
+	if m.Role != "application" {
+		t.Fatalf("PIE executable mislabeled: %+v", m)
+	}
+}
+
+func TestArchiveLibrariesDoNotSpendBinaryBudget(t *testing.T) {
+	for _, name := range []string{"lib/libpython.so.1.0", "lib/runtime.dll", "Frameworks/library.dylib"} {
+		if binaryCandidate(name, 0755, 4096) {
+			t.Errorf("library selected: %s", name)
+		}
+	}
+	if !binaryCandidate("bin/app", 0755, 4096) {
+		t.Fatal("application excluded")
+	}
+}
+
+func TestBigEndianARMDoesNotBecomeLittleEndianTarget(t *testing.T) {
+	b := make([]byte, 64)
+	copy(b, []byte{0x7f, 'E', 'L', 'F', 2, 2, 1})
+	binary.BigEndian.PutUint16(b[16:], uint16(elf.ET_EXEC))
+	binary.BigEndian.PutUint16(b[18:], uint16(elf.EM_AARCH64))
+	var m ArtifactMetadata
+	if err := readELF(bytes.NewReader(b), &m, ""); err != nil {
+		t.Fatal(err)
+	}
+	if len(m.Targets) != 1 || m.Targets[0].Arch != "elf-be:arm64" {
 		t.Fatalf("%+v", m)
 	}
 }

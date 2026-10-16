@@ -43,7 +43,7 @@ func (r zipTail) ReadAt(p []byte, off int64) (int, error) {
 }
 
 func zipPlatform(tail []byte, start, size int64) string {
-	r, err := zip.NewReader(zipTail{bytes.NewReader(tail), start}, size)
+	r, err := boundedZIPReader(zipTail{bytes.NewReader(tail), start}, size)
 	if err != nil {
 		return ""
 	}

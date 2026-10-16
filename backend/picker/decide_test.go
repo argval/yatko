@@ -31,14 +31,10 @@ func TestDecideAsset_GenericJarAbstains(t *testing.T) {
 	}
 }
 
-func TestDecideAsset_UntaggedExeIsHigh(t *testing.T) {
-	assets := []github.Asset{{Name: "Setup.exe"}}
-	d := DecideAsset(assets, Windows, AMD64, PickOpts{})
-	if !d.ShouldAutoSelect() {
-		t.Fatalf("exe should auto-select, confidence=%s reasons=%v", d.Confidence, d.Reasons)
-	}
-	if d.Asset.Name != "Setup.exe" {
-		t.Fatalf("asset = %s", d.Asset.Name)
+func TestDecideAsset_UntaggedExeNeedsCPUEvidence(t *testing.T) {
+	d := DecideAsset([]github.Asset{{Name: "Setup.exe"}}, Windows, AMD64, PickOpts{})
+	if d.ShouldAutoSelect() || d.Confidence != ConfidenceLow {
+		t.Fatalf("OS-only filename cannot establish CPU compatibility: %+v", d)
 	}
 }
 
@@ -50,6 +46,111 @@ func TestDecideAsset_ArchOnlyZipAbstains(t *testing.T) {
 	d := DecideAsset(assets, Windows, AMD64, PickOpts{})
 	if d.ShouldAutoSelect() {
 		t.Fatalf("architecture cannot prove OS compatibility: %+v", d)
+	}
+}
+
+// Obsidian v1.14.4: an OS-unknown arm64 tarball must not displace the
+// confirmed-OS universal DMG/APK for ARM visitors.
+func TestDecideAssetOSEvidenceBeatsArchOnlyName(t *testing.T) {
+	assets := []github.Asset{
+		{Name: "Obsidian-1.14.4.dmg", Artifact: &github.ArtifactMetadata{Targets: []github.ArtifactTarget{{Platform: "macos", Arch: "arm64"}, {Platform: "macos", Arch: "amd64"}}, Status: "inspected"}},
+		{Name: "Obsidian-1.14.4.apk", Artifact: &github.ArtifactMetadata{ // live inspection result
+			Targets: []github.ArtifactTarget{{Platform: "android", Arch: "arm64"}}, Role: "installer", Status: "inspected"}},
+		{Name: "obsidian-1.14.4-arm64.tar.gz"},
+		{Name: "Obsidian-1.14.4-arm64.AppImage"},
+	}
+	for _, tc := range []struct {
+		platform Platform
+		want     string
+	}{{MacOS, "Obsidian-1.14.4.dmg"}, {Android, "Obsidian-1.14.4.apk"}, {Linux, "Obsidian-1.14.4-arm64.AppImage"}} {
+		d := DecideAsset(assets, tc.platform, ARM64, PickOpts{})
+		if !d.ShouldAutoSelect() || d.Asset.Name != tc.want {
+			t.Fatalf("%s/arm64 = %+v, want %s", tc.platform, d, tc.want)
+		}
+	}
+}
+
+// clash-verge-rev v2.5.8: the bundled-WebView2 installer is a variant, not a tie.
+func TestDecideAssetFixedWebView2IsVariant(t *testing.T) {
+	assets := []github.Asset{{Name: "Clash.Verge_2.5.8_x64_fixed_webview2-setup.exe"}, {Name: "Clash.Verge_2.5.8_x64-setup.exe"}}
+	d := DecideAsset(assets, Windows, AMD64, PickOpts{})
+	if !d.ShouldAutoSelect() || d.Asset.Name != "Clash.Verge_2.5.8_x64-setup.exe" {
+		t.Fatalf("%+v", d)
+	}
+}
+
+// localsend v1.18.2 spells 64-bit ARM as "arm-64", like "x86-64".
+func TestDecideAssetArmDash64IsARM64(t *testing.T) {
+	assets := []github.Asset{{Name: "LocalSend-1.18.2-linux-arm-64.deb"}, {Name: "LocalSend-1.18.2-linux-x86-64.deb"}}
+	if d := DecideAsset(assets, Linux, ARM64, PickOpts{}); !d.ShouldAutoSelect() || d.Asset.Name != assets[0].Name {
+		t.Fatalf("arm64: %+v", d)
+	}
+	if d := DecideAsset(assets, Linux, ARM, PickOpts{}); d.ShouldAutoSelect() {
+		t.Fatalf("64-bit ARM offered to 32-bit ARM: %+v", d)
+	}
+}
+
+// localsend v1.18.2: the universal app DMG beats the arch-tagged companion CLI,
+// while a CLI-only release still resolves normally.
+func TestDecideAssetPrefersAppOverCompanionCLI(t *testing.T) {
+	assets := []github.Asset{{Name: "LocalSend-1.18.2.dmg", Artifact: &github.ArtifactMetadata{Targets: []github.ArtifactTarget{{Platform: "macos", Arch: "amd64"}, {Platform: "macos", Arch: "arm64"}}, Status: "inspected"}}, {Name: "LocalSend-CLI-1.18.2-macos-arm-64.tar.gz"}, {Name: "LocalSend-CLI-1.18.2-macos-x86-64.tar.gz"}}
+	for _, arch := range []Arch{ARM64, AMD64} {
+		if d := DecideAsset(assets, MacOS, arch, PickOpts{}); !d.ShouldAutoSelect() || d.Asset.Name != "LocalSend-1.18.2.dmg" {
+			t.Fatalf("macos/%s: %+v", arch, d)
+		}
+	}
+	cliOnly := []github.Asset{{Name: "tool-cli-macos-arm64.tar.gz"}, {Name: "tool-cli-macos-x64.tar.gz"}}
+	if d := DecideAsset(cliOnly, MacOS, ARM64, PickOpts{}); !d.ShouldAutoSelect() || d.Asset.Name != "tool-cli-macos-arm64.tar.gz" {
+		t.Fatalf("CLI-only release: %+v", d)
+	}
+}
+
+// CPU fallback policy: native (or universal on Mac) first, then the closest
+// emulated build — Windows ARM64: x64 then x86; Windows x64: x86; Apple
+// Silicon: Intel via Rosetta. Nothing runs "upward" (x86 never gets x64).
+func TestDecideAssetCPUFallbackOrder(t *testing.T) {
+	for _, tc := range []struct {
+		platform Platform
+		arch     Arch
+		assets   []string
+		want     string // "" = must not auto-select
+	}{
+		{Windows, ARM64, []string{"app-win-arm64.exe", "app-win-x64.exe", "app-win-x86.exe"}, "app-win-arm64.exe"},
+		{Windows, ARM64, []string{"app-win-x86.exe", "app-win-x64.exe"}, "app-win-x64.exe"},
+		{Windows, ARM64, []string{"app-win-x86.exe"}, "app-win-x86.exe"},
+		{Windows, AMD64, []string{"app-win-x86.exe", "app-win-x64.exe"}, "app-win-x64.exe"},
+		{Windows, AMD64, []string{"app-win-x86.exe"}, "app-win-x86.exe"},
+		{Windows, AMD64, []string{"app-win-arm64.exe"}, ""},
+		{Windows, X86, []string{"app-win-x64.exe"}, ""},
+		{MacOS, ARM64, []string{"app-mac-x64.dmg", "app-mac-arm64.dmg", "app-mac-universal.dmg"}, "app-mac-universal.dmg"},
+		{MacOS, ARM64, []string{"app-mac-x64.dmg", "app-mac-arm64.dmg"}, "app-mac-arm64.dmg"},
+		{MacOS, ARM64, []string{"app-mac-x64.dmg"}, "app-mac-x64.dmg"},
+		{MacOS, ARM64, []string{"app-mac-x64.dmg", "App.dmg"}, "app-mac-x64.dmg"}, // Known Rosetta support beats an unknown CPU.
+		{MacOS, AMD64, []string{"app-mac-x64.dmg", "app-mac-universal.dmg"}, "app-mac-universal.dmg"},
+		{MacOS, AMD64, []string{"app-mac-arm64.dmg"}, ""},
+		{MacOS, UnknownArch, []string{"app-mac-x64.dmg", "app-mac-arm64.dmg", "app-mac-universal.dmg"}, "app-mac-universal.dmg"},
+		{Linux, ARM64, []string{"app-linux-x64.tar.gz"}, ""},
+	} {
+		var assets []github.Asset
+		for _, name := range tc.assets {
+			assets = append(assets, github.Asset{Name: name})
+		}
+		d := DecideAsset(assets, tc.platform, tc.arch, PickOpts{})
+		got := ""
+		if d.ShouldAutoSelect() {
+			got = d.Asset.Name
+		}
+		if got != tc.want {
+			t.Errorf("%s/%s %v: got %q, want %q (%v)", tc.platform, tc.arch, tc.assets, got, tc.want, d.Reasons)
+		}
+	}
+	// Obsidian v1.14.4's NSIS stub inspects as x86 and must still reach x64/ARM64 Windows.
+	stub := github.Asset{Name: "Obsidian-1.14.4.exe", Artifact: &github.ArtifactMetadata{
+		Targets: []github.ArtifactTarget{{Platform: "windows", Arch: "386"}}, Role: "application", Status: "inspected"}}
+	for _, arch := range []Arch{AMD64, ARM64} {
+		if d := DecideAsset([]github.Asset{stub}, Windows, arch, PickOpts{}); !d.ShouldAutoSelect() {
+			t.Errorf("windows/%s lost the x86 installer: %+v", arch, d)
+		}
 	}
 }
 
@@ -119,7 +220,7 @@ func TestDecideAsset_VerifiedMacZip(t *testing.T) {
 		platform       Platform
 		want           bool
 	}{
-		{"EjectRemapper.zip", "macos", MacOS, true},
+		{"EjectRemapper.zip", "macos", MacOS, false},
 		{"EjectRemapper.zip", "", MacOS, false},
 		{"EjectRemapper.zip", "macos", Windows, false},
 		{"EjectRemapper.zip", "macos", Linux, false},

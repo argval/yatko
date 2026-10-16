@@ -185,17 +185,31 @@ func Classify(name string) ArtifactFacts {
 		}
 	}
 
-	for _, hit := range archAliasHits(canonical) {
+	hits := archAliasHits(canonical)
+	for _, hit := range hits {
+		// Electron uses win32 as an OS namespace even for x64 and ARM64.
+		if hit.kw == "win32" && len(hits) > 1 {
+			continue
+		}
 		a := Arch(hit.key)
-		if hit.kw == "arm" && (f.HasPlatform(MacOS) || strings.HasSuffix(canonical, ".dmg") || strings.HasSuffix(canonical, ".pkg")) {
+		mac := f.HasPlatform(MacOS) || strings.HasSuffix(canonical, ".dmg") || strings.HasSuffix(canonical, ".pkg")
+		if hit.kw == "arm" && mac {
 			a = ARM64
+		}
+		if hit.kw == "x86" && mac { // Macs have no 32-bit builds; "x86" there means Intel 64-bit.
+			a = AMD64
 		}
 		f.Arches = appendUniqueArch(f.Arches, a)
 		f.Evidence = appendUnique(f.Evidence, hit.kw)
 	}
-	if f.HasPlatform(MacOS) && hasBoundedKeyword(canonical, "universal") {
+	if (f.HasPlatform(MacOS) || strings.HasSuffix(canonical, ".dmg") || strings.HasSuffix(canonical, ".pkg")) && hasBoundedKeyword(canonical, "universal") {
 		f.Arches = []Arch{AMD64, ARM64}
 		f.Evidence = appendUnique(f.Evidence, "universal")
+	}
+
+	if f.HasPlatform(MacOS) && len(f.Arches) == 0 && hasBoundedKeyword(canonical, "apple") {
+		f.Arches = appendUniqueArch(f.Arches, ARM64)
+		f.Evidence = appendUnique(f.Evidence, "apple")
 	}
 
 	f.Source = sourceArchive(canonical, f.Platforms, f.Arches)

@@ -4,7 +4,7 @@
 // detection aligned with Go DetectPlatform / DetectArch / ResolveArch.
 
 export type { Arch, Asset, Platform } from "./pick-asset";
-import { classify, primaryPlatform, type Arch, type Asset, type Platform } from "./pick-asset";
+import { classify, primaryPlatform, type Arch, type Asset, type Libc, type Platform } from "./pick-asset";
 
 export const platformLabels: Record<Platform, string> = {
   windows: "Windows",
@@ -155,18 +155,35 @@ export function formatSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+/** Mirrors Go's emulation table: Windows x64 runs x86; Windows ARM64 runs x64
+ *  and x86; Apple Silicon runs Intel builds via Rosetta. */
+const EMULATION: Partial<Record<Platform, Partial<Record<Arch, string[]>>>> = {
+  windows: { amd64: ["386"], arm64: ["amd64", "386"] },
+  macos: { arm64: ["amd64"] },
+};
+
+function runsEmulated(platform: Platform | "", visitor: Arch, asset: string): boolean {
+  return !!platform && !!EMULATION[platform]?.[visitor]?.includes(asset);
+}
+
 /** Server metadata is authoritative; filename facts support older API responses. */
-export function assetMatchesTarget(asset: Asset, target: { platform: Platform | ""; arch: Arch }): boolean {
+export function assetMatchesTarget(asset: Asset, target: { platform: Platform | ""; arch: Arch; libc?: Libc }): boolean {
   if (!target.platform) return false;
   if (asset.artifact) {
-    return !["source", "debug", "metadata"].includes(asset.artifact.role) &&
+    return asset.artifact.status !== "failed" &&
+      !["source", "debug", "metadata"].includes(asset.artifact.role) &&
       !asset.artifact.conflicts?.length &&
       asset.artifact.targets.some((entry) => entry.platform === target.platform &&
-        (!target.arch || !entry.arch || entry.arch === target.arch || entry.arch === "universal"));
+        (!target.arch || entry.arch === target.arch || entry.arch === "universal" ||
+          (!!entry.arch && runsEmulated(target.platform, target.arch, entry.arch))) &&
+        (!target.libc || !entry.libc || entry.libc === target.libc || entry.libc === "static"));
   }
   const facts = classify(asset.name);
-  return !facts.source && primaryPlatform(facts) === target.platform &&
-    (!target.arch || !facts.arches.length || facts.arches.includes(target.arch));
+  const sidecar = /\.(sha256|sha512|md5|sig|asc|minisig|blockmap|ya?ml|json)$/.test(facts.canonical);
+  const debug = /(?:^|[^a-z])(?:symbols|pdbs?|dsyms?|dbsym|debuginfo|debugsymbols|debug-symbols)(?:$|[^a-z])/.test(facts.canonical);
+  return !facts.source && !facts.nonNative && !sidecar && !debug && primaryPlatform(facts) === target.platform &&
+    (!target.arch || facts.arches.includes(target.arch) || facts.arches.some((arch) => runsEmulated(target.platform, target.arch, arch))) &&
+    (!target.libc || !facts.libc || facts.libc === target.libc || facts.libc === "static");
 }
 
 export function assetTargetLabel(asset: Asset): string {

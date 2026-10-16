@@ -63,3 +63,24 @@ describe("isInstallScriptOneLiner / isUnsafeInstallCommand", () => {
     expect(isUnsafeInstallCommand("brew install foo")).toBe(false);
   });
 });
+
+
+test("literal forbidden syntax stays forbidden inside quoted arguments", () => {
+  for (const value of ["sample$(evil)", "sample`evil`", "sample&&evil"]) {
+    expect(lexPipeline(`pip install '${value}'`)).toBeNull();
+  }
+});
+
+test("script pipes require one HTTPS fetch to stdout with supported options", () => {
+  for (const command of [
+    'curl --help | sh', 'curl https://x/install --output saved | sh',
+    'curl http://x/install | sh', 'curl https://user:secret@x/install | sh',
+    'curl https://x/a https://x/b | sh', 'wget https://x/install | sh',
+    'irm -OutFile saved https://x/install | iex',
+  ]) expect(isInstallScriptOneLiner(command)).toBe(false);
+  for (const command of [
+    'curl --proto =https --tlsv1.2 -fsSL https://vendor.example/install | sudo -u root bash',
+    'wget --output-document=- https://vendor.example/install | sh',
+    'irm -Uri https://vendor.example/install | iex',
+  ]) expect(isInstallScriptOneLiner(command)).toBe(true);
+});

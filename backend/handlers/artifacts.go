@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -26,7 +27,7 @@ func (h *RedirectHandler) enrichArtifacts(parent context.Context, assets []githu
 		identities[i] = artifactIdentity(a)
 	}
 	slices.Sort(identities)
-	key := fmt.Sprintf("artifact-manifests:v1:%x", sha256.Sum256([]byte(strings.Join(identities, "\n"))))
+	key := fmt.Sprintf("artifact-manifests:v2:%x", sha256.Sum256([]byte(strings.Join(identities, "\n"))))
 	metadata, _ := cache.FetchCached(ctx, h.cache, key, func(ctx context.Context, _ string) (map[string]github.ArtifactMetadata, string, bool, error) {
 		m, err := h.gh.ReleaseMetadata(ctx, assets)
 		if len(m) > 0 {
@@ -34,35 +35,73 @@ func (h *RedirectHandler) enrichArtifacts(parent context.Context, assets []githu
 		} // Keep valid observations when another manifest fails.
 		return m, "", false, err
 	})
+	type probe struct{ i, rank int }
+	var queue []probe
+	for i := range assets {
+		if m, ok := metadata[assets[i].Name]; ok {
+			assets[i].Artifact = &m
+		}
+		if rank, ok := inspectionRank(assets[i]); ok {
+			queue = append(queue, probe{i, rank})
+		}
+	}
+	// Cached observations are free; only live downloads spend the budget, so
+	// repeated requests fill in every uncertain asset a few at a time.
+	// ponytail: 4 live probes per request; background-fill if cold pages need more.
+	slices.SortStableFunc(queue, func(a, b probe) int { return a.rank - b.rank })
 	probes := 0
-	for i, a := range assets {
-		if m, ok := metadata[a.Name]; ok {
-			a.Artifact = &m
+	for _, p := range queue {
+		if ctx.Err() != nil {
+			break
 		}
-		facts := picker.FactsForAsset(a)
-		needsInspection := len(facts.Targets) == 0
-		for _, target := range facts.Targets {
-			needsInspection = needsInspection || target.Platform == "" || target.Arch == ""
-		}
-		if needsInspection && facts.Role != "source" && facts.Role != "metadata" && facts.Role != "debug" && !facts.NonNative && probes < 4 && ctx.Err() == nil {
+		a := assets[p.i]
+		k := fmt.Sprintf("artifact-content:v2:%x", sha256.Sum256([]byte(artifactIdentity(a))))
+		observed, hit := cache.GetCached[github.ArtifactMetadata](ctx, h.cache, k)
+		if !hit {
+			if probes == 4 {
+				continue
+			}
 			probes++
-			k := fmt.Sprintf("artifact-content:v1:%x", sha256.Sum256([]byte(artifactIdentity(a))))
-			observed, err := cache.FetchCached(ctx, h.cache, k, func(ctx context.Context, _ string) (github.ArtifactMetadata, string, bool, error) {
+			var err error
+			observed, err = cache.FetchCached(ctx, h.cache, k, func(ctx context.Context, _ string) (github.ArtifactMetadata, string, bool, error) {
 				m, err := h.gh.InspectArtifact(ctx, a)
 				return m, "", false, err
 			})
+			if err != nil && (errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) || ctx.Err() != nil) {
+				continue // A timeout says nothing about the file; keep filename/manifest facts.
+			}
 			if err != nil {
 				observed = github.ArtifactMetadata{Status: "failed", Role: "unknown"}
 			}
-			if a.Artifact != nil {
-				observed = mergeObservations(*a.Artifact, observed)
-			}
-			a.Artifact = &observed
 		}
-		m := picker.DescribeAsset(a)
-		a.Artifact = &m
-		assets[i] = a
+		if a.Artifact != nil {
+			observed = mergeObservations(*a.Artifact, observed)
+		}
+		assets[p.i].Artifact = &observed
 	}
+	for i := range assets {
+		m := picker.DescribeAsset(assets[i])
+		assets[i].Artifact = &m
+	}
+}
+
+// inspectionRank orders content probes: unknown OS first (the asset cannot be
+// offered at all), then .apk (Android vs Alpine), then a missing CPU.
+func inspectionRank(a github.Asset) (int, bool) {
+	facts := picker.FactsForAsset(a)
+	if facts.Role == "source" || facts.Role == "metadata" || facts.Role == "debug" || facts.NonNative {
+		return 0, false
+	}
+	if len(facts.Targets) == 0 || slices.ContainsFunc(facts.Targets, func(t github.ArtifactTarget) bool { return t.Platform == "" }) {
+		return 0, true
+	}
+	if strings.HasSuffix(strings.ToLower(a.Name), ".apk") {
+		return 1, true
+	}
+	if slices.ContainsFunc(facts.Targets, func(t github.ArtifactTarget) bool { return t.Arch == "" }) {
+		return 2, true
+	}
+	return 0, false
 }
 
 // mergeObservations intersects corroborating targets and preserves contradictions.
@@ -120,7 +159,7 @@ func mergeObservations(a, b github.ArtifactMetadata) github.ArtifactMetadata {
 			out.Targets = combined
 		}
 	}
-	if b.Status == "inspected" || out.Status == "" || out.Status == "unknown" {
+	if b.Status == "failed" || b.Status == "inspected" || out.Status == "" || out.Status == "unknown" {
 		out.Status = b.Status
 	}
 	return out

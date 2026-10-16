@@ -71,18 +71,20 @@ func FactsForAsset(asset github.Asset) ArtifactFacts {
 	return f
 }
 
+// filenameRole checks sidecar suffixes first: source.tar.gz.sha256 is a
+// checksum (metadata), not source code, whatever its base name says.
 func filenameRole(f ArtifactFacts) string {
-	if f.Source {
-		return "source"
-	}
-	for _, tok := range []string{"symbols", "pdb", "pdbs", "dsym", "dsyms", "dbsym"} {
-		if hasBoundedKeyword(f.Canonical, tok) {
-			return "debug"
-		}
-	}
 	for _, suffix := range []string{".sha256", ".sha512", ".md5", ".sig", ".asc", ".minisig", ".blockmap", ".yml", ".yaml", ".json"} {
 		if strings.HasSuffix(f.Canonical, suffix) {
 			return "metadata"
+		}
+	}
+	if f.Source {
+		return "source"
+	}
+	for _, tok := range []string{"symbols", "pdb", "pdbs", "dsym", "dsyms", "dbsym", "debuginfo", "debugsymbols", "debug-symbols"} {
+		if hasBoundedKeyword(f.Canonical, tok) {
+			return "debug"
 		}
 	}
 	if f.Kind == KindInstaller {

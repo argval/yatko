@@ -15,7 +15,8 @@ func TestObservedTargetsResolveOpaqueArchive(t *testing.T) {
 		platform Platform
 		arch     Arch
 		want     bool
-	}{{MacOS, AMD64, true}, {Windows, AMD64, false}, {Linux, AMD64, false}, {MacOS, ARM64, false}} {
+	}{{MacOS, AMD64, true}, {Windows, AMD64, false}, {Linux, AMD64, false},
+		{MacOS, ARM64, true}} { // Intel-only Mac app runs on Apple Silicon via Rosetta
 		if d := DecideAsset([]github.Asset{a}, tc.platform, tc.arch, PickOpts{}); d.ShouldAutoSelect() != tc.want {
 			t.Fatalf("%s/%s: %+v", tc.platform, tc.arch, d)
 		}
@@ -34,7 +35,8 @@ func TestTargetTuplesDoNotInventCrossPlatformArchitectures(t *testing.T) {
 		platform Platform
 		arch     Arch
 		want     bool
-	}{{Windows, X86, true}, {MacOS, ARM64, true}, {Windows, ARM64, false}, {MacOS, X86, false}} {
+	}{{Windows, X86, true}, {MacOS, ARM64, true}, {MacOS, AMD64, false}, {MacOS, X86, false},
+		{Windows, ARM64, true}} { // windows/386 runs under ARM64 Windows' x86 emulation, not via macos/arm64
 		if d := DecideAsset([]github.Asset{a}, tc.platform, tc.arch, PickOpts{}); d.ShouldAutoSelect() != tc.want {
 			t.Fatalf("%s/%s: %+v", tc.platform, tc.arch, d)
 		}
@@ -61,7 +63,9 @@ func TestContradictionsAndInspectionFailuresStayUnresolved(t *testing.T) {
 
 func TestObservedCPURefinesStructuralTarget(t *testing.T) {
 	a := github.Asset{Name: "App.zip", Artifact: &github.ArtifactMetadata{Targets: []github.ArtifactTarget{{Platform: "macos"}, {Platform: "macos", Arch: "amd64"}}, Role: "application", Status: "inspected"}}
-	if d := DecideAsset([]github.Asset{a}, MacOS, ARM64, PickOpts{}); d.ShouldAutoSelect() {
+	// Structural OS evidence must not erase a known, usable CPU target.
+	other := github.Asset{Name: "Other.dmg"}
+	if d := DecideAsset([]github.Asset{a, other}, MacOS, ARM64, PickOpts{}); !d.ShouldAutoSelect() || d.Asset.Name != "App.zip" {
 		t.Fatalf("structural target overrode known CPU: %+v", d)
 	}
 	if d := DecideAsset([]github.Asset{a}, MacOS, AMD64, PickOpts{}); !d.ShouldAutoSelect() {
@@ -97,5 +101,17 @@ func TestInspectedWithoutTargetsDoesNotResolveAmbiguousFilename(t *testing.T) {
 func TestExplicitUnknownArchNeverRedetectsVisitor(t *testing.T) {
 	if got := ResolveArch("unknown", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"); got != UnknownArch {
 		t.Fatalf("explicit unknown arch became %q", got)
+	}
+}
+
+// astral-sh/uv 0.13.1: cargo-dist marks source.tar.gz.sha256 as a checksum.
+// The "source" base name must not turn that into a role conflict.
+func TestChecksumOfSourceIsMetadataNotConflict(t *testing.T) {
+	a := github.Asset{Name: "source.tar.gz.sha256", Artifact: &github.ArtifactMetadata{Role: "metadata", Status: "inspected"}}
+	if f := FactsForAsset(a); f.Role != "metadata" || len(f.Conflicts) > 0 {
+		t.Fatalf("%+v", f)
+	}
+	if f := FactsForAsset(github.Asset{Name: "source.tar.gz"}); f.Role != "source" {
+		t.Fatalf("source archive lost its role: %+v", f)
 	}
 }

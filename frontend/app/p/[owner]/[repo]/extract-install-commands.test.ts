@@ -376,3 +376,214 @@ test("legacy prerequisite strings still display when no target metadata is suppl
     target: { platform: "windows", arch: "amd64" },
   }))).toContain("npm install -g helper");
 });
+
+// Generated snippets exercise section structure without depending on changing remote READMEs.
+describe("README HTML and stated runtime requirements", () => {
+  test("HTML headings preserve installation scope for unfamiliar method headings and aliases", () => {
+    const readme = md(
+      '<h2 id="install">Installation</h2>', '',
+      '### The community package', '```sh', 'brew install gh', '```',
+      '<h3>Windows ARM64</h3>', '',
+      '```powershell', 'winget install GitHub.cli', '```',
+    );
+    expect(extractInstallCommands(readme, { owner: 'cli', repo: 'cli' })).toMatchObject([
+      { command: 'brew install gh', platform: 'macos', evidence: 'Installation › The community package' },
+      { command: 'winget install GitHub.cli', platform: 'windows', arches: ['arm64'] },
+    ]);
+  });
+
+  test("HTML pre/code uses the same language and safety validation as Markdown fences", () => {
+    const readme = '<section><h2>Install</h2><h3>Linux x64</h3>' +
+      '<pre><code class="language-sh">curl "https://example.com/install?a=1&amp;b=2" | sh\n' +
+      'brew install foo &amp;&amp; evil</code></pre>' +
+      '<pre><code class="language-python">pip install example</code></pre>' +
+      '<script>brew install hidden</script></section>';
+    expect(extractInstallCommands(readme)).toMatchObject([
+      { command: 'curl "https://example.com/install?a=1&b=2" | sh', platform: 'linux', arches: ['amd64'] },
+    ]);
+    expect(extractInstallCommands(readme)).toHaveLength(1);
+  });
+
+  test("HTML requirements keep exact rendered wording and explicit target scope", () => {
+    const readme = '<div><h2>Installation</h2><h3>Requirements for Linux ARM64</h3>' +
+      '<ul><li>Node.js 20+</li><li>Python 3.10 or later</li></ul>' +
+      '<h3>Package</h3><pre><code>npm install -g example-tool</code></pre></div>';
+    const [command] = extractInstallCommands(readme);
+    expect(command.prerequisiteTargets).toMatchObject([
+      { command: 'Node.js 20+', kind: 'prose', platform: 'linux', arches: ['arm64'] },
+      { command: 'Python 3.10 or later', kind: 'prose', platform: 'linux', arches: ['arm64'] },
+    ]);
+    const render = (arch: 'arm64' | 'amd64') => renderToStaticMarkup(createElement(InstallPrerequisites, {
+      command, target: { platform: 'linux', arch },
+    }));
+    expect(render('arm64')).toContain('Node.js 20+; Python 3.10 or later');
+    expect(render('arm64')).not.toContain('<button');
+    expect(render('amd64')).toBe('');
+  });
+
+  test("explicit prerequisite prose attaches to the following installer without becoming a command", () => {
+    const readme = md('## Installation', 'Requires Node.js 20+, Python 3.10 or later.', '',
+      '```sh', 'npm install -g example-tool', '```', '## Usage',
+      '```sh', 'npm install -g different-tool', '```');
+    const result = extractInstallCommands(readme);
+    expect(result[0].prerequisites).toEqual(['Requires Node.js 20+, Python 3.10 or later.']);
+    expect(result[0].prerequisiteTargets?.[0].kind).toBe('prose');
+    expect(result).toHaveLength(1);
+  });
+
+  test("prose prerequisites do not cross stated CPU targets", () => {
+    const readme = md('## Installation', '### Requirements for Apple Silicon',
+      'Node.js 20+', '', '### Intel Mac', '```sh', 'brew install tool', '```');
+    expect(extractInstallCommands(readme)[0].prerequisites).toBeUndefined();
+  });
+
+  test("nested install headings cannot promote build and troubleshooting commands", () => {
+    for (const heading of ['Build from source', 'Troubleshooting']) {
+      const readme = md(`<h2>${heading}</h2>`, '', '### Install',
+        'Requires Python 3.10 or later.', '', '```sh', 'pip install example-tool', '```');
+      expect(extractInstallCommands(readme)).toEqual([]);
+    }
+  });
+});
+
+test("mixed HTML lead-ins and inline formatting retain targets and visible wording", () => {
+  const readme = md('## Installation', '<p>On Linux ARM64:</p>', '',
+    '```sh', 'curl https://example.com/install | sh', '```',
+    '### Requirements', 'Requires <strong>Node.js 20+</strong>.', '',
+    '### Package', '```sh', 'npm install -g tool', '```');
+  const result = extractInstallCommands(readme);
+  expect(result[0]).toMatchObject({ platform: 'linux', arches: ['arm64'] });
+  expect(result[1].prerequisites).toEqual(['Requires Node.js 20+.']);
+});
+
+test("HTML requirement list items do not inherit a sibling's OS or CPU", () => {
+  const [command] = extractInstallCommands('<h2>Installation</h2><h3>Requirements</h3>' +
+    '<ul><li>Node.js 20+ on Linux ARM64</li><li>Python 3.10 or later</li></ul>' +
+    '<h3>Package</h3><pre><code>npm install -g tool</code></pre>');
+  expect(command.prerequisiteTargets).toMatchObject([
+    { command: 'Node.js 20+ on Linux ARM64', platform: 'linux', arches: ['arm64'] },
+    { command: 'Python 3.10 or later', platform: 'universal' },
+  ]);
+  expect(command.prerequisiteTargets?.[1].arches).toBeUndefined();
+});
+
+describe("live README coverage regressions", () => {
+  test("inline installation lists retain known package methods and reject unsafe chains", () => {
+    const readme = md('## Installation', '### Linux', '- Arch: `pacman -S sample`',
+      '- Ubuntu: `apt install sample`', '### macOS', '- Homebrew: `brew install sample`',
+      '- Custom: `brew install sample && evil`', '## Usage',
+      'An unrelated example is `pip install example-dependency`.');
+    expect(commands(readme)).toEqual(['pacman -S sample', 'apt install sample', 'brew install sample']);
+  });
+
+  test("GFM installation tables retain each row target without promoting unrelated tables", () => {
+    const readme = md('## Installation', '| Platform | Instructions |', '| --- | --- |',
+      '| Linux ARM64 | `cargo install sample --locked` |',
+      '| Windows x64 | `cargo install sample --locked` |',
+      '| macOS | `brew install sample` |',
+      '## Examples', '| Example | Command |', '| --- | --- |',
+      '| Dependency | `pip install unrelated` |');
+    expect(extractInstallCommands(readme)).toMatchObject([
+      { command: 'cargo install sample --locked', platform: 'linux', arches: ['arm64'] },
+      { command: 'cargo install sample --locked', platform: 'windows', arches: ['amd64'] },
+      { command: 'brew install sample', platform: 'macos' },
+    ]);
+    expect(extractInstallCommands(readme)).toHaveLength(3);
+  });
+
+  test("Homebrew respects stated Linux or shared OS support and keeps its default", () => {
+    const readme = md('## Installation', '```sh', '# macOS or Linux', 'brew install sample', '```',
+      '### Linux ARM64', '```sh', 'brew install other', '```');
+    expect(extractInstallCommands(readme)).toMatchObject([
+      { command: 'brew install sample', platform: 'macos', platforms: ['macos', 'linux'] },
+      { command: 'brew install other', platform: 'linux', arches: ['arm64'] },
+    ]);
+    expect(extractInstallCommands('```sh\nbrew install sample\n```')[0].platform).toBe('macos');
+  });
+
+  test("a package install that compiles is kept while source-build sections stay excluded", () => {
+    const readme = md('## How do I install it?', 'You can also install (compile) with cargo:',
+      '```sh', 'cargo install --locked sample', '```', '### Build from source',
+      'You can also install (compile) with cargo:', '```sh', 'cargo install other', '```');
+    expect(commands(readme)).toEqual(['cargo install --locked sample']);
+  });
+
+  test("runtime prose and inline version numbers remain requirements, not commands", () => {
+    const readme = md('## Installation', 'Requires Node.js `20+` and Python `3.10 or later`.', '',
+      '`npm install -g sample`', '', '## Usage', '`npm install -g unrelated`');
+    const [command] = extractInstallCommands(readme);
+    expect(command.command).toBe('npm install -g sample');
+    expect(command.prerequisites).toEqual(['Requires Node.js 20+ and Python 3.10 or later.']);
+    expect(extractInstallCommands(readme)).toHaveLength(1);
+  });
+});
+
+test("explicit unsupported systems remain unknown rather than universal", () => {
+  const readme = md('## Installation', '<details><summary>BSD</summary>', '',
+    '| Source | Instructions |', '| --- | --- |', '| crates.io | `cargo install sample` |',
+    '</details>');
+  expect(extractInstallCommands(readme)[0].platform).toBe('unknown');
+});
+
+describe("README structure and command regressions", () => {
+  const fence = (command: string, lang = 'sh') => `\`\`\`${lang}\n${command}\n\`\`\``;
+  const extract = (body: string) => extractInstallCommands(`## Installation\n${body}`);
+
+  test("explicit Windows MSYS2 and WSL contexts remain distinct", () => {
+    expect(extract('### Windows MSYS2\n`pacman -S $MINGW_PACKAGE_PREFIX-sample`')[0].platform).toBe('windows');
+    expect(extract('### Windows (WSL)\n' + fence('curl https://vendor.example/install | sh'))[0].platform).toBe('linux');
+    expect(extract('### Termux\n' + fence('apt install sample'))[0].platform).toBe('unknown');
+  });
+
+  test("inline clauses keep their own OS and Intel Macs constrain both OS and CPU", () => {
+    const results = extract('On macOS run `brew install sample`, and on Windows run `choco install sample`.');
+    expect(results.map(({ platform, platforms }) => ({ platform, platforms }))).toEqual([
+      { platform: 'macos', platforms: undefined }, { platform: 'windows', platforms: undefined },
+    ]);
+    expect(extract('### Intel Macs\n' + fence('cargo install sample'))[0]).toMatchObject({ platform: 'macos', arches: ['amd64'] });
+  });
+
+  test("HTML tables preserve inline commands and row targets", () => {
+    expect(extract('<table><tr><td>Linux ARM64</td><td><code>cargo install sample</code></td></tr></table>'))
+      .toMatchObject([{ command: 'cargo install sample', platform: 'linux', arches: ['arm64'] }]);
+  });
+
+  test("details summary targets survive an intervening lead paragraph", () => {
+    expect(extract('<details><summary>Linux ARM64</summary>\n\nInstall the latest version:\n\n' +
+      fence('curl https://vendor.example/install | sh') + '\n</details>')[0])
+      .toMatchObject({ platform: 'linux', arches: ['arm64'] });
+  });
+
+  test("promptless console commands, valued sudo options, and quoted hashes survive", () => {
+    expect(extract(fence('pipx install sample', 'console'))).toHaveLength(1);
+    expect(extract(fence('sudo -u root apt install sample'))[0].command).toBe('sudo -u root apt install sample');
+    const command = "pip install sample --config-settings='message=hello # world'";
+    expect(extract(fence(command))[0].command).toBe(command);
+  });
+
+  test("additional package managers and equals-form Winget IDs are recognized", () => {
+    const commands = ['nix-env -iA nixpkgs.sample', 'nix profile install nixpkgs#sample',
+      'flatpak install flathub org.example.Sample', 'snap install sample',
+      'docker pull vendor/sample', 'apk add sample', 'port install sample',
+      'xbps-install -S sample', 'winget install --id=Vendor.Sample'];
+    expect(extract(fence(commands.join('\n'))).map(({ command }) => command)).toEqual(commands);
+  });
+
+  test("struck instructions and usage or SDK examples are excluded", () => {
+    expect(extract('~~`apt install sample`~~')).toEqual([]);
+    expect(extract('### SDK\n' + fence('pip install sample'))).toEqual([]);
+    expect(extract('### Usage examples\n' + fence('uv tool install unrelated'))).toEqual([]);
+  });
+
+  test("adjacent following requirements attach without leaking across sections or prose", () => {
+    expect(extract(fence('pipx install sample') + '\nRequires Python 3.10.')[0].prerequisites).toEqual(['Requires Python 3.10.']);
+    expect(extract(fence('pipx install sample') + '\n## Other\nRequires Python 3.10.')[0].prerequisites).toBeUndefined();
+    expect(extract(fence('pipx install sample') + '\n\nSee the guide.\n\nRequires Python 3.10.')[0].prerequisites).toBeUndefined();
+  });
+
+  test("optional dependencies do not become required installation steps", () => {
+    expect(extract('### Optional dependencies\n' + fence('apt install make') + '\n### Package\n' + fence('pipx install sample'))[0].prerequisites).toBeUndefined();
+    expect(extract('Requires optional Git support.\n\n' + fence('pipx install sample'))[0].prerequisites).toBeUndefined();
+    expect(extract('Requires Python 3.10. Git is optional.\n\n' + fence('pipx install sample'))[0].prerequisites).toEqual(['Requires Python 3.10.']);
+  });
+});

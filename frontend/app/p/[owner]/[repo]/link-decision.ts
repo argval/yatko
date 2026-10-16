@@ -38,15 +38,17 @@ export function downloadLinkPath(
   return pickerPath("/api/link", owner, repo, tagName, platform, arch);
 }
 
-/** Click-through URL: Go still decides the asset on request. */
+/** Pin a displayed filename while Go rechecks compatibility on click. */
 export function downloadRedirectPath(
   owner: string,
   repo: string,
   tagName: string,
   platform: Platform,
   arch: Arch,
+  filename?: string,
 ): string {
-  return pickerPath("/dl", owner, repo, tagName, platform, arch);
+  const path = pickerPath("/dl", owner, repo, tagName, platform, arch);
+  return filename ? `${path}&asset=${encodeURIComponent(filename)}` : path;
 }
 
 /** Key used by /api/release `picks` — prefer arch-specific, then platform-only. */

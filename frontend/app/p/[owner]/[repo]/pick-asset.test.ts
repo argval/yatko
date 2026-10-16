@@ -73,6 +73,11 @@ test("universal Mac packages cover both native CPUs", () => {
   expect(classify("tool-universal.zip").arches).toEqual([]);
 });
 
+test("portable is a secondary build variant", () => {
+  expect(classify("App-windows-x64-Setup.exe").variants).toEqual([]);
+  expect(classify("App-windows-x64-Portable.exe").variants).toContain("portable");
+});
+
 test("Apple CPU clue does not override an explicit Rust target architecture", () => {
   expect(classify("tool-macos-Apple.dmg").arches).toEqual(["arm64"]);
   expect(classify("tool-x86_64-apple-darwin.tar.gz").arches).toEqual(["amd64"]);

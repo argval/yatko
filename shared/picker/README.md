@@ -112,12 +112,12 @@ name alone proves no CPU support. Android APK inspection currently establishes
 Android from its manifest, but does not decode the native CPU inventory. Two
 APK corpus cases therefore record known abstentions for specific CPUs.
 
-Companion detection recognizes a bounded `cli` token. Arbitrary companion names
-such as `inso`, glued names such as `HandBrakeCLI`, and a proxy sharing a release
-still need publisher roles or more product context. The resolver must not invent
-repo-specific aliases from a binary header. Encrypted archives, unsupported 7z
-filter chains (including BCJ), and oversized inspections can remain unknown.
-Windows installer stub CPU evidence does not establish every payload requirement.
+Companion detection recognizes bounded `cli` and `inso` tokens. Glued names such
+as `HandBrakeCLI` and a proxy sharing a release still need publisher roles or
+more product context. The resolver must not invent repo-specific aliases from a
+binary header. Encrypted archives, unsupported 7z filter chains (including BCJ),
+and oversized inspections can remain unknown. Windows installer stub CPU
+evidence does not establish every payload requirement.
 
 README extraction does not verify script host ownership or crawl linked install
 documentation. It checks supported HTTPS fetch-and-run syntax, preserves stated

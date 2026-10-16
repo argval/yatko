@@ -188,12 +188,23 @@ func DecideAsset(assets []github.Asset, platform Platform, arch Arch, opts PickO
 	// CLI builds only compete when nothing else fits; all-CLI releases are unaffected.
 	var mainProduct []scored
 	for _, c := range candidates {
-		if !hasBoundedKeyword(c.facts.Canonical, "cli") {
+		if !hasBoundedKeyword(c.facts.Canonical, "cli") && !hasBoundedKeyword(c.facts.Canonical, "inso") {
 			mainProduct = append(mainProduct, c)
 		}
 	}
 	if len(mainProduct) > 0 {
 		candidates = mainProduct
+	}
+	// When both Windows forms are available, the installer is the standard pick
+	// even if its 32-bit setup stub needs emulation on a 64-bit visitor.
+	var installable []scored
+	for _, c := range candidates {
+		if !hasBoundedKeyword(c.facts.Canonical, "portable") {
+			installable = append(installable, c)
+		}
+	}
+	if len(installable) > 0 {
+		candidates = installable
 	}
 
 	// A known compatible CPU is safer than an installer whose CPU is unknown.

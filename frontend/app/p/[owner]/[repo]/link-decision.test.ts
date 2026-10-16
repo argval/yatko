@@ -97,6 +97,20 @@ describe("parseLinkPick", () => {
     });
   });
 
+  test("rejects a miss payload that explains how the platform was chosen", () => {
+    expect(
+      parseLinkPick({
+        url: "https://github.com/acme/tool/releases/tag/v1.0.0",
+        platform: "linux",
+        arch: "amd64",
+        platform_source: "default",
+        arch_source: "default",
+        confidence: "low",
+        error: "no suitable asset found for platform",
+      }),
+    ).toBeNull();
+  });
+
   test("rejects low-confidence payloads even if a filename is present", () => {
     expect(
       parseLinkPick({

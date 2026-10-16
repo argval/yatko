@@ -80,6 +80,7 @@ export function parseLinkPick(body: unknown): LinkPick | null {
     };
   }
   if (status !== undefined && status !== "selected") return null;
+  if (typeof rec.error === "string" && rec.error !== "") return null;
   if (rec.confidence === "low") return null;
   if (typeof rec.filename !== "string" || rec.filename === "") return null;
   if (typeof rec.url !== "string" || rec.url === "") return null;

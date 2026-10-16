@@ -26,42 +26,87 @@ const (
 	UnknownArch Arch = ""
 )
 
-// ResolveArch returns the Arch to use for asset selection. The explicit arch
-// query-param (e.g. "amd64", "arm64") takes priority; if empty or unrecognised,
-// the function falls back to DetectArch on the User-Agent string.
-func ResolveArch(archParam, userAgent string) Arch {
+// ResolutionSource says how platform/arch was chosen for a visitor.
+type ResolutionSource string
+
+const (
+	SourceQuery   ResolutionSource = "query"
+	SourceUA      ResolutionSource = "ua"
+	SourceDefault ResolutionSource = "default"
+)
+
+// Visitor is the OS/arch used for /dl and /api/link, plus how each was chosen.
+type Visitor struct {
+	Platform       Platform
+	Arch           Arch
+	PlatformSource ResolutionSource
+	ArchSource     ResolutionSource
+}
+
+// ResolveVisitor combines query overrides, User-Agent parsing, and defaults.
+// An explicit platform/arch query-param always wins. Otherwise the UA is
+// parsed (including curl/wget triples like x86_64-apple-darwin). Opaque
+// browser UAs stay unknown; script/CLI clients (curl, wget, CI, AI agents)
+// default to linux/amd64 so a bare /dl/owner/repo is useful.
+func ResolveVisitor(platformParam, archParam, userAgent string, script bool) Visitor {
+	var v Visitor
+
+	switch strings.ToLower(strings.TrimSpace(platformParam)) {
+	case "windows":
+		v.Platform, v.PlatformSource = Windows, SourceQuery
+	case "macos", "darwin", "mac":
+		v.Platform, v.PlatformSource = MacOS, SourceQuery
+	case "linux":
+		v.Platform, v.PlatformSource = Linux, SourceQuery
+	case "android":
+		v.Platform, v.PlatformSource = Android, SourceQuery
+	case "ios":
+		v.Platform, v.PlatformSource = IOS, SourceQuery
+	default:
+		if p := DetectPlatform(userAgent); p != Unknown {
+			v.Platform, v.PlatformSource = p, SourceUA
+		} else if script {
+			v.Platform, v.PlatformSource = Linux, SourceDefault
+		} else {
+			v.Platform, v.PlatformSource = Unknown, SourceUA
+		}
+	}
+
 	switch strings.ToLower(strings.TrimSpace(archParam)) {
 	case "unknown":
-		return UnknownArch
+		v.Arch, v.ArchSource = UnknownArch, SourceQuery
 	case "amd64", "x86_64":
-		return AMD64
+		v.Arch, v.ArchSource = AMD64, SourceQuery
 	case "arm64", "aarch64":
-		return ARM64
+		v.Arch, v.ArchSource = ARM64, SourceQuery
 	case "arm", "armv7", "armhf":
-		return ARM
+		v.Arch, v.ArchSource = ARM, SourceQuery
 	case "386", "x86", "i386":
-		return X86
+		v.Arch, v.ArchSource = X86, SourceQuery
+	default:
+		if a := DetectArch(userAgent); a != UnknownArch {
+			v.Arch, v.ArchSource = a, SourceUA
+		} else if script {
+			v.Arch, v.ArchSource = AMD64, SourceDefault
+		} else {
+			v.Arch, v.ArchSource = UnknownArch, SourceUA
+		}
 	}
-	return DetectArch(userAgent)
+	return v
+}
+
+// ResolveArch returns the Arch to use for asset selection. The explicit arch
+// query-param (e.g. "amd64", "arm64") takes priority; "unknown" stays empty so
+// the release page can pin "CPU not specified". Otherwise DetectArch on the UA.
+func ResolveArch(archParam, userAgent string) Arch {
+	return ResolveVisitor("", archParam, userAgent, false).Arch
 }
 
 // ResolvePlatform returns the Platform to use for asset selection. An explicit
 // platform query-param takes priority when recognised; otherwise DetectPlatform
-// on the User-Agent is used. Opaque UAs remain unknown.
+// on the User-Agent is used. Opaque browser UAs remain unknown.
 func ResolvePlatform(platformParam, userAgent string) Platform {
-	switch strings.ToLower(strings.TrimSpace(platformParam)) {
-	case "windows":
-		return Windows
-	case "macos", "darwin", "mac":
-		return MacOS
-	case "linux":
-		return Linux
-	case "android":
-		return Android
-	case "ios":
-		return IOS
-	}
-	return DetectPlatform(userAgent)
+	return ResolveVisitor(platformParam, "", userAgent, false).Platform
 }
 
 // DetectArch attempts to derive the CPU architecture from a User-Agent string.
@@ -71,9 +116,9 @@ func DetectArch(userAgent string) Arch {
 	switch {
 	case strings.Contains(ua, "arm64") || strings.Contains(ua, "aarch64"):
 		return ARM64
-	case strings.Contains(ua, "armv7") || strings.Contains(ua, "armv6") || strings.Contains(ua, "armhf"):
+	case strings.Contains(ua, "armv7") || strings.Contains(ua, "armv6") || strings.Contains(ua, "armhf") || hasBoundedKeyword(ua, "arm"):
 		return ARM
-	case strings.Contains(ua, "x86_64") || strings.Contains(ua, "amd64") || strings.Contains(ua, "win64"):
+	case strings.Contains(ua, "x86_64") || strings.Contains(ua, "amd64") || strings.Contains(ua, "win64") || strings.Contains(ua, "x64"):
 		return AMD64
 	case strings.Contains(ua, "i386") || strings.Contains(ua, "i686") || strings.Contains(ua, "wow64"):
 		return X86
@@ -84,11 +129,14 @@ func DetectArch(userAgent string) Arch {
 
 // DetectPlatform parses a User-Agent string to determine the client's OS.
 // Android must be checked before Linux (Android UAs contain "Linux"), and
-// iPhone/iPad/iPod before macOS (iOS UAs contain "like Mac OS X").
+// iPhone/iPad/iPod before macOS (iOS UAs contain "like Mac OS X"). CLI triples
+// such as x86_64-apple-darwin / x86_64-w64-mingw32 / x86_64-pc-linux-gnu are
+// recognised so curl/wget builds that embed a target tuple still match.
 func DetectPlatform(userAgent string) Platform {
 	ua := strings.ToLower(userAgent)
 	switch {
-	case strings.Contains(ua, "windows") || strings.Contains(ua, "win64") || strings.Contains(ua, "win32"):
+	case strings.Contains(ua, "windows") || strings.Contains(ua, "win64") || strings.Contains(ua, "win32") ||
+		strings.Contains(ua, "mingw") || strings.Contains(ua, "msys") || strings.Contains(ua, "cygwin"):
 		return Windows
 	case strings.Contains(ua, "android"):
 		return Android

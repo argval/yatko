@@ -15,6 +15,16 @@ afterEach(() => {
   resetDetectArchFromWebGLCache();
 });
 
+describe("detectPlatformFromUA", () => {
+  test("reads darwin from a curl target triple", () => {
+    expect(detectPlatformFromUA("curl/8.4.0 (aarch64-apple-darwin24.0)")).toBe("macos");
+  });
+
+  test("reads mingw as Windows", () => {
+    expect(detectPlatformFromUA("curl/8.5.0 (x86_64-w64-mingw32)")).toBe("windows");
+  });
+});
+
 describe("detectArchFromUA", () => {
   test("reads arm64 from explicit UA tokens", () => {
     expect(

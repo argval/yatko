@@ -26,6 +26,18 @@ Need a direct download (no landing page)? Add `/dl`:
 https://yatko.app/dl/cli/cli
 ```
 
+`curl`, `wget`, CI, and other non-browser clients get a linux/amd64 build when the User-Agent has no OS. Pin a target with query params (quotes keep `&` out of the shell):
+
+```
+curl -LO "https://yatko.app/dl/owner/repo?platform=linux&arch=amd64"
+```
+
+Or inspect the resolved URL first:
+
+```
+curl -s "https://yatko.app/api/link/owner/repo" | jq .
+```
+
 ---
 
 ## What it does
@@ -36,7 +48,7 @@ Most GitHub projects bury downloads in a releases page with 15+ assets. Yatko gi
 |-----|-------------|
 | `/:owner/:repo` | Landing page — same path as `github.com/owner/repo`, just swap the domain |
 | `/p/:owner/:repo/:version` | Landing page for a specific release tag |
-| `/dl/:owner/:repo` | Detects platform + arch, redirects straight to the right binary (`?platform=`, `?arch=`, `?prefer=`, `?libc=` overrides) |
+| `/dl/:owner/:repo` | Detects platform + arch, redirects straight to the right binary. Browsers use the User-Agent; curl/wget/CI fall back to linux/amd64. Overrides: `?platform=`, `?arch=`, `?prefer=`, `?libc=` |
 | `/dl/:owner/:repo/:version` | Same, but for a specific release tag |
 | `/code/:owner/:repo` | Downloads the default branch as a ZIP source archive (`?tag=v1.2.3` pins a release tag) |
 | `/api/link/:owner/:repo` | JSON with resolved download URL — for CI/scripts (same query overrides as `/dl`) |
@@ -48,8 +60,9 @@ Most GitHub projects bury downloads in a releases page with 15+ assets. Yatko gi
 ## Features
 
 - **Repo search** — type a name on the homepage and pick from live GitHub suggestions
-- **Platform detection** — Windows / macOS / Linux from User-Agent
+- **Platform detection** — Windows / macOS / Linux from User-Agent; curl/wget/CI fall back to linux/amd64
 - **Architecture detection** — amd64 / arm64 / arm / 386 from User-Agent and `navigator.userAgentData`
+- **Platform switcher** — release pages show the detected OS/arch next to the download button, with a one-click switch to another target
 - **Format & libc overrides** — pin package type (`?prefer=deb`) or musl/gnu/static (`?libc=musl`) on `/dl` and `/api/link`
 - **Source code downloads** — grab a ZIP of the default branch or the release currently on screen
 - **Version selector** — browse and switch between recent releases in the UI

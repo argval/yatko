@@ -23,7 +23,7 @@ func TestCorpusMetrics(t *testing.T) {
 	}
 	score, mismatches := scoreCorpus(releases)
 	t.Logf(
-		"corpus releases=%d cases=%d top1=%d abstain=%d false_abstain=%d false_auto=%d wrong_platform=%d known_miss=%d known_miss_resolved=%d avg_decide=%dns",
+		"corpus releases=%d cases=%d top1=%d abstain=%d false_abstain=%d false_auto=%d wrong_platform=%d wrong_arch=%d unlabeled=%d known_miss=%d known_miss_resolved=%d avg_decide=%dns",
 		len(releases),
 		score.Total,
 		score.Top1,
@@ -31,12 +31,17 @@ func TestCorpusMetrics(t *testing.T) {
 		score.FalseAbstain,
 		score.FalseAuto,
 		score.WrongPlatform,
+		score.WrongArch,
+		score.UnlabeledSelections,
 		score.KnownMiss,
 		score.KnownMissResolved,
 		score.DecideNanos/int64(max(score.Total, 1)),
 	)
 	if score.WrongPlatform != 0 {
 		t.Errorf("wrong-platform picks: %d (must stay 0)", score.WrongPlatform)
+	}
+	if score.WrongArch != 0 {
+		t.Errorf("wrong-architecture picks: %d (must stay 0)", score.WrongArch)
 	}
 	if len(mismatches) > 0 {
 		for _, m := range mismatches {

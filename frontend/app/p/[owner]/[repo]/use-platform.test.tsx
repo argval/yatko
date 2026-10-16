@@ -5,10 +5,10 @@
  */
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { Window } from "happy-dom";
-import { createElement, type ReactNode } from "react";
+import { act, createElement, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { detectArch, detectPlatform, resetDetectArchFromWebGLCache } from "./platform-utils";
-import { usePlatform } from "./use-platform";
+import { setPlatformTarget, usePlatform } from "./use-platform";
 
 const MAC_UA =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
@@ -46,7 +46,7 @@ function installDom() {
 }
 
 async function teardownDom() {
-  root?.unmount();
+  await act(async () => { root?.unmount(); });
   root = null;
   // Let React finish any scheduled work before closing happy-dom.
   await new Promise((resolve) => setTimeout(resolve, 0));
@@ -60,13 +60,13 @@ function render(node: ReactNode): Promise<void> {
   container = windowRef.document.createElement("div");
   windowRef.document.body.appendChild(container);
   root = createRoot(container as unknown as Element);
-  root.render(node);
-  return new Promise((resolve) => setTimeout(resolve, 0));
+  return act(async () => { root?.render(node); });
 }
 
 beforeEach(() => {
   activeUA = MAC_UA;
   installDom();
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true, localStorage: windowRef.localStorage });
   // Avoid a sticky WebGL memo from a prior test leaking into this suite.
   resetDetectArchFromWebGLCache();
 });
@@ -118,4 +118,35 @@ describe("usePlatform", () => {
 
     expect(last).toEqual({ platform: "windows", arch: "amd64" });
   });
+});
+
+test("structured hints replace reduced UA hardware and share manual overrides", async () => {
+  activeUA = WIN_UA;
+  let resolveHints: ((value: { architecture: string; bitness: string }) => void) | undefined;
+  Object.defineProperty(windowRef.navigator, "userAgentData", { value: {
+    platform: "Windows",
+    getHighEntropyValues: () => new Promise((resolve) => { resolveHints = resolve; }),
+  } });
+  function Probe() {
+    const target = usePlatform();
+    return createElement("span", null, `${target?.platform}/${target?.arch}`);
+  }
+  await render(createElement("div", null, createElement(Probe), createElement(Probe)));
+  await act(async () => { setPlatformTarget({ platform: "linux", arch: "arm" }); });
+  await act(async () => { resolveHints?.({ architecture: "arm", bitness: "64" }); });
+  expect(container.textContent).toBe("linux/armlinux/arm");
+  expect(windowRef.localStorage.getItem("yatko:download-target")).toContain('"platform":"linux"');
+  await act(async () => { setPlatformTarget(null); });
+  expect(container.textContent).toBe("windows/arm64windows/arm64");
+});
+
+test("unknown OS remains unknown and invalid stored preferences are ignored", async () => {
+  activeUA = "UnknownBrowser/1.0";
+  windowRef.localStorage.setItem("yatko:download-target", '{"platform":"wrong","arch":"amd64"}');
+  function Probe() {
+    const target = usePlatform();
+    return createElement("span", null, JSON.stringify(target));
+  }
+  await render(createElement(Probe));
+  expect(container.textContent).toBe('{"platform":"","arch":""}');
 });

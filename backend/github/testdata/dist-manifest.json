@@ -1,0 +1,60 @@
+{
+  "dist_version": "0.25.2-prerelease.0",
+  "announcement_tag": "v0.3.3",
+  "releases": [
+    {
+      "app_name": "axolotlsay",
+      "app_version": "0.3.3",
+      "artifacts": ["axolotlsay-aarch64-unknown-linux-musl.tar.gz", "axolotlsay-installer.sh"],
+      "hosting": {"github": {"artifact_base_url": "https://github.com", "artifact_download_path": "/axodotdev/axolotlsay/releases/download/v0.3.3", "owner": "axodotdev", "repo": "axolotlsay"}}
+    }
+  ],
+  "artifacts": {
+    "axolotlsay-aarch64-unknown-linux-musl.tar.gz": {
+      "name": "axolotlsay-aarch64-unknown-linux-musl.tar.gz",
+      "kind": "executable-zip",
+      "target_triples": ["aarch64-unknown-linux-musl"],
+      "assets": [{"name": "axolotlsay", "path": "axolotlsay", "kind": "executable"}],
+      "checksum": "axolotlsay-aarch64-unknown-linux-musl.tar.gz.sha256"
+    },
+    "axolotlsay-aarch64-unknown-linux-musl.tar.gz.sha256": {
+      "name": "axolotlsay-aarch64-unknown-linux-musl.tar.gz.sha256",
+      "kind": "checksum",
+      "target_triples": ["aarch64-unknown-linux-musl"]
+    },
+    "axolotlsay-x86_64-pc-windows-msvc.msi": {
+      "name": "axolotlsay-x86_64-pc-windows-msvc.msi",
+      "kind": "installer",
+      "target_triples": ["x86_64-pc-windows-msvc"],
+      "install_hint": "powershell -c \"irm https://example.invalid/install.ps1 | iex\""
+    },
+    "axolotlsay-installer.sh": {
+      "name": "axolotlsay-installer.sh",
+      "kind": "installer",
+      "target_triples": ["aarch64-apple-darwin", "x86_64-unknown-linux-gnu", "x86_64-unknown-linux-musl-static", "riscv64gc-unknown-linux-gnu"]
+    },
+    "axolotlsay-universal2-apple-darwin.tar.gz": {
+      "name": "axolotlsay-universal2-apple-darwin.tar.gz",
+      "kind": "executable-zip",
+      "target_triples": ["universal2-apple-darwin"]
+    },
+    "axolotlsay-x86_64-unknown-linux-gnu-update": {
+      "name": "axolotlsay-x86_64-unknown-linux-gnu-update",
+      "kind": "updater",
+      "target_triples": ["x86_64-unknown-linux-gnu"]
+    },
+    "axolotlsay-x86_64-unknown-linux-gnu.tar.gz.debug": {
+      "name": "axolotlsay-x86_64-unknown-linux-gnu.tar.gz.debug",
+      "kind": "symbols",
+      "target_triples": ["x86_64-unknown-linux-gnu"]
+    },
+    "axolotlsay.rb": {
+      "name": "axolotlsay.rb",
+      "kind": "installer",
+      "target_triples": ["aarch64-apple-darwin"]
+    },
+    "source.tar.gz": {"name": "source.tar.gz", "kind": "source-tarball"},
+    "informative": {"name": null, "kind": "extra-artifact"},
+    "future.bin": {"name": "future.bin", "kind": "some-future-kind", "target_triples": ["wasm32-wasip2"]}
+  }
+}

@@ -46,8 +46,8 @@ type Visitor struct {
 // ResolveVisitor combines query overrides, User-Agent parsing, and defaults.
 // An explicit platform/arch query-param always wins. Otherwise the UA is
 // parsed (including curl/wget triples like x86_64-apple-darwin). Opaque
-// browser UAs still default to Windows; script/CLI clients (curl, wget, CI,
-// AI agents) default to linux/amd64 so a bare /dl/owner/repo is useful.
+// browser UAs stay unknown; script/CLI clients (curl, wget, CI, AI agents)
+// default to linux/amd64 so a bare /dl/owner/repo is useful.
 func ResolveVisitor(platformParam, archParam, userAgent string, script bool) Visitor {
 	var v Visitor
 
@@ -68,11 +68,13 @@ func ResolveVisitor(platformParam, archParam, userAgent string, script bool) Vis
 		} else if script {
 			v.Platform, v.PlatformSource = Linux, SourceDefault
 		} else {
-			v.Platform, v.PlatformSource = Windows, SourceDefault
+			v.Platform, v.PlatformSource = Unknown, SourceUA
 		}
 	}
 
 	switch strings.ToLower(strings.TrimSpace(archParam)) {
+	case "unknown":
+		v.Arch, v.ArchSource = UnknownArch, SourceQuery
 	case "amd64", "x86_64":
 		v.Arch, v.ArchSource = AMD64, SourceQuery
 	case "arm64", "aarch64":
@@ -94,16 +96,15 @@ func ResolveVisitor(platformParam, archParam, userAgent string, script bool) Vis
 }
 
 // ResolveArch returns the Arch to use for asset selection. The explicit arch
-// query-param (e.g. "amd64", "arm64") takes priority; if empty or unrecognised,
-// the function falls back to DetectArch on the User-Agent string.
+// query-param (e.g. "amd64", "arm64") takes priority; "unknown" stays empty so
+// the release page can pin "CPU not specified". Otherwise DetectArch on the UA.
 func ResolveArch(archParam, userAgent string) Arch {
 	return ResolveVisitor("", archParam, userAgent, false).Arch
 }
 
 // ResolvePlatform returns the Platform to use for asset selection. An explicit
 // platform query-param takes priority when recognised; otherwise DetectPlatform
-// on the User-Agent is used. Unknown browser UAs fall back to Windows so opaque
-// desktop clients still get a sensible default (historical /api/link behaviour).
+// on the User-Agent is used. Opaque browser UAs remain unknown.
 func ResolvePlatform(platformParam, userAgent string) Platform {
 	return ResolveVisitor(platformParam, "", userAgent, false).Platform
 }
@@ -229,6 +230,9 @@ func extRankFor(name string, exts []string, prefer string) (rank int, ok bool) {
 			continue
 		}
 		key := strings.TrimPrefix(low, ".")
+		if alias, ok := catalog.PreferAliases[key]; ok {
+			key = alias
+		}
 		if prefer != "" && prefer == key {
 			return -1, true
 		}
@@ -323,9 +327,9 @@ func isAmbiguousArchive(name string) bool {
 
 func sourceArchive(canonical string, platforms []Platform, arches []Arch) bool {
 	for _, tok := range catalog.Source {
-		if strings.Contains(canonical, tok) {
+		if hasBoundedKeyword(canonical, tok) {
 			return true
 		}
 	}
-	return isAmbiguousArchive(canonical) && len(platforms) == 0 && len(arches) == 0
+	return false
 }

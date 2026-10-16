@@ -3,6 +3,7 @@ package handlers
 import (
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 
 	"github.com/argval/yatko/github"
@@ -135,4 +136,27 @@ func TestPickReleaseAsset_ScriptDefaultsToLinuxAmd64(t *testing.T) {
 			t.Fatalf("platform source = %s, want ua", p.PlatformSource)
 		}
 	})
+}
+
+func TestPinnedDownloadKeepsDisplayedAssetAndRejectsIncompatible(t *testing.T) {
+	assets := []github.Asset{{Name: "app-linux-amd64.tar.gz"}, {Name: "app-linux-amd64.AppImage"}, {Name: "app-linux-arm64.tar.gz"}, {Name: "app-linux-amd64-debuginfo.zip"}}
+	for _, tc := range []struct {
+		name     string
+		selected bool
+	}{
+		{"app-linux-amd64.tar.gz", true}, {"app-linux-arm64.tar.gz", false},
+		{"app-linux-amd64-debuginfo.zip", false}, {"https://attacker.example/app", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			c.Request = httptest.NewRequest(http.MethodGet, "/dl/o/r?platform=linux&arch=amd64&asset="+url.QueryEscape(tc.name), nil)
+			d := pickReleaseAsset(c, assets).Decision
+			if d.ShouldAutoSelect() != tc.selected {
+				t.Fatalf("%+v", d)
+			}
+			if tc.selected && d.Asset.Name != tc.name {
+				t.Fatalf("switched from %s to %s", tc.name, d.Asset.Name)
+			}
+		})
+	}
 }

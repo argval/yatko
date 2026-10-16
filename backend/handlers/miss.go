@@ -36,6 +36,17 @@ type assetPick struct {
 }
 
 func pickReleaseAsset(c *gin.Context, assets []github.Asset) assetPick {
+	// A page can pin its displayed filename. Resolve it only from this release
+	// and still apply compatibility checks to the latest observations.
+	if name := c.Query("asset"); name != "" {
+		var pinned []github.Asset
+		for _, a := range assets {
+			if a.Name == name {
+				pinned = append(pinned, a)
+			}
+		}
+		assets = pinned
+	}
 	ua := c.GetHeader("User-Agent")
 	visitor := picker.ResolveVisitor(c.Query("platform"), c.Query("arch"), ua, IsScriptUA(ua))
 	prefer := picker.ResolvePrefer(c.Query("prefer"))

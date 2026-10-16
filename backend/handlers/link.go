@@ -30,19 +30,21 @@ func NewLinkHandler(r *RedirectHandler) *LinkHandler {
 
 // LinkResponse is the JSON payload returned by the link endpoint.
 type LinkResponse struct {
-	URL            string   `json:"url"`
-	Filename       string   `json:"filename,omitempty"`
-	Size           int64    `json:"size,omitempty"`
-	Platform       string   `json:"platform"`
-	Arch           string   `json:"arch"`
-	Version        string   `json:"version,omitempty"`
-	Prefer         string   `json:"prefer,omitempty"`
-	Libc           string   `json:"libc,omitempty"`
-	Confidence     string   `json:"confidence,omitempty"`
-	Reasons        []string `json:"reasons,omitempty"`
-	PlatformSource string   `json:"platform_source,omitempty"`
-	ArchSource     string   `json:"arch_source,omitempty"`
-	Error          string   `json:"error,omitempty"`
+	URL            string               `json:"url"`
+	Filename       string               `json:"filename,omitempty"`
+	Size           int64                `json:"size,omitempty"`
+	Platform       string               `json:"platform"`
+	Arch           string               `json:"arch"`
+	Version        string               `json:"version,omitempty"`
+	Prefer         string               `json:"prefer,omitempty"`
+	Libc           string               `json:"libc,omitempty"`
+	Confidence     string               `json:"confidence,omitempty"`
+	Reasons        []string             `json:"reasons,omitempty"`
+	Status         string               `json:"status"`
+	PlatformSource string               `json:"platform_source,omitempty"`
+	ArchSource     string               `json:"arch_source,omitempty"`
+	Error          string               `json:"error,omitempty"`
+	Alternatives   []releaseAlternative `json:"alternatives,omitempty"`
 }
 
 func linkResponse(release *github.Release, p assetPick) LinkResponse {
@@ -54,6 +56,7 @@ func linkResponse(release *github.Release, p assetPick) LinkResponse {
 		Libc:           string(p.Libc),
 		Confidence:     string(p.Decision.Confidence),
 		Reasons:        p.Decision.Reasons,
+		Status:         p.Decision.Status,
 		PlatformSource: string(p.PlatformSource),
 		ArchSource:     string(p.ArchSource),
 	}
@@ -65,6 +68,7 @@ func linkResponse(release *github.Release, p assetPick) LinkResponse {
 	}
 	resp.URL = release.HTMLURL
 	resp.Error = "no suitable asset found for platform"
+	resp.Alternatives = releaseDecision(p.Decision).Alternatives
 	return resp
 }
 

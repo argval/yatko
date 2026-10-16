@@ -32,8 +32,8 @@ func TestClassify_DoesNotInventPlatform(t *testing.T) {
 	if len(f.Arches) != 0 {
 		t.Fatalf("arches = %v, want none", f.Arches)
 	}
-	if !f.Source {
-		t.Fatal("bare zip without os/arch should be source")
+	if f.Source {
+		t.Fatal("bare zip without evidence must remain unknown, not source")
 	}
 }
 
@@ -56,10 +56,10 @@ func TestClassify_WasmIsNonNative(t *testing.T) {
 
 func TestClassify_LongestArchAliasWins(t *testing.T) {
 	cases := []struct {
-		name      string
-		wantArch  Arch
-		notArch   Arch
-		wantPlat  Platform
+		name     string
+		wantArch Arch
+		notArch  Arch
+		wantPlat Platform
 	}{
 		{name: "tool-linux.arm32.zip", wantArch: ARM, notArch: ARM64, wantPlat: Linux},
 		{name: "tool-linux.arm64.zip", wantArch: ARM64, notArch: ARM, wantPlat: Linux},

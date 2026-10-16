@@ -4,7 +4,7 @@
 // detection aligned with Go DetectPlatform / DetectArch / ResolveArch.
 
 export type { Arch, Asset, Platform } from "./pick-asset";
-import { classify, primaryPlatform, type Arch, type Platform } from "./pick-asset";
+import { classify, primaryPlatform, type Arch, type Asset, type Libc, type Platform } from "./pick-asset";
 
 export const platformLabels: Record<Platform, string> = {
   windows: "Windows",
@@ -14,22 +14,8 @@ export const platformLabels: Record<Platform, string> = {
   ios: "iOS",
 };
 
-export const archLabels: Record<Exclude<Arch, "">, string> = {
-  amd64: "amd64",
-  arm64: "arm64",
-  arm: "arm",
-  "386": "x86",
-};
-
-/** Pretty "macOS arm64" line for the download-page detector. */
-export function formatDetectedLabel(platform: Platform, arch: Arch): string {
-  const os = platformLabels[platform];
-  if (arch === "") return os;
-  return `${os} ${archLabels[arch]}`;
-}
-
-/** Mirrors picker.DetectPlatform, but maps unknown → windows for UI defaults. */
-export function detectPlatformFromUA(userAgent: string): Platform {
+/** Unknown operating systems stay unknown until the visitor selects a target. */
+export function detectPlatformFromUA(userAgent: string): Platform | "" {
   const ua = userAgent.toLowerCase();
   // Android before Linux; iPhone/iPad/iPod before macOS — same order as Go.
   if (
@@ -44,11 +30,11 @@ export function detectPlatformFromUA(userAgent: string): Platform {
   }
   if (ua.includes("android")) return "android";
   if (ua.includes("iphone") || ua.includes("ipad") || ua.includes("ipod")) return "ios";
-  if (ua.includes("macintosh") || ua.includes("mac os") || ua.includes("darwin")) return "macos";
+  if (ua === "macos" || ua.includes("macintosh") || ua.includes("mac os") || ua.includes("darwin")) return "macos";
   if (ua.includes("linux") || ua.includes("ubuntu") || ua.includes("fedora") || ua.includes("debian")) {
     return "linux";
   }
-  return "windows";
+  return "";
 }
 
 /** Mirrors picker.DetectArch. */
@@ -63,9 +49,36 @@ export function detectArchFromUA(userAgent: string): Arch {
   return "";
 }
 
-export function detectPlatform(): Platform {
-  if (typeof navigator === "undefined") return "windows";
-  return detectPlatformFromUA(navigator.userAgent);
+export function detectPlatform(): Platform | "" {
+  if (typeof navigator === "undefined") return "";
+  const hints = browserHints();
+  return detectPlatformFromUA(hints?.platform ?? "") || detectPlatformFromUA(navigator.userAgent);
+}
+
+export type BrowserHints = {
+  platform?: string;
+  architecture?: string;
+  bitness?: string;
+  getHighEntropyValues?: (hints: string[]) => Promise<BrowserHints>;
+};
+
+export function browserHints(): BrowserHints | undefined {
+  if (typeof navigator === "undefined") return undefined;
+  return (navigator as Navigator & { userAgentData?: BrowserHints }).userAgentData;
+}
+
+/** Client hints identify the hardware even when the UA reports an emulated CPU. */
+export function archFromHints(hints: BrowserHints | undefined): Arch {
+  const arch = hints?.architecture?.toLowerCase();
+  if (arch === "arm" || arch === "arm64" || arch === "aarch64") {
+    if (arch !== "arm" || hints?.bitness === "64") return "arm64";
+    return hints?.bitness === "32" ? "arm" : "";
+  }
+  if (arch === "x86" || arch === "x86_64" || arch === "amd64") {
+    if (arch !== "x86" || hints?.bitness === "64") return "amd64";
+    return hints?.bitness === "32" ? "386" : "";
+  }
+  return "";
 }
 
 /**
@@ -130,16 +143,10 @@ export function resetDetectArchFromWebGLCache(): void {
 
 export function detectArch(): Arch {
   if (typeof navigator === "undefined") return "";
+  const fromHints = archFromHints(browserHints());
+  if (fromHints) return fromHints;
   const fromUA = detectArchFromUA(navigator.userAgent);
   if (fromUA) return fromUA;
-  const uad = (
-    navigator as Navigator & { userAgentData?: { architecture?: string } }
-  ).userAgentData;
-  if (uad?.architecture) {
-    const arch = uad.architecture.toLowerCase();
-    if (arch.includes("arm")) return "arm64";
-    if (arch.includes("x86") || arch.includes("amd64")) return "amd64";
-  }
   // Macintosh UAs omit arch; WebGL distinguishes Apple Silicon from Intel.
   if (detectPlatformFromUA(navigator.userAgent) === "macos") {
     const fromGPU = detectArchFromWebGL();
@@ -157,4 +164,56 @@ export function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+/** Mirrors Go's emulation table: Windows x64 runs x86; Windows ARM64 runs x64
+ *  and x86; Apple Silicon runs Intel builds via Rosetta. */
+const EMULATION: Partial<Record<Platform, Partial<Record<Arch, string[]>>>> = {
+  windows: { amd64: ["386"], arm64: ["amd64", "386"] },
+  macos: { arm64: ["amd64"] },
+};
+
+function runsEmulated(platform: Platform | "", visitor: Arch, asset: string): boolean {
+  return !!platform && !!EMULATION[platform]?.[visitor]?.includes(asset);
+}
+
+/** Server metadata is authoritative; filename facts support older API responses. */
+export function assetMatchesTarget(asset: Asset, target: { platform: Platform | ""; arch: Arch; libc?: Libc }): boolean {
+  if (!target.platform) return false;
+  if (asset.artifact) {
+    return asset.artifact.status !== "failed" &&
+      !["source", "debug", "metadata"].includes(asset.artifact.role) &&
+      !asset.artifact.conflicts?.length &&
+      asset.artifact.targets.some((entry) => entry.platform === target.platform &&
+        (!target.arch || entry.arch === target.arch || entry.arch === "universal" ||
+          (!!entry.arch && runsEmulated(target.platform, target.arch, entry.arch))) &&
+        (!target.libc || !entry.libc || entry.libc === target.libc || entry.libc === "static"));
+  }
+  const facts = classify(asset.name);
+  const sidecar = /\.(sha256|sha512|md5|sig|asc|minisig|blockmap|ya?ml|json)$/.test(facts.canonical);
+  const debug = /(?:^|[^a-z])(?:symbols|pdbs?|dsyms?|dbsym|debuginfo|debugsymbols|debug-symbols)(?:$|[^a-z])/.test(facts.canonical);
+  return !facts.source && !facts.nonNative && !sidecar && !debug && primaryPlatform(facts) === target.platform &&
+    (!target.arch || facts.arches.includes(target.arch) || facts.arches.some((arch) => runsEmulated(target.platform, target.arch, arch))) &&
+    (!target.libc || !facts.libc || facts.libc === target.libc || facts.libc === "static");
+}
+
+export function assetTargetLabel(asset: Asset): string {
+  if (!asset.artifact) return assetPlatformLabel(asset.name) ?? "Target unknown";
+  const { targets, role, conflicts, status } = asset.artifact;
+  if (conflicts?.length) return "Conflicting target evidence";
+  if (role === "source") return "Source code";
+  if (role === "debug") return "Debug files";
+  if (role === "metadata") return "Release metadata";
+  if (!targets.length) return status === "failed" ? "Target unknown · inspection failed" : "Target unknown";
+  return targets.map(({ platform, arch }) => {
+    const label = Object.hasOwn(platformLabels, platform) ? platformLabels[platform as Platform] : platform || "OS unknown";
+    return [label, arch || "CPU unknown"].join(" · ");
+  }).join(" / ");
+}
+
+/** Commands with explicit targets must match both the selected OS and CPU. */
+export function installCommandMatchesTarget(command: { platform: string; platforms?: string[]; arches?: string[] }, target: { platform: Platform | ""; arch: Arch }): boolean {
+  const platforms = command.platforms ?? [command.platform];
+  if (!target.platform || (!platforms.includes("universal") && !platforms.includes(target.platform))) return false;
+  return !command.arches?.length || (!!target.arch && command.arches.includes(target.arch));
 }

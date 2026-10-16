@@ -31,8 +31,8 @@ func TestBuildReleasePicks(t *testing.T) {
 	if got.Filename != "tool-darwin-arm64.dmg" {
 		t.Fatalf("macos/arm64 = %q, want tool-darwin-arm64.dmg", got.Filename)
 	}
-	if _, ok := picks[releasePickKey(picker.IOS, picker.ARM64)]; ok {
-		t.Fatal("ios should abstain when no iOS asset exists")
+	if got := picks[releasePickKey(picker.IOS, picker.ARM64)]; got.Status != "incompatible" || got.Filename != "" {
+		t.Fatalf("ios should retain an explained abstention: %+v", got)
 	}
 	if buildReleasePicks(nil) != nil {
 		t.Fatal("empty assets should yield nil picks")
@@ -100,7 +100,7 @@ func TestPageHandlerFallsBackToPrereleaseOnlyRepo(t *testing.T) {
 				Request:    r,
 			}, nil
 		case "/repos/acme/apkapp/releases":
-			body := `[{"tag_name":"Beta","name":"v0.beta.0","prerelease":true,"draft":false,"published_at":"2026-09-07T13:12:10Z","html_url":"https://github.com/acme/apkapp/releases/tag/Beta","assets":[{"name":"app-debug.apk","browser_download_url":"https://example.com/app-debug.apk","size":100,"download_count":1}]}]`
+			body := `[{"tag_name":"Beta","name":"v0.beta.0","prerelease":true,"draft":false,"published_at":"2026-09-07T13:12:10Z","html_url":"https://github.com/acme/apkapp/releases/tag/Beta","assets":[{"name":"app-android-debug.apk","browser_download_url":"https://example.com/app-android-debug.apk","size":100,"download_count":1}]}]`
 			return &http.Response{
 				StatusCode: http.StatusOK,
 				Header:     make(http.Header),
@@ -137,8 +137,11 @@ func TestPageHandlerFallsBackToPrereleaseOnlyRepo(t *testing.T) {
 		t.Fatalf("got tag=%q prerelease=%v, want Beta prerelease", body.TagName, body.Prerelease)
 	}
 	got, ok := body.Picks["android/arm64"]
-	if !ok || got.Filename != "app-debug.apk" {
-		t.Fatalf("picks[android/arm64] = %+v, want app-debug.apk", got)
+	if !ok || got.Status != "unknown" || got.Filename != "" {
+		t.Fatalf("uninspected APK must not promise ARM64 compatibility: %+v", got)
+	}
+	if body.Picks["android"].Filename != "app-android-debug.apk" {
+		t.Fatal("prerelease APK missing from platform-only result")
 	}
 }
 
@@ -191,23 +194,23 @@ func TestPageHandlerMacAppZip(t *testing.T) {
 	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
 		t.Fatal(err)
 	}
-	for _, key := range []string{"macos/arm64", "macos/amd64", "macos"} {
+	for _, key := range []string{"macos"} {
 		if got := body.Picks[key].Filename; got != "EjectRemapper.zip" {
 			t.Fatalf("macOS download button filename [%s] = %q, want EjectRemapper.zip", key, got)
 		}
 	}
-	for _, key := range []string{"windows/amd64", "linux/amd64", "ios/arm64"} {
-		if _, ok := body.Picks[key]; ok {
-			t.Fatalf("Mac ZIP should not be selected for %s", key)
+	for _, key := range []string{"macos/arm64", "macos/amd64", "windows/amd64", "linux/amd64", "ios/arm64"} {
+		if got := body.Picks[key]; got.Filename != "" || got.Status == "selected" {
+			t.Fatalf("Mac ZIP should not be selected for %s: %+v", key, got)
 		}
 	}
 	response = httptest.NewRecorder()
-	router.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/dl/Cacaioo/EjectRemapper?platform=macos&arch=arm64", nil))
+	router.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/dl/Cacaioo/EjectRemapper?platform=macos&arch=unknown", nil))
 	if response.Code != http.StatusFound || response.Header().Get("Location") != "https://github.com/Cacaioo/EjectRemapper/releases/download/Releases/EjectRemapper.zip" {
 		t.Fatalf("download redirect = %d %q", response.Code, response.Header().Get("Location"))
 	}
 	response = httptest.NewRecorder()
-	router.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/api/link/Cacaioo/EjectRemapper?platform=macos&arch=amd64", nil))
+	router.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/api/link/Cacaioo/EjectRemapper?platform=macos&arch=unknown", nil))
 	var link LinkResponse
 	if err := json.Unmarshal(response.Body.Bytes(), &link); err != nil {
 		t.Fatal(err)

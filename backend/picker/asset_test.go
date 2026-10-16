@@ -210,11 +210,19 @@ func TestResolveVisitor_ScriptDefaultsAndOverrides(t *testing.T) {
 			wantPS: SourceUA, wantAS: SourceUA,
 		},
 		{
-			name:   "opaque browser UA still defaults to Windows",
+			name:   "opaque browser UA stays unknown",
 			ua:     "Mozilla/5.0",
 			script: false,
-			wantP:  Windows, wantA: UnknownArch,
-			wantPS: SourceDefault, wantAS: SourceUA,
+			wantP:  Unknown, wantA: UnknownArch,
+			wantPS: SourceUA, wantAS: SourceUA,
+		},
+		{
+			name:   "arch=unknown query does not invent a CPU",
+			arch:   "unknown",
+			ua:     "curl/8.5.0",
+			script: true,
+			wantP:  Linux, wantA: UnknownArch,
+			wantPS: SourceDefault, wantAS: SourceQuery,
 		},
 	}
 	for _, tc := range cases {
@@ -280,7 +288,7 @@ func TestResolvePlatform(t *testing.T) {
 		{param: "mac", ua: "", want: MacOS},
 		{param: "", ua: macUA, want: MacOS},
 		{param: "garbage", ua: macUA, want: MacOS}, // unrecognised → UA
-		{param: "", ua: "", want: Windows},         // unknown UA → Windows
+		{param: "", ua: "", want: Unknown},         // unknown UA remains unknown
 		{param: "android", ua: macUA, want: Android},
 		{param: "ios", ua: macUA, want: IOS},
 	}

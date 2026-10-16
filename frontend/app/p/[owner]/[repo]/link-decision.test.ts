@@ -25,9 +25,9 @@ describe("downloadLinkPath", () => {
     );
   });
 
-  test("omits empty arch and encodes the tag", () => {
+  test("pins unknown arch and encodes the tag", () => {
     expect(downloadLinkPath("owner", "repo", "v1.0.0+build", "linux", "")).toBe(
-      "/api/link/owner/repo/v1.0.0%2Bbuild?platform=linux",
+      "/api/link/owner/repo/v1.0.0%2Bbuild?platform=linux&arch=unknown",
     );
   });
 });
@@ -39,9 +39,9 @@ describe("downloadRedirectPath", () => {
     );
   });
 
-  test("omits empty arch and encodes the tag", () => {
+  test("pins unknown arch and encodes the tag", () => {
     expect(downloadRedirectPath("owner", "repo", "v1.0.0+build", "linux", "")).toBe(
-      "/dl/owner/repo/v1.0.0%2Bbuild?platform=linux",
+      "/dl/owner/repo/v1.0.0%2Bbuild?platform=linux&arch=unknown",
     );
   });
 });
@@ -175,4 +175,27 @@ describe("fetchLinkPick", () => {
       globalThis.fetch = orig;
     }
   });
+});
+
+
+test("unsuccessful decisions preserve their status and explanation", () => {
+  const decision = parseLinkPick({ status: "ambiguous", reasons: ["multiple compatible bundles", 2], filename: "wrong.exe", url: "https://example.com/wrong.exe" });
+  expect(decision).toEqual({ status: "ambiguous", reasons: ["multiple compatible bundles"] });
+  expect(assetFromLinkPick(assets, decision)).toBeNull();
+});
+
+test("release table failures do not become download assets", () => {
+  expect(assetFromLinkPick(assets, { status: "unknown", reasons: ["inspection failed"] })).toBeNull();
+  expect(assetFromLinkPick(assets, { filename: assets[0]!.name, url: "https://example.com/a", confidence: "low" })).toBeNull();
+});
+
+
+test("404 JSON preserves a typed abstention but cannot become a selected file", async () => {
+  const original = globalThis.fetch;
+  try {
+    globalThis.fetch = (async () => new Response(JSON.stringify({ status: "unknown", reasons: ["inspection failed"] }), { status: 404 })) as typeof fetch;
+    expect(await fetchLinkPick("/api/link/x/y/v1")).toEqual({ status: "unknown", reasons: ["inspection failed"] });
+    globalThis.fetch = (async () => new Response(JSON.stringify({ status: "selected", filename: "a.exe", url: "https://example.com/a.exe" }), { status: 404 })) as typeof fetch;
+    expect(await fetchLinkPick("/api/link/x/y/v1")).toBeNull();
+  } finally { globalThis.fetch = original; }
 });

@@ -113,6 +113,123 @@ func TestCanonicalizeName_CamelCaseOSArch(t *testing.T) {
 	}
 }
 
+func TestDetectPlatform_CLITriples(t *testing.T) {
+	cases := []struct {
+		ua   string
+		want Platform
+	}{
+		{ua: "curl/8.4.0 (x86_64-apple-darwin23.0) libcurl/8.4.0", want: MacOS},
+		{ua: "curl/8.5.0 (aarch64-apple-darwin24.0)", want: MacOS},
+		{ua: "curl/8.5.0 (x86_64-pc-linux-gnu) libcurl/8.5.0 OpenSSL/3.0.2", want: Linux},
+		{ua: "Wget/1.21.3 (linux-gnu)", want: Linux},
+		{ua: "curl/8.5.0 (x86_64-w64-mingw32) libcurl/8.5.0", want: Windows},
+		{ua: "curl/8.5.0 (Windows) libcurl/8.5.0 Schannel", want: Windows},
+		{ua: "curl/8.5.0", want: Unknown},
+		{ua: "", want: Unknown},
+	}
+	for _, tc := range cases {
+		if got := DetectPlatform(tc.ua); got != tc.want {
+			t.Errorf("DetectPlatform(%q) = %q, want %q", tc.ua, got, tc.want)
+		}
+	}
+}
+
+func TestDetectArch_CLITriples(t *testing.T) {
+	cases := []struct {
+		ua   string
+		want Arch
+	}{
+		{ua: "curl/8.4.0 (x86_64-apple-darwin23.0)", want: AMD64},
+		{ua: "curl/8.5.0 (aarch64-unknown-linux-gnu)", want: ARM64},
+		{ua: "curl/8.5.0 (x86_64-w64-mingw32)", want: AMD64},
+		{ua: "Mozilla/5.0 (Windows NT 10.0; Win64; x64)", want: AMD64},
+		{ua: "curl/8.5.0", want: UnknownArch},
+	}
+	for _, tc := range cases {
+		if got := DetectArch(tc.ua); got != tc.want {
+			t.Errorf("DetectArch(%q) = %q, want %q", tc.ua, got, tc.want)
+		}
+	}
+}
+
+func TestResolveVisitor_ScriptDefaultsAndOverrides(t *testing.T) {
+	macUA := "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15"
+	cases := []struct {
+		name     string
+		platform string
+		arch     string
+		ua       string
+		script   bool
+		wantP    Platform
+		wantA    Arch
+		wantPS   ResolutionSource
+		wantAS   ResolutionSource
+	}{
+		{
+			name:   "curl with no OS falls back to linux/amd64",
+			ua:     "curl/8.5.0",
+			script: true,
+			wantP:  Linux, wantA: AMD64,
+			wantPS: SourceDefault, wantAS: SourceDefault,
+		},
+		{
+			name:   "empty UA script falls back to linux/amd64",
+			ua:     "",
+			script: true,
+			wantP:  Linux, wantA: AMD64,
+			wantPS: SourceDefault, wantAS: SourceDefault,
+		},
+		{
+			name:   "curl darwin triple uses UA",
+			ua:     "curl/8.4.0 (aarch64-apple-darwin24.0)",
+			script: true,
+			wantP:  MacOS, wantA: ARM64,
+			wantPS: SourceUA, wantAS: SourceUA,
+		},
+		{
+			name:   "wget linux-gnu uses UA platform and default arch",
+			ua:     "Wget/1.21.3 (linux-gnu)",
+			script: true,
+			wantP:  Linux, wantA: AMD64,
+			wantPS: SourceUA, wantAS: SourceDefault,
+		},
+		{
+			name:     "query overrides beat curl default",
+			platform: "macos",
+			arch:     "arm64",
+			ua:       "curl/8.5.0",
+			script:   true,
+			wantP:    MacOS, wantA: ARM64,
+			wantPS: SourceQuery, wantAS: SourceQuery,
+		},
+		{
+			name:   "browser mac UA is not the script default",
+			ua:     macUA,
+			script: false,
+			wantP:  MacOS, wantA: UnknownArch,
+			wantPS: SourceUA, wantAS: SourceUA,
+		},
+		{
+			name:   "opaque browser UA still defaults to Windows",
+			ua:     "Mozilla/5.0",
+			script: false,
+			wantP:  Windows, wantA: UnknownArch,
+			wantPS: SourceDefault, wantAS: SourceUA,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := ResolveVisitor(tc.platform, tc.arch, tc.ua, tc.script)
+			if got.Platform != tc.wantP || got.Arch != tc.wantA {
+				t.Errorf("platform/arch = %s/%s, want %s/%s", got.Platform, got.Arch, tc.wantP, tc.wantA)
+			}
+			if got.PlatformSource != tc.wantPS || got.ArchSource != tc.wantAS {
+				t.Errorf("sources = %s/%s, want %s/%s", got.PlatformSource, got.ArchSource, tc.wantPS, tc.wantAS)
+			}
+		})
+	}
+}
+
 func TestDetectPlatform_MobileBeforeDesktop(t *testing.T) {
 	cases := []struct {
 		ua   string

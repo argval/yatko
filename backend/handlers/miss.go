@@ -11,56 +11,44 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// IsScriptUA reports whether ua looks like curl/wget/CI HTTP clients rather
+// IsScriptUA reports whether ua looks like curl/wget/CI/AI HTTP clients rather
 // than a browser. Empty UA is treated as a script (common for some tools).
+// Anything without the browser "Mozilla/" token is a script: curl, wget,
+// Go's default client, python-requests, GitHub Actions, coding agents, etc.
 func IsScriptUA(ua string) bool {
 	if strings.TrimSpace(ua) == "" {
 		return true
 	}
-	lower := strings.ToLower(ua)
-	markers := []string{
-		"curl/",
-		"wget",
-		"httpie",
-		"go-http-client",
-		"python-requests",
-		"python-urllib",
-		"axios/",
-		"node-fetch",
-		"http.rb",
-	}
-	for _, m := range markers {
-		if strings.Contains(lower, m) {
-			return true
-		}
-	}
-	return false
+	return !strings.Contains(strings.ToLower(ua), "mozilla/")
 }
 
 // assetPick is the shared /dl and /api/link decision: resolve visitor
 // platform/arch from query + UA, then run the authoritative picker.
 type assetPick struct {
-	UA       string
-	Prefer   string
-	Platform picker.Platform
-	Arch     picker.Arch
-	Libc     picker.Libc
-	Decision picker.AssetDecision
+	UA             string
+	Prefer         string
+	Platform       picker.Platform
+	Arch           picker.Arch
+	Libc           picker.Libc
+	PlatformSource picker.ResolutionSource
+	ArchSource     picker.ResolutionSource
+	Decision       picker.AssetDecision
 }
 
 func pickReleaseAsset(c *gin.Context, assets []github.Asset) assetPick {
 	ua := c.GetHeader("User-Agent")
-	platform := picker.ResolvePlatform(c.Query("platform"), ua)
-	arch := picker.ResolveArch(c.Query("arch"), ua)
+	visitor := picker.ResolveVisitor(c.Query("platform"), c.Query("arch"), ua, IsScriptUA(ua))
 	prefer := picker.ResolvePrefer(c.Query("prefer"))
 	libc := picker.ResolveLibc(c.Query("libc"))
 	return assetPick{
-		UA:       ua,
-		Prefer:   prefer,
-		Platform: platform,
-		Arch:     arch,
-		Libc:     libc,
-		Decision: picker.DecideAsset(assets, platform, arch, picker.PickOpts{
+		UA:             ua,
+		Prefer:         prefer,
+		Platform:       visitor.Platform,
+		Arch:           visitor.Arch,
+		Libc:           libc,
+		PlatformSource: visitor.PlatformSource,
+		ArchSource:     visitor.ArchSource,
+		Decision: picker.DecideAsset(assets, visitor.Platform, visitor.Arch, picker.PickOpts{
 			Prefer:    prefer,
 			Libc:      libc,
 			UserAgent: ua,
@@ -108,25 +96,15 @@ func logPickerMiss(
 }
 
 // respondDownloadMiss handles /dl when no asset matched or confidence is too
-// low to auto-select: scripts get 404 JSON; browsers keep the historical
-// redirect to the GitHub release HTML page.
+// low to auto-select. Everyone — browsers, curl, CI — is sent to the GitHub
+// release HTML page rather than a 404, so a miss is still a useful result.
 func respondDownloadMiss(
 	c *gin.Context,
 	owner, repo string,
 	release *github.Release,
 	p assetPick,
 ) {
-	script := IsScriptUA(c.GetHeader("User-Agent"))
-	logPickerMiss(owner, repo, p, script, release.Assets)
-	if script {
-		c.JSON(http.StatusNotFound, gin.H{
-			"error":    "no suitable asset found for platform",
-			"platform": string(p.Platform),
-			"arch":     string(p.Arch),
-			"url":      release.HTMLURL,
-		})
-		return
-	}
+	logPickerMiss(owner, repo, p, IsScriptUA(c.GetHeader("User-Agent")), release.Assets)
 	c.Redirect(http.StatusFound, release.HTMLURL)
 }
 

@@ -21,17 +21,18 @@ type formatEntry struct {
 }
 
 type catalogFile struct {
-	Platforms          map[string]platformEntry `json:"platforms"`
-	Architectures      map[string][]string      `json:"architectures"`
-	Libc               map[string][]string      `json:"libc"`
-	Variants           []string                 `json:"variants"`
-	NonNative          []string                 `json:"nonNative"`
-	Source             []string                 `json:"source"`
-	AmbiguousArchives  []string                 `json:"ambiguousArchives"`
-	Formats            map[string]formatEntry   `json:"formats"`
-	PreferAliases      map[string]string        `json:"preferAliases"`
-	LinuxRPMExtensions []string                 `json:"linuxRpmExtensions"`
-	formatKeysByLength []string                 // longest first, for suffix match
+	Platforms            map[string]platformEntry `json:"platforms"`
+	Architectures        map[string][]string      `json:"architectures"`
+	Libc                 map[string][]string      `json:"libc"`
+	Variants             []string                 `json:"variants"`
+	NonNative            []string                 `json:"nonNative"`
+	UnsupportedPlatforms []string                 `json:"unsupportedPlatforms"`
+	Source               []string                 `json:"source"`
+	AmbiguousArchives    []string                 `json:"ambiguousArchives"`
+	Formats              map[string]formatEntry   `json:"formats"`
+	PreferAliases        map[string]string        `json:"preferAliases"`
+	LinuxRPMExtensions   []string                 `json:"linuxRpmExtensions"`
+	formatKeysByLength   []string                 // longest first, for suffix match
 }
 
 var catalog catalogFile

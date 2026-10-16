@@ -2,6 +2,7 @@
 
 import { platformLabels, formatSize, type Arch, type Platform, type Asset } from "./platform-utils";
 import { CopyButton } from "./copy-button";
+import { downloadDecisionMessage, type LinkPick } from "./link-decision";
 import { downloadCta } from "./download-cta";
 
 export function DownloadButton({
@@ -12,6 +13,7 @@ export function DownloadButton({
   primaryAsset,
   hasAssets,
   tagName,
+  decision,
 }: {
   owner: string;
   repo: string;
@@ -20,6 +22,7 @@ export function DownloadButton({
   primaryAsset: Asset | null | undefined;
   hasAssets: boolean;
   tagName: string;
+  decision?: LinkPick | null;
 }) {
   const { href, label, external } = downloadCta({
     platform,
@@ -63,7 +66,7 @@ export function DownloadButton({
         </>
       ) : hasAssets ? (
         <p className="text-xs text-muted">
-          No binary found for {platformLabels[platform]} – see all downloads below
+          {downloadDecisionMessage(decision, platformLabels[platform])}
         </p>
       ) : (
         <p className="text-xs text-muted">

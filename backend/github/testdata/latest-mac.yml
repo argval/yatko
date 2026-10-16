@@ -1,0 +1,15 @@
+version: 1.0.0
+files:
+  - url: App-1.0.0-arm64-mac.zip
+    sha512: c2hhNTEy
+    size: 1000
+  - url: App-1.0.0-mac.zip
+    sha512: c2hhNTEy
+    size: 1000
+  - url: https://evil.example/App-1.0.0.dmg
+    sha512: c2hhNTEy
+  - url: ../App-1.0.0.dmg
+    sha512: c2hhNTEy
+path: App-1.0.0-arm64-mac.zip
+sha512: c2hhNTEy
+releaseDate: '2026-10-01T00:00:00.000Z'

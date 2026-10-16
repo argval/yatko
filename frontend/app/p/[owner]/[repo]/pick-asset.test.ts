@@ -12,7 +12,7 @@ test("classify does not invent a platform for release.zip", () => {
   const f = classify("release.zip");
   expect(f.platforms).toEqual([]);
   expect(f.arches).toEqual([]);
-  expect(f.source).toBe(true);
+  expect(f.source).toBe(false);
 });
 
 test("classify keeps longest arch alias", () => {
@@ -41,4 +41,15 @@ describe("primaryPlatform / assetPlatformLabel", () => {
   test("bare archives stay unlabeled", () => {
     expect(assetPlatformLabel("release.zip")).toBeNull();
   });
+});
+
+test("bare ARM is 32-bit except on macOS", () => {
+  expect(classify("tool-linux-arm.tar.gz").arches).toEqual(["arm"]);
+  expect(classify("tool-macos-arm.zip").arches).toEqual(["arm64"]);
+  expect(classify("tool-arm64-linux.tgz").arches).toEqual(["arm64"]);
+});
+
+test("source tokens have word boundaries", () => {
+  expect(classify("tool-source.zip").source).toBe(true);
+  expect(classify("resource-windows.zip").source).toBe(false);
 });

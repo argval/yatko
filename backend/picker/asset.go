@@ -31,6 +31,8 @@ const (
 // the function falls back to DetectArch on the User-Agent string.
 func ResolveArch(archParam, userAgent string) Arch {
 	switch strings.ToLower(strings.TrimSpace(archParam)) {
+	case "unknown":
+		return UnknownArch
 	case "amd64", "x86_64":
 		return AMD64
 	case "arm64", "aarch64":
@@ -45,8 +47,7 @@ func ResolveArch(archParam, userAgent string) Arch {
 
 // ResolvePlatform returns the Platform to use for asset selection. An explicit
 // platform query-param takes priority when recognised; otherwise DetectPlatform
-// on the User-Agent is used. Unknown falls back to Windows so opaque desktop
-// UAs still get a sensible default (historical /api/link behaviour).
+// on the User-Agent is used. Opaque UAs remain unknown.
 func ResolvePlatform(platformParam, userAgent string) Platform {
 	switch strings.ToLower(strings.TrimSpace(platformParam)) {
 	case "windows":
@@ -60,10 +61,7 @@ func ResolvePlatform(platformParam, userAgent string) Platform {
 	case "ios":
 		return IOS
 	}
-	if p := DetectPlatform(userAgent); p != Unknown {
-		return p
-	}
-	return Windows
+	return DetectPlatform(userAgent)
 }
 
 // DetectArch attempts to derive the CPU architecture from a User-Agent string.
@@ -184,6 +182,9 @@ func extRankFor(name string, exts []string, prefer string) (rank int, ok bool) {
 			continue
 		}
 		key := strings.TrimPrefix(low, ".")
+		if alias, ok := catalog.PreferAliases[key]; ok {
+			key = alias
+		}
 		if prefer != "" && prefer == key {
 			return -1, true
 		}
@@ -278,9 +279,9 @@ func isAmbiguousArchive(name string) bool {
 
 func sourceArchive(canonical string, platforms []Platform, arches []Arch) bool {
 	for _, tok := range catalog.Source {
-		if strings.Contains(canonical, tok) {
+		if hasBoundedKeyword(canonical, tok) {
 			return true
 		}
 	}
-	return isAmbiguousArchive(canonical) && len(platforms) == 0 && len(arches) == 0
+	return false
 }

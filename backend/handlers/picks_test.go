@@ -31,8 +31,8 @@ func TestBuildReleasePicks(t *testing.T) {
 	if got.Filename != "tool-darwin-arm64.dmg" {
 		t.Fatalf("macos/arm64 = %q, want tool-darwin-arm64.dmg", got.Filename)
 	}
-	if _, ok := picks[releasePickKey(picker.IOS, picker.ARM64)]; ok {
-		t.Fatal("ios should abstain when no iOS asset exists")
+	if got := picks[releasePickKey(picker.IOS, picker.ARM64)]; got.Status != "incompatible" || got.Filename != "" {
+		t.Fatalf("ios should retain an explained abstention: %+v", got)
 	}
 	if buildReleasePicks(nil) != nil {
 		t.Fatal("empty assets should yield nil picks")
@@ -197,8 +197,8 @@ func TestPageHandlerMacAppZip(t *testing.T) {
 		}
 	}
 	for _, key := range []string{"windows/amd64", "linux/amd64", "ios/arm64"} {
-		if _, ok := body.Picks[key]; ok {
-			t.Fatalf("Mac ZIP should not be selected for %s", key)
+		if got := body.Picks[key]; got.Filename != "" || got.Status == "selected" {
+			t.Fatalf("Mac ZIP should not be selected for %s: %+v", key, got)
 		}
 	}
 	response = httptest.NewRecorder()

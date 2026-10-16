@@ -11,6 +11,7 @@ import {
   type LinkPick,
 } from "./link-decision";
 import { DownloadButton } from "./download-button";
+import { TargetSelector } from "./target-selector";
 import { AssetChecksum } from "./asset-checksum";
 
 export function DownloadSection({
@@ -34,36 +35,34 @@ export function DownloadSection({
   const platform = detected?.platform ?? null;
   const arch = detected?.arch ?? null;
   // Fallback path when /api/release predates the picks table (rolling deploy).
-  const [fetchedPick, setFetchedPick] = useState<LinkPick | null | undefined>(undefined);
+  const [fetchedPick, setFetchedPick] = useState<{ path: string; pick: LinkPick | null } | null>(null);
 
   const tablePick =
-    platform != null ? pickFromReleaseTable(picks, platform, arch ?? "") : undefined;
-  const needsFetch = tablePick === undefined && !!platform && assets.length > 0;
+    platform ? pickFromReleaseTable(picks, platform, arch ?? "") : undefined;
+  const fetchPath = tablePick === undefined && platform && assets.length > 0
+    ? downloadLinkPath(owner, repo, tagName, platform, arch ?? "") : null;
 
   useEffect(() => {
-    if (!needsFetch || !platform) {
-      setFetchedPick(undefined);
-      return;
-    }
+    if (!fetchPath) return;
     const ac = new AbortController();
     let cancelled = false;
-    setFetchedPick(undefined);
-    fetchLinkPick(downloadLinkPath(owner, repo, tagName, platform, arch ?? ""), ac.signal)
+    fetchLinkPick(fetchPath, ac.signal)
       .then((got) => {
-        if (!cancelled) setFetchedPick(got);
+        if (!cancelled) setFetchedPick({ path: fetchPath, pick: got });
       })
       .catch((err: unknown) => {
         if (cancelled) return;
         if (err instanceof DOMException && err.name === "AbortError") return;
-        setFetchedPick(null);
+        setFetchedPick({ path: fetchPath, pick: null });
       });
     return () => {
       cancelled = true;
       ac.abort();
     };
-  }, [needsFetch, owner, repo, tagName, platform, arch]);
+  }, [fetchPath]);
 
-  const pick = tablePick !== undefined ? tablePick : fetchedPick;
+  const pick = tablePick !== undefined ? tablePick :
+    fetchedPick?.path === fetchPath ? fetchedPick?.pick : undefined;
   const primaryAsset = assetFromLinkPick(assets, pick);
 
   if (!detected) {
@@ -91,7 +90,8 @@ export function DownloadSection({
 
   return (
     <div className="flex flex-col items-center gap-2">
-      <DownloadButton
+      <TargetSelector target={detected} />
+      {visitorPlatform ? <DownloadButton
         owner={owner}
         repo={repo}
         platform={visitorPlatform}
@@ -99,11 +99,15 @@ export function DownloadSection({
         primaryAsset={primaryAsset}
         hasAssets={assets.length > 0}
         tagName={tagName}
-      />
+        decision={pick}
+      /> : <>
+        <a href="#downloads" className="inline-flex min-h-11 items-center rounded-xl bg-foreground px-6 py-3 font-semibold text-background focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-foreground active:opacity-90">Browse downloads</a>
+        <p className="text-sm text-muted">Select an operating system to find a download.</p>
+      </>}
       <p className="text-sm text-muted">
         {tagName} &middot; {publishedDate}
       </p>
-      {primaryAsset && (
+      {primaryAsset && visitorPlatform && (
         <Suspense
           fallback={
             <div className="h-4 w-48 rounded bg-foreground/[0.06] animate-pulse" aria-hidden />

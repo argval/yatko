@@ -4,10 +4,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"context"
-	"fmt"
 	"io"
-	"net/http"
-	"net/url"
 	"strings"
 	"time"
 )
@@ -18,42 +15,17 @@ const archiveTailLimit = 128 << 10
 // asset. It never extracts or executes files. Missing/oversized directories,
 // unsupported range responses, and network failures leave the platform unknown.
 func (c *Client) ZIPPlatform(ctx context.Context, asset Asset) (string, error) {
-	u, err := url.Parse(asset.BrowserDownloadURL)
-	if err != nil || u.Scheme != "https" || u.Host != "github.com" || !strings.Contains(u.Path, "/releases/download/") || asset.Size <= 0 {
+	u, ok := releaseDownloadURL(asset)
+	if !ok {
 		return "", nil
 	}
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
-	start := max(int64(0), asset.Size-archiveTailLimit)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+	n := min(asset.Size, archiveTailLimit)
+	start := asset.Size - n
+	tail, err := c.openAsset(ctx, u, asset.Size).fetch(start, n, n)
 	if err != nil {
 		return "", err
-	}
-	req.Header.Set("Range", fmt.Sprintf("bytes=%d-%d", start, asset.Size-1))
-	// Download requests must not carry the GitHub API token.
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-	switch resp.StatusCode {
-	case http.StatusPartialContent:
-		if resp.Header.Get("Content-Range") != fmt.Sprintf("bytes %d-%d/%d", start, asset.Size-1, asset.Size) {
-			return "", nil
-		}
-	case http.StatusOK:
-		if start != 0 {
-			return "", nil
-		}
-	default:
-		return "", fmt.Errorf("ZIP range request: HTTP %d", resp.StatusCode)
-	}
-	tail, err := io.ReadAll(io.LimitReader(resp.Body, archiveTailLimit+1))
-	if err != nil {
-		return "", err
-	}
-	if int64(len(tail)) != asset.Size-start {
-		return "", io.ErrUnexpectedEOF
 	}
 	return zipPlatform(tail, start, asset.Size), nil
 }
@@ -75,14 +47,33 @@ func zipPlatform(tail []byte, start, size int64) string {
 	if err != nil {
 		return ""
 	}
-	// Require both an Info.plist and an executable in the same app bundle.
-	// __MACOSX resource forks by themselves are not evidence of a Mac app.
-	info, executable := map[string]bool{}, map[string]bool{}
+	if macAppBundle(zipFileNames(r)) != "" {
+		return "macos"
+	}
+	return ""
+}
+
+// zipFileNames lists regular entries, skipping directories and __MACOSX forks.
+func zipFileNames(r *zip.Reader) []string {
+	var names []string
 	for _, f := range r.File {
-		if strings.HasPrefix(f.Name, "__MACOSX/") || f.FileInfo().IsDir() {
+		if !strings.HasPrefix(f.Name, "__MACOSX/") && !f.FileInfo().IsDir() {
+			names = append(names, f.Name)
+		}
+	}
+	return names
+}
+
+// macAppBundle returns the first bundle path ("dir/App.app") that has both an
+// Info.plist and an executable under Contents/MacOS. __MACOSX resource forks
+// by themselves are not evidence of a Mac app.
+func macAppBundle(names []string) string {
+	info, executable := map[string]bool{}, map[string]bool{}
+	for _, name := range names {
+		if strings.HasPrefix(name, "__MACOSX/") {
 			continue
 		}
-		bundle, rest, ok := strings.Cut(f.Name, ".app/Contents/")
+		bundle, rest, ok := strings.Cut(name, ".app/Contents/")
 		if !ok {
 			continue
 		}
@@ -93,7 +84,7 @@ func zipPlatform(tail []byte, start, size int64) string {
 			executable[bundle] = true
 		}
 		if info[bundle] && executable[bundle] {
-			return "macos"
+			return bundle + ".app"
 		}
 	}
 	return ""

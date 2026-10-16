@@ -1,0 +1,6 @@
+version: 1.0.0
+files:
+  - url: App-1.0.0-arm64.AppImage
+    sha512: c2hhNTEy
+    blockMapSize: 10
+releaseDate: '2026-10-01T00:00:00.000Z'

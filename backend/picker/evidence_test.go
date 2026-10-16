@@ -6,6 +6,52 @@ import (
 	"github.com/argval/yatko/github"
 )
 
+func TestUntaggedDMGDefaultsToUniversal(t *testing.T) {
+	for _, name := range []string{"Obsidian-1.14.4.dmg", "LocalSend-1.18.2.dmg", "App-macos.DMG"} {
+		for _, metadata := range []*github.ArtifactMetadata{nil, {
+			Targets: []github.ArtifactTarget{{Platform: "macos"}}, Status: "inspected",
+		}} {
+			asset := github.Asset{Name: name, Artifact: metadata}
+			for _, arch := range []Arch{AMD64, ARM64, UnknownArch} {
+				d := DecideAsset([]github.Asset{asset}, MacOS, arch, PickOpts{})
+				if !d.ShouldAutoSelect() || d.Asset.Name != name {
+					t.Errorf("%s/%s: %+v", name, arch, d)
+				}
+			}
+			shared := DescribeAsset(asset)
+			if len(shared.Targets) != 2 || shared.Targets[0].Arch != string(AMD64) || shared.Targets[1].Arch != string(ARM64) {
+				t.Errorf("missing universal targets for filters: %+v", shared)
+			}
+			for _, platform := range []Platform{Windows, Linux} {
+				if d := DecideAsset([]github.Asset{asset}, platform, AMD64, PickOpts{}); d.ShouldAutoSelect() {
+					t.Errorf("DMG offered to %s: %+v", platform, d)
+				}
+			}
+		}
+	}
+}
+
+func TestDMGUniversalDefaultPreservesExplicitCPU(t *testing.T) {
+	for _, asset := range []github.Asset{
+		{Name: "App-arm64.dmg"},
+		{Name: "App-arm.dmg"},
+		{Name: "App-macos-Apple.dmg"},
+		{Name: "App.dmg", Artifact: &github.ArtifactMetadata{
+			Targets: []github.ArtifactTarget{{Platform: "macos", Arch: "arm64"}}, Status: "inspected",
+		}},
+	} {
+		if d := DecideAsset([]github.Asset{asset}, MacOS, AMD64, PickOpts{}); d.ShouldAutoSelect() {
+			t.Errorf("ARM-only DMG offered to Intel: %+v", d)
+		}
+		if d := DecideAsset([]github.Asset{asset}, MacOS, ARM64, PickOpts{}); !d.ShouldAutoSelect() {
+			t.Errorf("ARM-only DMG unavailable on Apple Silicon: %+v", d)
+		}
+	}
+	if d := DecideAsset([]github.Asset{{Name: "App.pkg"}}, MacOS, AMD64, PickOpts{}); d.ShouldAutoSelect() {
+		t.Fatalf("DMG default leaked into PKG selection: %+v", d)
+	}
+}
+
 func TestObservedTargetsResolveOpaqueArchive(t *testing.T) {
 	a := github.Asset{Name: "App-x64.zip", Artifact: &github.ArtifactMetadata{
 		Targets: []github.ArtifactTarget{{Platform: "macos", Arch: "amd64"}}, Role: "application", Status: "inspected",
@@ -64,7 +110,7 @@ func TestContradictionsAndInspectionFailuresStayUnresolved(t *testing.T) {
 func TestObservedCPURefinesStructuralTarget(t *testing.T) {
 	a := github.Asset{Name: "App.zip", Artifact: &github.ArtifactMetadata{Targets: []github.ArtifactTarget{{Platform: "macos"}, {Platform: "macos", Arch: "amd64"}}, Role: "application", Status: "inspected"}}
 	// Structural OS evidence must not erase a known, usable CPU target.
-	other := github.Asset{Name: "Other.dmg"}
+	other := github.Asset{Name: "Other.pkg"}
 	if d := DecideAsset([]github.Asset{a, other}, MacOS, ARM64, PickOpts{}); !d.ShouldAutoSelect() || d.Asset.Name != "App.zip" {
 		t.Fatalf("structural target overrode known CPU: %+v", d)
 	}

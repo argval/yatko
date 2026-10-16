@@ -67,6 +67,16 @@ func FactsForAsset(asset github.Asset) ArtifactFacts {
 			}
 		}
 	}
+	// Default DMGs to universal only where filename and metadata leave CPU unspecified.
+	if f.Extension == "dmg" {
+		for i, target := range f.Targets {
+			if target.Platform == string(MacOS) && target.Arch == "" {
+				f.Targets[i].Arch = string(AMD64)
+				target.Arch = string(ARM64)
+				f.Targets = append(f.Targets, target)
+			}
+		}
+	}
 	f.Source = f.Role == "source"
 	return f
 }

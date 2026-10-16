@@ -188,12 +188,29 @@ func DecideAsset(assets []github.Asset, platform Platform, arch Arch, opts PickO
 	// CLI builds only compete when nothing else fits; all-CLI releases are unaffected.
 	var mainProduct []scored
 	for _, c := range candidates {
-		if !hasBoundedKeyword(c.facts.Canonical, "cli") {
+		if !hasBoundedKeyword(c.facts.Canonical, "cli") && !hasBoundedKeyword(c.facts.Canonical, "inso") {
 			mainProduct = append(mainProduct, c)
 		}
 	}
 	if len(mainProduct) > 0 {
 		candidates = mainProduct
+	}
+	// Prefer Setup over Portable only when Setup has CPU evidence compatible
+	// with this visitor. A 32-bit installer stub still runs on 64-bit Windows.
+	if platform == Windows {
+		var setupBuilds []scored
+		hasPortable := false
+		for _, c := range candidates {
+			if hasBoundedKeyword(c.facts.Canonical, "portable") {
+				hasPortable = true
+			} else if c.facts.Kind == KindInstaller &&
+				(arch == UnknownArch || len(c.facts.Arches) > 0) {
+				setupBuilds = append(setupBuilds, c)
+			}
+		}
+		if hasPortable && len(setupBuilds) > 0 {
+			candidates = setupBuilds
+		}
 	}
 
 	// A known compatible CPU is safer than an installer whose CPU is unknown.

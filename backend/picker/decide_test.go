@@ -105,6 +105,42 @@ func TestDecideAssetPrefersAppOverCompanionCLI(t *testing.T) {
 	}
 }
 
+func TestDecideAssetPrefersInsomniaDesktopOverInso(t *testing.T) {
+	assets := []github.Asset{
+		{Name: "Insomnia.Core-13.1.0.exe", Artifact: &github.ArtifactMetadata{
+			Targets: []github.ArtifactTarget{{Platform: "windows", Arch: "386"}}, Role: "application", Status: "inspected",
+		}},
+		{Name: "inso-windows-x64-13.1.0.zip"},
+	}
+	d := DecideAsset(assets, Windows, AMD64, PickOpts{})
+	if !d.ShouldAutoSelect() || d.Asset.Name != "Insomnia.Core-13.1.0.exe" {
+		t.Fatalf("desktop pick: %+v", d)
+	}
+	if d := DecideAsset(assets[1:], Windows, AMD64, PickOpts{}); !d.ShouldAutoSelect() || d.Asset.Name != assets[1].Name {
+		t.Fatalf("CLI-only release should remain available: %+v", d)
+	}
+}
+
+func TestDecideAssetPrefersSetupOverPortable(t *testing.T) {
+	assets := []github.Asset{
+		{Name: "App-Setup.exe", Artifact: &github.ArtifactMetadata{
+			Targets: []github.ArtifactTarget{{Platform: "windows", Arch: "386"}}, Role: "application", Status: "inspected",
+		}},
+		{Name: "App-windows-x64-Portable.exe"},
+	}
+	d := DecideAsset(assets, Windows, AMD64, PickOpts{})
+	if !d.ShouldAutoSelect() || d.Asset.Name != assets[0].Name {
+		t.Fatalf("setup pick: %+v", d)
+	}
+	if d := DecideAsset(assets[1:], Windows, AMD64, PickOpts{}); !d.ShouldAutoSelect() {
+		t.Fatalf("portable-only release should remain available: %+v", d)
+	}
+	unknownSetup := github.Asset{Name: "App-Setup.exe"}
+	if d := DecideAsset([]github.Asset{unknownSetup, assets[1]}, Windows, AMD64, PickOpts{}); !d.ShouldAutoSelect() || d.Asset.Name != assets[1].Name {
+		t.Fatalf("unknown setup CPU must not hide a compatible portable build: %+v", d)
+	}
+}
+
 // CPU fallback policy: native (or universal on Mac) first, then the closest
 // emulated build — Windows ARM64: x64 then x86; Windows x64: x86; Apple
 // Silicon: Intel via Rosetta. Nothing runs "upward" (x86 never gets x64).
@@ -125,7 +161,7 @@ func TestDecideAssetCPUFallbackOrder(t *testing.T) {
 		{MacOS, ARM64, []string{"app-mac-x64.dmg", "app-mac-arm64.dmg", "app-mac-universal.dmg"}, "app-mac-universal.dmg"},
 		{MacOS, ARM64, []string{"app-mac-x64.dmg", "app-mac-arm64.dmg"}, "app-mac-arm64.dmg"},
 		{MacOS, ARM64, []string{"app-mac-x64.dmg"}, "app-mac-x64.dmg"},
-		{MacOS, ARM64, []string{"app-mac-x64.dmg", "App.dmg"}, "app-mac-x64.dmg"}, // Known Rosetta support beats an unknown CPU.
+		{MacOS, ARM64, []string{"app-mac-x64.dmg", "App.dmg"}, "App.dmg"}, // Untagged DMGs default to universal.
 		{MacOS, AMD64, []string{"app-mac-x64.dmg", "app-mac-universal.dmg"}, "app-mac-universal.dmg"},
 		{MacOS, AMD64, []string{"app-mac-arm64.dmg"}, ""},
 		{MacOS, UnknownArch, []string{"app-mac-x64.dmg", "app-mac-arm64.dmg", "app-mac-universal.dmg"}, "app-mac-universal.dmg"},

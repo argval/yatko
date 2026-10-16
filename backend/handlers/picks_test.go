@@ -47,7 +47,7 @@ func TestPageHandlerIncludesPicks(t *testing.T) {
 	oldTransport := http.DefaultTransport
 	t.Cleanup(func() { http.DefaultTransport = oldTransport })
 	http.DefaultTransport = roundTripFunc(func(r *http.Request) (*http.Response, error) {
-		body := `{"tag_name":"v1.0.0","published_at":"2026-01-01T00:00:00Z","html_url":"https://github.com/acme/tool/releases/tag/v1.0.0","assets":[{"name":"tool-darwin-arm64.dmg","browser_download_url":"https://example.com/a.dmg","size":42,"download_count":1}]}`
+		body := `{"tag_name":"v1.0.0","published_at":"2026-01-01T00:00:00Z","html_url":"https://github.com/acme/tool/releases/tag/v1.0.0","assets":[{"name":"tool.dmg","browser_download_url":"https://example.com/a.dmg","size":42,"download_count":1}]}`
 		if r.URL.Path != "/repos/acme/tool/releases/latest" {
 			t.Fatalf("unexpected GitHub request: %s", r.URL.String())
 		}
@@ -64,6 +64,8 @@ func TestPageHandlerIncludesPicks(t *testing.T) {
 	page := NewPageHandler(NewRedirectHandler(gh, c), gh, c)
 	router := gin.New()
 	router.GET("/api/release/:owner/:repo", page.Handle)
+	router.GET("/dl/:owner/:repo", page.redirect.Handle)
+	router.GET("/api/link/:owner/:repo", NewLinkHandler(page.redirect).Handle)
 
 	response := httptest.NewRecorder()
 	router.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/api/release/acme/tool", nil))
@@ -72,14 +74,30 @@ func TestPageHandlerIncludesPicks(t *testing.T) {
 	}
 
 	var body struct {
-		Picks map[string]releasePick `json:"picks"`
+		Picks  map[string]releasePick `json:"picks"`
+		Assets []github.Asset         `json:"assets"`
 	}
 	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	got, ok := body.Picks["macos/arm64"]
-	if !ok || got.Filename != "tool-darwin-arm64.dmg" {
-		t.Fatalf("picks[macos/arm64] = %+v, want tool-darwin-arm64.dmg", got)
+	if len(body.Assets) != 1 || body.Assets[0].Artifact == nil || len(body.Assets[0].Artifact.Targets) != 2 {
+		t.Fatalf("missing universal targets for frontend filters: %+v", body.Assets)
+	}
+	for _, arch := range []string{"arm64", "amd64"} {
+		if got := body.Picks["macos/"+arch]; got.Filename != "tool.dmg" || got.Status != "selected" {
+			t.Fatalf("picks[macos/%s] = %+v, want tool.dmg", arch, got)
+		}
+		redirect := httptest.NewRecorder()
+		router.ServeHTTP(redirect, httptest.NewRequest(http.MethodGet, "/dl/acme/tool?platform=macos&arch="+arch, nil))
+		if redirect.Code != http.StatusFound || redirect.Header().Get("Location") != "https://example.com/a.dmg" {
+			t.Fatalf("macos/%s redirect = %d %s", arch, redirect.Code, redirect.Body)
+		}
+		link := httptest.NewRecorder()
+		router.ServeHTTP(link, httptest.NewRequest(http.MethodGet, "/api/link/acme/tool?platform=macos&arch="+arch, nil))
+		var pick LinkResponse
+		if err := json.Unmarshal(link.Body.Bytes(), &pick); err != nil || link.Code != http.StatusOK || pick.Filename != "tool.dmg" {
+			t.Fatalf("macos/%s link = %d %s", arch, link.Code, link.Body)
+		}
 	}
 }
 

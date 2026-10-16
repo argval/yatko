@@ -751,7 +751,7 @@
         "obsidian-1.14.4-arm64.tar.gz",
         "Obsidian-1.14.4-arm64.AppImage"
       ],
-      "expected": null
+      "expected": "Obsidian-1.14.4.dmg"
     },
     {
       "name": "app-beats-companion-cli",
@@ -762,7 +762,7 @@
         "LocalSend-CLI-1.18.2-macos-arm-64.tar.gz",
         "LocalSend-CLI-1.18.2-macos-x86-64.tar.gz"
       ],
-      "expected": null
+      "expected": "LocalSend-1.18.2.dmg"
     },
     {
       "name": "mac-universal-beats-native",

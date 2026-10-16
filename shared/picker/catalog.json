@@ -41,7 +41,7 @@
     "gnu": ["gnu", "glibc"],
     "static": ["static"]
   },
-  "variants": ["profile", "debug", "symbols", "dbg", "baseline", "mono", "pdb", "pdbs", "perfetto", "horizonos", "picoos", "webview2"],
+  "variants": ["profile", "debug", "symbols", "dbg", "baseline", "mono", "pdb", "pdbs", "perfetto", "horizonos", "picoos", "webview2", "portable"],
   "nonNative": ["wasm", "wasi"],
   "source": ["source", "src"],
   "ambiguousArchives": [".tar.gz", ".tar.xz", ".tgz", ".txz", ".zip", ".tar", ".tar.zst", ".tzst", ".xz", ".zst", ".7z"],

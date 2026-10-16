@@ -11,6 +11,7 @@ export type Pipeline = string[][];
  * unterminated quotes. `powershell` keeps `(`/`)` as words and `\` as a literal.
  */
 export function lexPipeline(command: string, powershell = false): Pipeline | null {
+  if (command.includes("$(") || command.includes("`") || command.includes("&&")) return null;
   const stages: string[][] = [[]];
   let word = "";
   let inWord = false;
@@ -85,14 +86,55 @@ const PS_FETCH = /^(?:irm|iwr|invoke-restmethod|invoke-webrequest)$/i;
 const PS_EVAL = /^(?:iex|invoke-expression)$/i;
 const PS_HOST = /^(?:powershell|pwsh)(?:\.exe)?$/i;
 
+/** Skip privilege options without mistaking their values for the executable. */
+export function commandStart(words: string[]): number {
+  if (words[0] !== "sudo" && words[0] !== "doas") return 0;
+  let i = 1;
+  while (words[i]?.startsWith("-")) {
+    const option = words[i++];
+    if (option === "--") break;
+    if (["-u", "-g", "-h", "-p", "-C", "-D", "-R", "-T", "--user", "--group", "--host", "--prompt", "--chdir"].includes(option)) i++;
+  }
+  return i;
+}
+
+/** A fetch must name one HTTPS URL and write its response to the pipe. */
+function fetchesScript(words: string[]): boolean {
+  const urls = words.slice(1).filter((word) => /^https?:\/\//i.test(word));
+  if (urls.length !== 1) return false;
+  try {
+    const url = new URL(urls[0]);
+    if (url.protocol !== "https:" || url.username || url.password) return false;
+  } catch { return false; }
+  const args = words.slice(1).filter((word) => word !== urls[0]);
+  if (words[0] === "curl") {
+    for (let i = 0; i < args.length; i++) {
+      if (/^-[fLsS]+$/.test(args[i]) || ["--fail", "--location", "--silent", "--show-error", "--tlsv1.2", "--tlsv1.3"].includes(args[i])) continue;
+      if (args[i] === "--proto" && args[++i] === "=https") continue;
+      return false;
+    }
+    return true;
+  }
+  if (words[0] === "wget") {
+    let stdout = false;
+    for (let i = 0; i < args.length; i++) {
+      if (["-q", "--quiet", "--https-only"].includes(args[i])) continue;
+      if (/^-q?O-$/.test(args[i]) || args[i] === "--output-document=-") { stdout = true; continue; }
+      if (["-O", "--output-document"].includes(args[i]) && args[++i] === "-") { stdout = true; continue; }
+      return false;
+    }
+    return stdout;
+  }
+  return args.every((arg) => /^-(?:useb|usebasicparsing|uri)$/i.test(arg));
+}
+
 /** `curl … | sh` / `wget … | sudo bash -s -- …`: one fetch piped into one shell. */
 function isPosixScriptPipe(command: string): boolean {
   const stages = lexPipeline(command);
   if (!stages || stages.length !== 2) return false;
   const [fetch, run] = stages;
-  if (!/^(?:curl|wget)$/.test(fetch[0])) return false;
-  let k = 0;
-  if (run[0] === "sudo") for (k = 1; run[k]?.startsWith("-"); k++);
+  if (!/^(?:curl|wget)$/.test(fetch[0]) || !fetchesScript(fetch)) return false;
+  const k = commandStart(run);
   if (!POSIX_SHELL.test(run[k] ?? "")) return false;
   return !run.slice(k + 1).some((arg) => arg === "--command" || arg.startsWith("--command=") || /^-[^-]*c/.test(arg));
 }
@@ -105,7 +147,7 @@ export function isPowerShellOneLiner(command: string): boolean {
   const hasParens = (words: string[]) => words.some((w) => w === "(" || w === ")");
   if (stages.length === 2) {
     return (
-      PS_FETCH.test(first[0]) &&
+      PS_FETCH.test(first[0]) && fetchesScript(first) &&
       !hasParens(first) &&
       stages[1].length === 1 &&
       PS_EVAL.test(stages[1][0])
@@ -114,7 +156,7 @@ export function isPowerShellOneLiner(command: string): boolean {
   if (stages.length !== 1) return false;
   if (PS_EVAL.test(first[0]) && first[1] === "(" && first[first.length - 1] === ")") {
     const inner = first.slice(2, -1);
-    return PS_FETCH.test(inner[0] ?? "") && !hasParens(inner);
+    return PS_FETCH.test(inner[0] ?? "") && fetchesScript(inner) && !hasParens(inner);
   }
   const c = first.findIndex((w) => /^-(?:c|command)$/i.test(w));
   if (PS_HOST.test(first[0]) && c > 0 && c === first.length - 2 && !hasParens(first)) {

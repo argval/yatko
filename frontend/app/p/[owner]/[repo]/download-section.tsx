@@ -87,10 +87,13 @@ export function DownloadSection({
   }
 
   const { platform: visitorPlatform, arch: visitorArch } = detected;
+  // Open the device controls only when they can help: no OS was detected, or
+  // the CPU is unknown and the picker could not choose between CPU builds.
+  const needsChoice = !visitorPlatform ||
+    (!visitorArch && (pick?.status === "ambiguous" || pick?.status === "unknown"));
 
   return (
     <div className="flex flex-col items-center gap-2">
-      <TargetSelector target={detected} />
       {visitorPlatform ? <DownloadButton
         owner={owner}
         repo={repo}
@@ -104,6 +107,7 @@ export function DownloadSection({
         <a href="#downloads" className="inline-flex min-h-11 items-center rounded-xl bg-foreground px-6 py-3 font-semibold text-background focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-foreground active:opacity-90">Browse downloads</a>
         <p className="text-sm text-muted">Select an operating system to find a download.</p>
       </>}
+      <TargetSelector target={detected} needsChoice={needsChoice} />
       <p className="text-sm text-muted">
         {tagName} &middot; {publishedDate}
       </p>

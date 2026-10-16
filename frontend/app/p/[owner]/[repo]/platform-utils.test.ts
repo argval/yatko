@@ -136,3 +136,46 @@ test("multi-OS install methods match each stated OS and retain CPU limits", () =
   expect(installCommandMatchesTarget(command, { platform: "", arch: "arm64" })).toBe(false);
   expect(installCommandMatchesTarget({ platform: "universal", platforms: ["linux"] }, { platform: "windows", arch: "amd64" })).toBe(false);
 });
+
+test("target filters keep emulated builds, matching the Go fallback table", () => {
+  const stub: Asset = { ...inspectedZip, name: "Obsidian-1.14.4.exe", artifact: { ...inspectedZip.artifact!, targets: [{ platform: "windows", arch: "386" }] } };
+  expect(assetMatchesTarget(stub, { platform: "windows", arch: "amd64" })).toBe(true);
+  expect(assetMatchesTarget(stub, { platform: "windows", arch: "arm64" })).toBe(true);
+  expect(assetMatchesTarget(inspectedZip, { platform: "windows", arch: "386" })).toBe(false);
+  const x64: Asset = { ...stub, artifact: { ...stub.artifact!, targets: [{ platform: "windows", arch: "amd64" }] } };
+  expect(assetMatchesTarget(x64, { platform: "windows", arch: "arm64" })).toBe(true);
+  expect(assetMatchesTarget(x64, { platform: "windows", arch: "386" })).toBe(false);
+  const intelMac: Asset = { ...stub, artifact: { ...stub.artifact!, targets: [{ platform: "macos", arch: "amd64" }] } };
+  expect(assetMatchesTarget(intelMac, { platform: "macos", arch: "arm64" })).toBe(true);
+  const armMac: Asset = { ...stub, artifact: { ...stub.artifact!, targets: [{ platform: "macos", arch: "arm64" }] } };
+  expect(assetMatchesTarget(armMac, { platform: "macos", arch: "amd64" })).toBe(false);
+});
+
+test("a known visitor CPU requires evidence of a compatible artifact CPU", () => {
+  const partial: Asset = { ...inspectedZip, artifact: { ...inspectedZip.artifact!, targets: [{ platform: "windows" }] } };
+  expect(assetMatchesTarget(partial, { platform: "windows", arch: "amd64" })).toBe(false);
+  expect(assetMatchesTarget(partial, { platform: "windows", arch: "" })).toBe(true);
+  const { artifact: _, ...legacy } = inspectedZip;
+  expect(assetMatchesTarget({ ...legacy, name: "Setup.exe" }, { platform: "windows", arch: "amd64" })).toBe(false);
+  expect(assetMatchesTarget({ ...legacy, name: "tool-linux-riscv64.tar.gz" }, { platform: "linux", arch: "amd64" })).toBe(false);
+  expect(assetMatchesTarget({ ...legacy, name: "tool-win32-x64.zip" }, { platform: "windows", arch: "arm64" })).toBe(true);
+  expect(assetMatchesTarget({ ...legacy, name: "tool-universal.dmg" }, { platform: "macos", arch: "arm64" })).toBe(true);
+});
+
+test("CPU and libc compatibility must come from the same observed target", () => {
+  const asset: Asset = { ...inspectedZip, artifact: { ...inspectedZip.artifact!, targets: [
+    { platform: "linux", arch: "amd64", libc: "gnu" },
+    { platform: "linux", arch: "arm64", libc: "musl" },
+  ] } };
+  expect(assetMatchesTarget(asset, { platform: "linux", arch: "amd64", libc: "musl" })).toBe(false);
+  expect(assetMatchesTarget(asset, { platform: "linux", arch: "arm64", libc: "musl" })).toBe(true);
+  const failed: Asset = { ...asset, artifact: { ...asset.artifact!, status: "failed" } };
+  expect(assetMatchesTarget(failed, { platform: "linux", arch: "arm64" })).toBe(false);
+});
+
+test("legacy metadata and debug assets do not enter compatible downloads", () => {
+  const { artifact: _, ...legacy } = inspectedZip;
+  for (const name of ["tool-windows-x64.exe.sha256", "tool-windows-x64-debuginfo.zip", "tool-windows-x64.pdb"]) {
+    expect(assetMatchesTarget({ ...legacy, name }, { platform: "windows", arch: "amd64" })).toBe(false);
+  }
+});

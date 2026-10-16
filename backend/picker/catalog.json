@@ -2,19 +2,19 @@
   "platforms": {
     "windows": {
       "aliases": ["windows", "win32", "win64", "win-", "win"],
-      "extensions": [".exe", ".msi", ".zip", ".jar"]
+      "extensions": [".exe", ".msi", ".msix", ".appx", ".zip", ".tar", ".tar.zst", ".tzst", ".xz", ".zst", ".7z", ".jar"]
     },
     "macos": {
       "aliases": ["macos", "darwin", "osx", "mac-", "mac"],
-      "extensions": [".dmg", ".pkg", ".zip", ".tar.gz", ".tgz", ".gz", ".jar"]
+      "extensions": [".dmg", ".pkg", ".zip", ".tar.gz", ".tgz", ".gz", ".tar", ".tar.zst", ".tzst", ".xz", ".zst", ".7z", ".jar"]
     },
     "linux": {
       "aliases": ["linux", "ubuntu", "debian", "fedora", "appimage"],
-      "extensions": [".appimage", ".deb", ".rpm", ".tar.gz", ".tgz", ".tar.xz", ".txz", ".gz", ".zip", ".jar"]
+      "extensions": [".appimage", ".deb", ".rpm", ".flatpak", ".snap", ".apk", ".tar.gz", ".tgz", ".tar.xz", ".txz", ".gz", ".zip", ".tar", ".tar.zst", ".tzst", ".xz", ".zst", ".7z", ".jar"]
     },
     "android": {
-      "aliases": ["android", "apk"],
-      "extensions": [".apk", ".aab", ".zip"]
+      "aliases": ["android", "androideabi"],
+      "extensions": [".apk", ".aab", ".zip", ".tar.gz", ".tgz", ".tar.xz", ".txz", ".tar", ".tar.zst", ".tzst", ".xz", ".zst", ".7z"]
     },
     "ios": {
       "aliases": ["ios", "iphone", "ipad", "ipod"],
@@ -23,20 +23,34 @@
   },
   "architectures": {
     "amd64": ["amd64", "x86_64", "x86-64", "x64", "win64", "intel"],
-    "arm64": ["arm64", "aarch64", "m1", "m2", "m3", "m4"],
+    "arm64": ["arm64", "arm-64", "aarch64", "m1", "m2", "m3", "m4"],
     "arm": ["armv7", "armv6", "armhf", "arm-", "arm32", "armel", "arm"],
-    "386": ["i386", "i686", "x86_32", "386", "win32"]
+    "386": ["i386", "i686", "x86_32", "386", "win32", "x86"],
+    "riscv64": ["riscv64", "riscv"],
+    "ppc64le": ["ppc64le", "powerpc64le"],
+    "ppc64": ["ppc64", "powerpc64"],
+    "ppc": ["ppc", "powerpc"],
+    "s390x": ["s390x", "s390"],
+    "mips": ["mips", "mipsel", "mips64", "mips64el"],
+    "loong64": ["loong64", "loongarch64"],
+    "sparc64": ["sparc64", "sparc"],
+    "aarch64_be": ["aarch64_be", "aarch64-be"]
   },
   "libc": {
     "musl": ["musl"],
     "gnu": ["gnu", "glibc"],
     "static": ["static"]
   },
-  "variants": ["profile", "debug", "symbols", "dbg", "baseline", "mono", "pdb", "pdbs", "perfetto", "horizonos", "picoos"],
+  "variants": ["profile", "debug", "symbols", "dbg", "baseline", "mono", "pdb", "pdbs", "perfetto", "horizonos", "picoos", "webview2"],
   "nonNative": ["wasm", "wasi"],
   "source": ["source", "src"],
-  "ambiguousArchives": [".tar.gz", ".tar.xz", ".tgz", ".txz", ".zip"],
+  "ambiguousArchives": [".tar.gz", ".tar.xz", ".tgz", ".txz", ".zip", ".tar", ".tar.zst", ".tzst", ".xz", ".zst", ".7z"],
   "formats": {
+    "msix": { "kind": "installer", "platform": "windows" },
+    "appx": { "kind": "installer", "platform": "windows" },
+    "flatpak": { "kind": "package", "platform": "linux" },
+    "snap": { "kind": "package", "platform": "linux" },
+    "tar": { "kind": "archive" },
     "exe": { "kind": "installer", "platform": "windows" },
     "msi": { "kind": "installer", "platform": "windows" },
     "dmg": { "kind": "installer", "platform": "macos" },
@@ -44,7 +58,7 @@
     "appimage": { "kind": "executable", "platform": "linux" },
     "deb": { "kind": "package", "platform": "linux" },
     "rpm": { "kind": "package", "platform": "linux" },
-    "apk": { "kind": "package", "platform": "android" },
+    "apk": { "kind": "package" },
     "aab": { "kind": "package", "platform": "android" },
     "ipa": { "kind": "package", "platform": "ios" },
     "zip": { "kind": "archive" },
@@ -53,13 +67,19 @@
     "tar.gz": { "kind": "archive" },
     "tar.xz": { "kind": "archive" },
     "tgz": { "kind": "archive" },
-    "txz": { "kind": "archive" }
+    "txz": { "kind": "archive" },
+    "tar.zst": { "kind": "archive" },
+    "tzst": { "kind": "archive" },
+    "xz": { "kind": "archive" },
+    "zst": { "kind": "archive" },
+    "7z": { "kind": "archive" }
   },
   "preferAliases": {
     "app-image": "appimage",
     "tgz": "tar.gz",
-    "txz": "tar.xz"
+    "txz": "tar.xz",
+    "tzst": "tar.zst"
   },
-  "linuxRpmExtensions": [".appimage", ".rpm", ".deb", ".tar.gz", ".tgz", ".tar.xz", ".txz", ".gz", ".zip", ".jar"],
+  "linuxRpmExtensions": [".appimage", ".rpm", ".deb", ".flatpak", ".snap", ".apk", ".tar.gz", ".tgz", ".tar.xz", ".txz", ".gz", ".zip", ".tar", ".tar.zst", ".tzst", ".xz", ".zst", ".7z", ".jar"],
   "unsupportedPlatforms": ["freebsd", "openbsd", "netbsd", "dragonfly", "solaris", "illumos", "haiku"]
 }

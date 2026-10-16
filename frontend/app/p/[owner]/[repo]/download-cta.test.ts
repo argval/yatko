@@ -28,7 +28,7 @@ describe("downloadCta", () => {
     });
   });
 
-  test("keeps /dl after a confirmed pick so Go still decides on click", () => {
+  test("pins the confirmed filename while Go rechecks compatibility", () => {
     expect(
       downloadCta({
         platform: "android",
@@ -40,7 +40,7 @@ describe("downloadCta", () => {
         repo: "termux-app",
       }),
     ).toEqual({
-      href: "/dl/termux/termux-app/v0.118.0?platform=android&arch=arm64",
+      href: "/dl/termux/termux-app/v0.118.0?platform=android&arch=arm64&asset=termux.apk",
       label: "Download for Android",
       external: false,
     });

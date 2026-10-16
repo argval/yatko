@@ -51,7 +51,12 @@ function subscribe(listener: () => void) {
   }
   return () => {
     listeners.delete(listener);
-    if (listeners.size === 0) generation += 1;
+    if (listeners.size === 0) {
+      generation += 1;
+      // A new mount must detect the current browser before rendering controls.
+      automatic = null;
+      snapshot = null;
+    }
   };
 }
 

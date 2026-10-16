@@ -1,6 +1,7 @@
 package picker
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/argval/yatko/github"
@@ -49,6 +50,8 @@ type scored struct {
 	bitWidth    int
 	libc        int
 	variant     int
+	emulation   int  // 0 = native or CPU unknown; >0 = cross-CPU fallback rank
+	universal   bool // macOS build covering both Intel and Apple Silicon
 }
 
 // DecideAsset classifies each release asset, ranks with the deterministic
@@ -108,6 +111,17 @@ func DecideAsset(assets []github.Asset, platform Platform, arch Arch, opts PickO
 				unresolved = true
 			}
 		}
+		universal := false
+		if platform == MacOS {
+			intel, arm := false, false
+			for _, t := range facts.Targets {
+				if t.Platform == string(MacOS) {
+					intel = intel || t.Arch == string(AMD64)
+					arm = arm || t.Arch == string(ARM64)
+				}
+			}
+			universal = intel && arm
+		}
 		var compatible bool
 		facts, compatible = factsForTarget(facts, platform, arch, libc)
 		if !compatible {
@@ -134,6 +148,8 @@ func DecideAsset(assets []github.Asset, platform Platform, arch Arch, opts PickO
 			bitWidth:    archBitWidth(facts),
 			libc:        libcPenalty(facts, libc),
 			variant:     len(facts.Variants),
+			emulation:   emulationCost(facts, platform, arch),
+			universal:   universal,
 		})
 	}
 
@@ -152,6 +168,61 @@ func DecideAsset(assets []github.Asset, platform Platform, arch Arch, opts PickO
 		}
 	}
 
+	// Prefer platform-tagged assets over neutral names when both match the
+	// extension filter (avoids picking linuxX64.zip for a Windows CTA when the
+	// OS token was glued onto the arch, before canonicalizeName split it).
+	// OS evidence filters first: an arch-only name (obsidian-arm64.tar.gz)
+	// must not displace a confirmed-OS asset with unknown CPU (Obsidian.dmg).
+	var platformMatches []scored
+	for _, c := range candidates {
+		if c.platformHit {
+			platformMatches = append(platformMatches, c)
+		}
+	}
+	if len(platformMatches) > 0 {
+		candidates = platformMatches
+	}
+
+	// A GUI app and its companion CLI often share a release (LocalSend.dmg +
+	// LocalSend-CLI-macos-arm-64.tar.gz). The button means the main product, so
+	// CLI builds only compete when nothing else fits; all-CLI releases are unaffected.
+	var mainProduct []scored
+	for _, c := range candidates {
+		if !hasBoundedKeyword(c.facts.Canonical, "cli") {
+			mainProduct = append(mainProduct, c)
+		}
+	}
+	if len(mainProduct) > 0 {
+		candidates = mainProduct
+	}
+
+	// A known compatible CPU is safer than an installer whose CPU is unknown.
+	if arch != UnknownArch {
+		var known []scored
+		for _, c := range candidates {
+			if len(c.facts.Arches) > 0 {
+				known = append(known, c)
+			}
+		}
+		if len(known) > 0 {
+			candidates = known
+		}
+	}
+
+	// Native or CPU-unknown builds beat emulated ones; among emulated builds,
+	// keep only the closest fallback (ARM64 Windows: x64 before x86).
+	lowest := candidates[0].emulation
+	for _, c := range candidates {
+		lowest = min(lowest, c.emulation)
+	}
+	var closest []scored
+	for _, c := range candidates {
+		if c.emulation == lowest {
+			closest = append(closest, c)
+		}
+	}
+	candidates = closest
+
 	// Prefer an explicit CPU match over assets that leave the CPU unknown.
 	if arch != UnknownArch {
 		var exact []scored
@@ -165,17 +236,15 @@ func DecideAsset(assets []github.Asset, platform Platform, arch Arch, opts PickO
 		}
 	}
 
-	// Prefer platform-tagged assets over neutral names when both match the
-	// extension filter (avoids picking linuxX64.zip for a Windows CTA when the
-	// OS token was glued onto the arch, before canonicalizeName split it).
-	var platformMatches []scored
+	// A universal Mac build runs on every Mac, so it beats single-CPU builds.
+	var universal []scored
 	for _, c := range candidates {
-		if c.platformHit {
-			platformMatches = append(platformMatches, c)
+		if c.universal {
+			universal = append(universal, c)
 		}
 	}
-	if len(platformMatches) > 0 {
-		candidates = platformMatches
+	if len(universal) > 0 {
+		candidates = universal
 	}
 
 	best := candidates[0]
@@ -210,6 +279,9 @@ func DecideAsset(assets []github.Asset, platform Platform, arch Arch, opts PickO
 
 	asset := best.asset
 	reasons := reasonsFor(best, platform, arch, tied)
+	if best.emulation > 0 && len(best.facts.Arches) > 0 {
+		reasons = append(reasons, fmt.Sprintf("no native %s build; %s build runs under emulation", arch, best.facts.Arches[0]))
+	}
 	confidence := confidenceFor(best, platform, arch, tied)
 	status := "selected"
 	if confidence == ConfidenceLow {
@@ -236,7 +308,7 @@ func factsForTarget(f ArtifactFacts, platform Platform, arch Arch, libc Libc) (A
 		if t.Platform != "" && t.Platform != string(platform) {
 			continue
 		}
-		if arch != UnknownArch && t.Arch != "" && t.Arch != string(arch) {
+		if _, emulated := emulationRank(platform, arch, Arch(t.Arch)); arch != UnknownArch && t.Arch != "" && t.Arch != string(arch) && !emulated {
 			continue
 		}
 		if libc != LibcAny && t.Libc != "" && t.Libc != string(libc) && t.Libc != "static" {
@@ -249,7 +321,15 @@ func factsForTarget(f ArtifactFacts, platform Platform, arch Arch, libc Libc) (A
 	}
 	f.Targets = targets
 	f.Platforms, f.Arches = nil, nil
+	f.HasMusl, f.HasGNU, f.HasStatic = false, false, false
+	f.Libc = LibcAny
 	for _, t := range targets {
+		f.HasMusl = f.HasMusl || t.Libc == string(LibcMusl)
+		f.HasGNU = f.HasGNU || t.Libc == string(LibcGNU)
+		f.HasStatic = f.HasStatic || t.Libc == string(LibcStatic)
+		if t.Libc != "" {
+			f.Libc = Libc(t.Libc)
+		}
 		if t.Platform != "" {
 			f.Platforms = appendUniquePlatform(f.Platforms, Platform(t.Platform))
 		}
@@ -258,6 +338,44 @@ func factsForTarget(f ArtifactFacts, platform Platform, arch Arch, libc Libc) (A
 		}
 	}
 	return f, true
+}
+
+// emulation lists the only cross-CPU fallbacks, closest first: 64-bit Windows
+// runs x86 (WOW64; NSIS/Inno installer stubs are x86 even for 64-bit apps),
+// Windows 11 on ARM emulates x64 and x86, and Apple Silicon runs Intel builds
+// via Rosetta. Fallbacks never count as an arch match, so native builds win.
+var emulation = map[Platform]map[Arch][]Arch{
+	Windows: {AMD64: {X86}, ARM64: {AMD64, X86}},
+	MacOS:   {ARM64: {AMD64}},
+}
+
+// emulationRank reports whether a visitor CPU can run an asset CPU, and how far
+// down the fallback list it sits (1 = closest).
+func emulationRank(platform Platform, visitor, asset Arch) (int, bool) {
+	for i, a := range emulation[platform][visitor] {
+		if a == asset {
+			return i + 1, true
+		}
+	}
+	return 0, false
+}
+
+// emulationCost is 0 when any remaining target is native or leaves the CPU
+// unknown; otherwise the closest fallback rank among its targets.
+func emulationCost(f ArtifactFacts, platform Platform, visitor Arch) int {
+	if visitor == UnknownArch {
+		return 0
+	}
+	cost := 0
+	for _, t := range f.Targets {
+		if t.Arch == "" || Arch(t.Arch) == visitor {
+			return 0
+		}
+		if r, ok := emulationRank(platform, visitor, Arch(t.Arch)); ok && (cost == 0 || r < cost) {
+			cost = r
+		}
+	}
+	return cost
 }
 
 func nativeBinaryName(name string) bool {
@@ -347,6 +465,9 @@ func libcPenalty(f ArtifactFacts, want Libc) int {
 
 func reasonsFor(c scored, platform Platform, arch Arch, tied bool) []string {
 	var reasons []string
+	if arch != UnknownArch && len(c.facts.Arches) == 0 {
+		reasons = append(reasons, "CPU compatibility has not been established")
+	}
 	if c.platformHit {
 		if c.asset.ArchivePlatform == string(platform) {
 			reasons = append(reasons, "ZIP contains a "+string(platform)+" app bundle")
@@ -386,6 +507,9 @@ func confidenceFor(best scored, platform Platform, arch Arch, tied bool) Confide
 	archEvidence := arch == UnknownArch || best.archHit
 
 	switch {
+	case arch != UnknownArch && len(best.facts.Arches) == 0:
+		// An OS-specific extension cannot establish CPU compatibility.
+		return ConfidenceLow
 	case tied:
 		return ConfidenceLow
 	case !platformEvidence && generic:

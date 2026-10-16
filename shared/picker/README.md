@@ -3,15 +3,26 @@
 **Deep module:** `backend/picker` (Go) combines filename clues and observed
 artifact metadata, then returns an `AssetDecision`. Known OS, CPU, and explicit
 libc conflicts are excluded before format preferences. A CPU token alone does
-not prove OS compatibility. Equal candidates abstain instead of using asset
-order. Decisions carry `selected`, `incompatible`, `unknown`, or `ambiguous`
+not prove OS compatibility: OS evidence filters before CPU evidence, so an
+OS-unknown `app-arm64.tar.gz` cannot displace a confirmed-OS `App.dmg`.
+Companion `cli` builds only compete when nothing else fits the OS. On macOS a
+universal build wins over single-CPU builds. Cross-CPU fallbacks come only
+from the `emulation` table in `decide.go`, closest first: Windows x64 → x86;
+Windows ARM64 → x64 → x86; Apple Silicon → Intel (Rosetta). A native
+build ranks above an emulated one. A known compatible CPU ranks above an
+unknown CPU, and nothing falls back
+"upward" (x86 never gets x64). Bare `x86` means 32-bit except on macOS, where
+it means Intel 64-bit. Equal candidates abstain instead of using asset order. Decisions carry `selected`, `incompatible`, `unknown`, or `ambiguous`
 status, confidence, reasons, and alternatives.
 
 `/dl` and `/api/link` auto-select only when confidence is not `low`. The page
 uses the same decisions from the `picks` map on `/api/release`, including
-abstention reasons. Clicks still go through `/dl`. An unspecified architecture
-does not manufacture a CPU fact; exclusive installer formats retain the
-existing OS-based selection policy when no CPU conflict is known.
+abstention reasons. Clicks go through `/dl` with the displayed filename in
+`?asset=`. The handler resolves that name from the release inventory and
+rechecks compatibility; it cannot silently switch to another file as inspection
+fills the cache. Independent page/link requests can still see different evidence
+while the cache fills. A known visitor CPU requires compatible CPU evidence,
+even for an OS-specific installer. An unspecified visitor CPU remains unspecified.
 
 **Shared facts:** each API asset includes `artifact` with supported target
 tuples (`platform`, `arch`, `libc`), role, evidence, inspection status, and
@@ -20,25 +31,30 @@ Windows/x86 and macOS/ARM cannot become an invented Windows/ARM build.
 All Downloads uses these facts for labels and filters; the TypeScript filename
 classifier only supports older responses. The browser never ranks assets.
 
-**Observations:** the GitHub client reads published cargo-dist/Electron
-metadata and bounded file contents. Entries must refer to assets in the
-selected release. File inspection never executes or writes downloaded files.
-The handler caps enrichment at three seconds and four content inspections.
+**Observations:** the GitHub client reads published cargo-dist, Electron, and
+Tauri metadata and bounded file contents. Entries must refer to assets in the
+selected release (by name, download URL, or GitHub REST asset URL). File inspection never executes or writes downloaded files.
+The handler caps enrichment at three seconds and four live content
+inspections per request; cached observations are free, and OS-unknown assets
+are probed first, then `.apk`, then CPU-unknown. A timeout is not a failure:
+the asset keeps its filename and manifest facts.
 Each inspection allows six requests, 4 MiB of downloaded bytes, 8 MiB of
 expanded content, and two binary entries. Observations are cached by asset
 identity/update time/digest; failures remain explicit.
 
-Content readers support ELF, PE, Mach-O, ZIP, tar, gzip/bzip2 archives, and
-Debian control metadata without xz/zstd compression. DMG, MSI, RPM, xz, zstd,
-and 7z content remain unsupported. Static ELF headers can identify CPU without
+Content readers support ELF, PE, Mach-O, ZIP, tar, gzip/bzip2/xz/zstd, 7z,
+RPM and MSI headers, DMG trailers (macOS, CPU unknown), APK (Android vs
+Alpine), and Debian control metadata. xz BCJ filter chains and encrypted 7z
+stay unsupported. Static ELF headers can identify CPU without
 proving Linux; missing OS stays unknown. Known unsupported CPUs and operating
-systems remain constraints. Libraries, debug files, and updater helpers cannot
-become the primary download. Cargo-dist and Electron update files are the
-supported publisher schemas; unknown cargo-dist kinds are excluded.
+systems and byte order remain constraints. Recognized libraries, debug files,
+and updater sidecars stay out of the primary download. Cargo-dist, Electron, and Tauri
+(`latest.json`, including `OS-ARCH-BUNDLE` keys) are the supported publisher
+schemas; unknown cargo-dist kinds and custom Tauri keys stay opaque.
 
 This is structured evidence processing, with filename rules as a fallback.
 No language model runs in request handling. README context still uses a fixed
-vocabulary, so unfamiliar headings and prose-only prerequisites can be missed.
+vocabulary, so unfamiliar headings can be missed.
 
 **Alias table:** `catalog.json` — platforms, architectures, libc, variants,
 formats. Overlapping arch aliases keep the longest span (`arm64` beats `arm`;
@@ -87,3 +103,32 @@ checked shell syntax. Headings and nearby text constrain OS/CPU targets;
 build steps stay out, stated prerequisites remain attached, and multiline
 commands keep their original text. Browser client hints and manual target
 controls share one target across the CTA, download list, and install methods.
+
+
+## Coverage limits and verification
+
+The filename catalog also recognizes Flatpak, Snap, MSIX, APPX, and tar. A format
+name alone proves no CPU support. Android APK inspection currently establishes
+Android from its manifest, but does not decode the native CPU inventory. Two
+APK corpus cases therefore record known abstentions for specific CPUs.
+
+Companion detection recognizes a bounded `cli` token. Arbitrary companion names
+such as `inso`, glued names such as `HandBrakeCLI`, and a proxy sharing a release
+still need publisher roles or more product context. The resolver must not invent
+repo-specific aliases from a binary header. Encrypted archives, unsupported 7z
+filter chains (including BCJ), and oversized inspections can remain unknown.
+Windows installer stub CPU evidence does not establish every payload requirement.
+
+README extraction does not verify script host ownership or crawl linked install
+documentation. It checks supported HTTPS fetch-and-run syntax, preserves stated
+targets, and excludes known build/usage sections. Unknown terminology can still
+be missed. The UI asks visitors to review README commands before running them.
+
+The final coverage pass includes 139 frontend tests, the full backend race suite,
+Go vet/build, TypeScript, and the frontend production build. The frozen release
+corpus has 18 releases and 127 target cases: 107 selections, 20 abstentions, two
+known APK misses, and no false auto-selections or wrong-OS/CPU selections. These
+are fixture results, not a claim that all public releases are covered. Independent
+live audits covered 36 release repositories and 35 READMEs; regression probes
+cover the defects found there. ZIP/APK preflight now rejects hostile directory
+counts before `archive/zip` allocation, including through the public inspectors.

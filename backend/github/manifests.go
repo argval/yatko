@@ -32,7 +32,7 @@ var electronUpdateFile = regexp.MustCompile(`^(?:latest|beta|alpha)(-mac|-linux(
 // (cargo-dist dist-manifest.json, electron-builder latest*.yml) and returns
 // facts keyed by exact existing asset Name. Manifest entries only corroborate
 // assets already in the inventory: names must match exactly, and absolute
-// URLs must equal an asset's BrowserDownloadURL. No URL is built or followed
+// URLs must equal an asset's BrowserDownloadURL or REST asset URL. No URL is built or followed
 // beyond the manifest assets themselves. Errors (download or malformed) are
 // joined; facts from other manifests are still returned.
 func (c *Client) ReleaseMetadata(ctx context.Context, assets []Asset) (map[string]ArtifactMetadata, error) {
@@ -40,6 +40,12 @@ func (c *Client) ReleaseMetadata(ctx context.Context, assets []Asset) (map[strin
 	for _, a := range assets {
 		inv.byName[a.Name] = true
 		inv.byURL[a.BrowserDownloadURL] = a.Name
+		// Tauri's GitHub action writes REST asset URLs (…/releases/assets/<id>).
+		if rest, ok := strings.CutPrefix(a.BrowserDownloadURL, "https://github.com/"); ok && a.ID > 0 {
+			if parts := strings.SplitN(rest, "/", 3); len(parts) == 3 {
+				inv.byURL[fmt.Sprintf("https://api.github.com/repos/%s/%s/releases/assets/%d", parts[0], parts[1], a.ID)] = a.Name
+			}
+		}
 	}
 	out := map[string]ArtifactMetadata{}
 	var errs []error
@@ -49,6 +55,8 @@ func (c *Client) ReleaseMetadata(ctx context.Context, assets []Asset) (map[strin
 		var parse func([]byte) (map[string]ArtifactMetadata, error)
 		if a.Name == "dist-manifest.json" {
 			limit, parse = maxDistManifestBytes, func(b []byte) (map[string]ArtifactMetadata, error) { return parseDistManifest(a.Name, b, inv) }
+		} else if a.Name == "latest.json" {
+			limit, parse = maxUpdateYAMLBytes, func(b []byte) (map[string]ArtifactMetadata, error) { return parseTauriUpdate(a.Name, b, inv) }
 		} else if g := electronUpdateFile.FindStringSubmatch(a.Name); g != nil {
 			limit, parse = maxUpdateYAMLBytes, func(b []byte) (map[string]ArtifactMetadata, error) {
 				return parseElectronUpdate(a.Name, b, electronTarget(g[1], g[2]), inv)

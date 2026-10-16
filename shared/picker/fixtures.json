@@ -198,7 +198,7 @@
       "expected": "app-linux-x64.zip"
     },
     {
-      "name": "android-picks-apk",
+      "name": "android-untagged-apk-needs-content",
       "platform": "android",
       "arch": "arm64",
       "assets": [
@@ -207,7 +207,7 @@
         "App-linux-x86_64.AppImage",
         "App-darwin-arm64.dmg"
       ],
-      "expected": "App-1.0.0.apk"
+      "expected": null
     },
     {
       "name": "android-prefers-apk-over-aab",
@@ -215,9 +215,9 @@
       "arch": "",
       "assets": [
         "App-1.0.0.aab",
-        "App-1.0.0.apk"
+        "App-android-1.0.0.apk"
       ],
-      "expected": "App-1.0.0.apk"
+      "expected": "App-android-1.0.0.apk"
     },
     {
       "name": "android-falls-back-to-aab",
@@ -239,7 +239,7 @@
         "App-darwin-arm64.dmg",
         "App-win-x64.exe"
       ],
-      "expected": "App-1.0.0.ipa"
+      "expected": null
     },
     {
       "name": "android-skips-other-platform-named-apk",
@@ -569,13 +569,13 @@
       "expected": null
     },
     {
-      "name": "windows-exe-without-name-tokens-is-selected",
+      "name": "windows-exe-without-name-tokens-needs-cpu-evidence",
       "platform": "windows",
       "arch": "amd64",
       "assets": [
         "Setup.exe"
       ],
-      "expected": "Setup.exe"
+      "expected": null
     },
     {
       "name": "arch-only-zip-needs-os-evidence",
@@ -709,6 +709,99 @@
       "assets": [
         "tool-windows-x64-client.exe",
         "tool-windows-x64-server.exe"
+      ],
+      "expected": null
+    },
+    {
+      "name": "arm-dash-64-is-arm64",
+      "platform": "linux",
+      "arch": "arm64",
+      "assets": [
+        "LocalSend-1.18.2-linux-arm-64.deb",
+        "LocalSend-1.18.2-linux-x86-64.deb"
+      ],
+      "expected": "LocalSend-1.18.2-linux-arm-64.deb"
+    },
+    {
+      "name": "arm-dash-64-not-32bit",
+      "platform": "linux",
+      "arch": "arm",
+      "assets": [
+        "LocalSend-1.18.2-linux-arm-64.deb",
+        "LocalSend-1.18.2-linux-x86-64.deb"
+      ],
+      "expected": null
+    },
+    {
+      "name": "fixed-webview2-is-variant",
+      "platform": "windows",
+      "arch": "amd64",
+      "assets": [
+        "Clash.Verge_2.5.8_x64_fixed_webview2-setup.exe",
+        "Clash.Verge_2.5.8_x64-setup.exe"
+      ],
+      "expected": "Clash.Verge_2.5.8_x64-setup.exe"
+    },
+    {
+      "name": "os-evidence-beats-arch-only-name",
+      "platform": "macos",
+      "arch": "arm64",
+      "assets": [
+        "Obsidian-1.14.4.dmg",
+        "obsidian-1.14.4-arm64.tar.gz",
+        "Obsidian-1.14.4-arm64.AppImage"
+      ],
+      "expected": null
+    },
+    {
+      "name": "app-beats-companion-cli",
+      "platform": "macos",
+      "arch": "arm64",
+      "assets": [
+        "LocalSend-1.18.2.dmg",
+        "LocalSend-CLI-1.18.2-macos-arm-64.tar.gz",
+        "LocalSend-CLI-1.18.2-macos-x86-64.tar.gz"
+      ],
+      "expected": null
+    },
+    {
+      "name": "mac-universal-beats-native",
+      "platform": "macos",
+      "arch": "arm64",
+      "assets": [
+        "app-mac-x64.dmg",
+        "app-mac-arm64.dmg",
+        "app-mac-universal.dmg"
+      ],
+      "expected": "app-mac-universal.dmg"
+    },
+    {
+      "name": "apple-silicon-falls-back-to-intel",
+      "platform": "macos",
+      "arch": "arm64",
+      "assets": [
+        "app-mac-x64.dmg",
+        "app-linux-arm64.tar.gz"
+      ],
+      "expected": "app-mac-x64.dmg"
+    },
+    {
+      "name": "windows-arm64-prefers-x64-over-x86",
+      "platform": "windows",
+      "arch": "arm64",
+      "assets": [
+        "app-win-x86.exe",
+        "app-win-x64.exe"
+      ],
+      "expected": "app-win-x64.exe"
+    },
+    {
+      "name": "windows-x86-never-gets-x64",
+      "platform": "windows",
+      "arch": "386",
+      "assets": [
+        "app-win-x64.exe",
+        "app-win-arm64.exe"
       ],
       "expected": null
     }

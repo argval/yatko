@@ -903,7 +903,9 @@
         {
           "platform": "android",
           "arch": "arm64",
-          "asset": "Godot_v4.7.2-stable_android_editor.apk"
+          "asset": "Godot_v4.7.2-stable_android_editor.apk",
+          "knownMiss": true,
+          "reason": "Filename alone does not establish APK CPU compatibility; requires package inspection."
         },
         {
           "platform": "ios",
@@ -1022,7 +1024,9 @@
         {
           "platform": "android",
           "arch": "arm64",
-          "asset": "Logseq-android-2.0.1.apk"
+          "asset": "Logseq-android-2.0.1.apk",
+          "knownMiss": true,
+          "reason": "Filename alone does not establish APK CPU compatibility; requires package inspection."
         }
       ],
       "targetLabels": {
@@ -1201,6 +1205,799 @@
             "platform": "linux",
             "arch": "amd64",
             "libc": "musl"
+          }
+        ]
+      }
+    },
+    {
+      "repo": "muesli/duf",
+      "tag": "v0.9.1",
+      "source": "https://github.com/muesli/duf/releases/tag/v0.9.1",
+      "assets": [
+        "checksums.txt",
+        "checksums.txt.sig",
+        "duf_0.9.1_darwin_arm64.tar.gz",
+        "duf_0.9.1_darwin_x86_64.tar.gz",
+        "duf_0.9.1_freebsd_arm64.tar.gz",
+        "duf_0.9.1_freebsd_armv6.tar.gz",
+        "duf_0.9.1_freebsd_armv7.tar.gz",
+        "duf_0.9.1_freebsd_i386.tar.gz",
+        "duf_0.9.1_freebsd_x86_64.tar.gz",
+        "duf_0.9.1_linux_386.apk",
+        "duf_0.9.1_linux_386.deb",
+        "duf_0.9.1_linux_386.rpm",
+        "duf_0.9.1_linux_amd64.apk",
+        "duf_0.9.1_linux_amd64.deb",
+        "duf_0.9.1_linux_amd64.rpm",
+        "duf_0.9.1_linux_arm64.apk",
+        "duf_0.9.1_linux_arm64.deb",
+        "duf_0.9.1_linux_arm64.rpm",
+        "duf_0.9.1_linux_arm64.tar.gz",
+        "duf_0.9.1_linux_armv6.apk",
+        "duf_0.9.1_linux_armv6.deb",
+        "duf_0.9.1_linux_armv6.rpm",
+        "duf_0.9.1_linux_armv6.tar.gz",
+        "duf_0.9.1_linux_armv7.apk",
+        "duf_0.9.1_linux_armv7.deb",
+        "duf_0.9.1_linux_armv7.rpm",
+        "duf_0.9.1_linux_armv7.tar.gz",
+        "duf_0.9.1_linux_i386.tar.gz",
+        "duf_0.9.1_linux_ppc64le.apk",
+        "duf_0.9.1_linux_ppc64le.deb",
+        "duf_0.9.1_linux_ppc64le.rpm",
+        "duf_0.9.1_linux_ppc64le.tar.gz",
+        "duf_0.9.1_linux_x86_64.tar.gz",
+        "duf_0.9.1_openbsd_arm64.tar.gz",
+        "duf_0.9.1_openbsd_armv6.tar.gz",
+        "duf_0.9.1_openbsd_armv7.tar.gz",
+        "duf_0.9.1_openbsd_i386.tar.gz",
+        "duf_0.9.1_openbsd_x86_64.tar.gz",
+        "duf_0.9.1_windows_arm64.zip",
+        "duf_0.9.1_windows_i386.zip",
+        "duf_0.9.1_windows_x86_64.zip"
+      ],
+      "expect": [
+        {
+          "platform": "macos",
+          "arch": "amd64",
+          "asset": "duf_0.9.1_darwin_x86_64.tar.gz"
+        },
+        {
+          "platform": "macos",
+          "arch": "arm64",
+          "asset": "duf_0.9.1_darwin_arm64.tar.gz"
+        },
+        {
+          "platform": "windows",
+          "arch": "amd64",
+          "asset": "duf_0.9.1_windows_x86_64.zip"
+        },
+        {
+          "platform": "windows",
+          "arch": "arm64",
+          "asset": "duf_0.9.1_windows_arm64.zip"
+        },
+        {
+          "platform": "windows",
+          "arch": "386",
+          "asset": "duf_0.9.1_windows_i386.zip"
+        },
+        {
+          "platform": "linux",
+          "arch": "amd64",
+          "asset": "duf_0.9.1_linux_amd64.deb"
+        },
+        {
+          "platform": "linux",
+          "arch": "arm64",
+          "asset": "duf_0.9.1_linux_arm64.deb"
+        },
+        {
+          "platform": "linux",
+          "arch": "386",
+          "asset": "duf_0.9.1_linux_386.deb"
+        },
+        {
+          "platform": "linux",
+          "arch": "arm",
+          "asset": null,
+          "reason": "No unique compatible CPU build."
+        },
+        {
+          "platform": "linux",
+          "arch": "amd64",
+          "prefer": "rpm",
+          "asset": "duf_0.9.1_linux_amd64.rpm"
+        },
+        {
+          "platform": "android",
+          "arch": "arm64",
+          "asset": null,
+          "reason": "APK extension alone does not establish Android; this release publishes Alpine packages."
+        }
+      ],
+      "targetLabels": {
+        "duf_0.9.1_darwin_x86_64.tar.gz": [
+          {
+            "platform": "macos",
+            "arch": "amd64"
+          }
+        ],
+        "duf_0.9.1_darwin_arm64.tar.gz": [
+          {
+            "platform": "macos",
+            "arch": "arm64"
+          }
+        ],
+        "duf_0.9.1_windows_x86_64.zip": [
+          {
+            "platform": "windows",
+            "arch": "amd64"
+          }
+        ],
+        "duf_0.9.1_windows_arm64.zip": [
+          {
+            "platform": "windows",
+            "arch": "arm64"
+          }
+        ],
+        "duf_0.9.1_windows_i386.zip": [
+          {
+            "platform": "windows",
+            "arch": "386"
+          }
+        ],
+        "duf_0.9.1_linux_amd64.deb": [
+          {
+            "platform": "linux",
+            "arch": "amd64"
+          }
+        ],
+        "duf_0.9.1_linux_arm64.deb": [
+          {
+            "platform": "linux",
+            "arch": "arm64"
+          }
+        ],
+        "duf_0.9.1_linux_386.deb": [
+          {
+            "platform": "linux",
+            "arch": "386"
+          }
+        ],
+        "duf_0.9.1_linux_amd64.rpm": [
+          {
+            "platform": "linux",
+            "arch": "amd64"
+          }
+        ]
+      }
+    },
+    {
+      "repo": "charmbracelet/glow",
+      "tag": "v3.0.0",
+      "source": "https://github.com/charmbracelet/glow/releases/tag/v3.0.0",
+      "assets": [
+        "checksums.txt",
+        "checksums.txt.sigstore.json",
+        "glow-3.0.0-1.aarch64.rpm",
+        "glow-3.0.0-1.armv7hl.rpm",
+        "glow-3.0.0-1.i386.rpm",
+        "glow-3.0.0-1.x86_64.rpm",
+        "glow-3.0.0.tar.gz",
+        "glow-3.0.0.tar.gz.sbom.json",
+        "glow_3.0.0_aarch64.apk",
+        "glow_3.0.0_amd64.deb",
+        "glow_3.0.0_arm64.deb",
+        "glow_3.0.0_armhf.deb",
+        "glow_3.0.0_armv7.apk",
+        "glow_3.0.0_Darwin_arm64.tar.gz",
+        "glow_3.0.0_Darwin_arm64.tar.gz.sbom.json",
+        "glow_3.0.0_Darwin_x86_64.tar.gz",
+        "glow_3.0.0_Darwin_x86_64.tar.gz.sbom.json",
+        "glow_3.0.0_Freebsd_arm.tar.gz",
+        "glow_3.0.0_Freebsd_arm.tar.gz.sbom.json",
+        "glow_3.0.0_Freebsd_arm64.tar.gz",
+        "glow_3.0.0_Freebsd_arm64.tar.gz.sbom.json",
+        "glow_3.0.0_Freebsd_i386.tar.gz",
+        "glow_3.0.0_Freebsd_i386.tar.gz.sbom.json",
+        "glow_3.0.0_Freebsd_x86_64.tar.gz",
+        "glow_3.0.0_Freebsd_x86_64.tar.gz.sbom.json",
+        "glow_3.0.0_i386.deb",
+        "glow_3.0.0_Linux_arm.tar.gz",
+        "glow_3.0.0_Linux_arm.tar.gz.sbom.json",
+        "glow_3.0.0_Linux_arm64.tar.gz",
+        "glow_3.0.0_Linux_arm64.tar.gz.sbom.json",
+        "glow_3.0.0_Linux_i386.tar.gz",
+        "glow_3.0.0_Linux_i386.tar.gz.sbom.json",
+        "glow_3.0.0_Linux_x86_64.tar.gz",
+        "glow_3.0.0_Linux_x86_64.tar.gz.sbom.json",
+        "glow_3.0.0_Netbsd_arm.tar.gz",
+        "glow_3.0.0_Netbsd_arm.tar.gz.sbom.json",
+        "glow_3.0.0_Netbsd_arm64.tar.gz",
+        "glow_3.0.0_Netbsd_arm64.tar.gz.sbom.json",
+        "glow_3.0.0_Netbsd_i386.tar.gz",
+        "glow_3.0.0_Netbsd_i386.tar.gz.sbom.json",
+        "glow_3.0.0_Netbsd_x86_64.tar.gz",
+        "glow_3.0.0_Netbsd_x86_64.tar.gz.sbom.json",
+        "glow_3.0.0_Openbsd_arm.tar.gz",
+        "glow_3.0.0_Openbsd_arm.tar.gz.sbom.json",
+        "glow_3.0.0_Openbsd_arm64.tar.gz",
+        "glow_3.0.0_Openbsd_arm64.tar.gz.sbom.json",
+        "glow_3.0.0_Openbsd_i386.tar.gz",
+        "glow_3.0.0_Openbsd_i386.tar.gz.sbom.json",
+        "glow_3.0.0_Openbsd_x86_64.tar.gz",
+        "glow_3.0.0_Openbsd_x86_64.tar.gz.sbom.json",
+        "glow_3.0.0_Windows_i386.zip",
+        "glow_3.0.0_Windows_i386.zip.sbom.json",
+        "glow_3.0.0_Windows_x86_64.zip",
+        "glow_3.0.0_Windows_x86_64.zip.sbom.json",
+        "glow_3.0.0_x86.apk",
+        "glow_3.0.0_x86_64.apk"
+      ],
+      "expect": [
+        {
+          "platform": "macos",
+          "arch": "amd64",
+          "asset": "glow_3.0.0_Darwin_x86_64.tar.gz"
+        },
+        {
+          "platform": "macos",
+          "arch": "arm64",
+          "asset": "glow_3.0.0_Darwin_arm64.tar.gz"
+        },
+        {
+          "platform": "windows",
+          "arch": "amd64",
+          "asset": "glow_3.0.0_Windows_x86_64.zip"
+        },
+        {
+          "platform": "windows",
+          "arch": "386",
+          "asset": "glow_3.0.0_Windows_i386.zip"
+        },
+        {
+          "platform": "linux",
+          "arch": "amd64",
+          "asset": "glow_3.0.0_amd64.deb"
+        },
+        {
+          "platform": "linux",
+          "arch": "arm64",
+          "asset": "glow_3.0.0_arm64.deb"
+        },
+        {
+          "platform": "linux",
+          "arch": "arm",
+          "asset": "glow_3.0.0_armhf.deb"
+        },
+        {
+          "platform": "android",
+          "arch": "amd64",
+          "asset": null,
+          "reason": "APK extension alone does not establish Android; this release publishes Alpine packages."
+        },
+        {
+          "platform": "android",
+          "arch": "arm64",
+          "asset": null,
+          "reason": "APK extension alone does not establish Android; this release publishes Alpine packages."
+        }
+      ],
+      "targetLabels": {
+        "glow_3.0.0_Darwin_x86_64.tar.gz": [
+          {
+            "platform": "macos",
+            "arch": "amd64"
+          }
+        ],
+        "glow_3.0.0_Darwin_arm64.tar.gz": [
+          {
+            "platform": "macos",
+            "arch": "arm64"
+          }
+        ],
+        "glow_3.0.0_Windows_x86_64.zip": [
+          {
+            "platform": "windows",
+            "arch": "amd64"
+          }
+        ],
+        "glow_3.0.0_Windows_i386.zip": [
+          {
+            "platform": "windows",
+            "arch": "386"
+          }
+        ],
+        "glow_3.0.0_amd64.deb": [
+          {
+            "platform": "linux",
+            "arch": "amd64"
+          }
+        ],
+        "glow_3.0.0_arm64.deb": [
+          {
+            "platform": "linux",
+            "arch": "arm64"
+          }
+        ],
+        "glow_3.0.0_armhf.deb": [
+          {
+            "platform": "linux",
+            "arch": "arm"
+          }
+        ]
+      }
+    },
+    {
+      "repo": "ajeetdsouza/zoxide",
+      "tag": "v0.10.0",
+      "source": "https://github.com/ajeetdsouza/zoxide/releases/tag/v0.10.0",
+      "assets": [
+        "zoxide-0.10.0-aarch64-apple-darwin.tar.gz",
+        "zoxide-0.10.0-aarch64-linux-android.tar.gz",
+        "zoxide-0.10.0-aarch64-pc-windows-msvc.zip",
+        "zoxide-0.10.0-aarch64-unknown-linux-musl.tar.gz",
+        "zoxide-0.10.0-arm-unknown-linux-musleabihf.tar.gz",
+        "zoxide-0.10.0-armv7-linux-androideabi.tar.gz",
+        "zoxide-0.10.0-armv7-unknown-linux-musleabihf.tar.gz",
+        "zoxide-0.10.0-i686-unknown-linux-musl.tar.gz",
+        "zoxide-0.10.0-riscv64gc-unknown-linux-musl.tar.gz",
+        "zoxide-0.10.0-x86_64-apple-darwin.tar.gz",
+        "zoxide-0.10.0-x86_64-pc-windows-msvc.zip",
+        "zoxide-0.10.0-x86_64-unknown-linux-musl.tar.gz",
+        "zoxide_0.10.0-1_amd64.deb",
+        "zoxide_0.10.0-1_arm64.deb",
+        "zoxide_0.10.0-1_armhf.deb",
+        "zoxide_0.10.0-1_i386.deb",
+        "zoxide_0.10.0-1_riscv64.deb"
+      ],
+      "expect": [
+        {
+          "platform": "macos",
+          "arch": "amd64",
+          "asset": "zoxide-0.10.0-x86_64-apple-darwin.tar.gz"
+        },
+        {
+          "platform": "macos",
+          "arch": "arm64",
+          "asset": "zoxide-0.10.0-aarch64-apple-darwin.tar.gz"
+        },
+        {
+          "platform": "windows",
+          "arch": "amd64",
+          "asset": "zoxide-0.10.0-x86_64-pc-windows-msvc.zip"
+        },
+        {
+          "platform": "windows",
+          "arch": "arm64",
+          "asset": "zoxide-0.10.0-aarch64-pc-windows-msvc.zip"
+        },
+        {
+          "platform": "linux",
+          "arch": "amd64",
+          "asset": "zoxide_0.10.0-1_amd64.deb"
+        },
+        {
+          "platform": "linux",
+          "arch": "arm64",
+          "asset": "zoxide_0.10.0-1_arm64.deb"
+        },
+        {
+          "platform": "linux",
+          "arch": "arm",
+          "asset": "zoxide_0.10.0-1_armhf.deb"
+        },
+        {
+          "platform": "android",
+          "arch": "arm64",
+          "asset": "zoxide-0.10.0-aarch64-linux-android.tar.gz"
+        },
+        {
+          "platform": "android",
+          "arch": "arm",
+          "asset": "zoxide-0.10.0-armv7-linux-androideabi.tar.gz"
+        }
+      ],
+      "targetLabels": {
+        "zoxide-0.10.0-x86_64-apple-darwin.tar.gz": [
+          {
+            "platform": "macos",
+            "arch": "amd64"
+          }
+        ],
+        "zoxide-0.10.0-aarch64-apple-darwin.tar.gz": [
+          {
+            "platform": "macos",
+            "arch": "arm64"
+          }
+        ],
+        "zoxide-0.10.0-x86_64-pc-windows-msvc.zip": [
+          {
+            "platform": "windows",
+            "arch": "amd64"
+          }
+        ],
+        "zoxide-0.10.0-aarch64-pc-windows-msvc.zip": [
+          {
+            "platform": "windows",
+            "arch": "arm64"
+          }
+        ],
+        "zoxide_0.10.0-1_amd64.deb": [
+          {
+            "platform": "linux",
+            "arch": "amd64"
+          }
+        ],
+        "zoxide_0.10.0-1_arm64.deb": [
+          {
+            "platform": "linux",
+            "arch": "arm64"
+          }
+        ],
+        "zoxide_0.10.0-1_armhf.deb": [
+          {
+            "platform": "linux",
+            "arch": "arm"
+          }
+        ],
+        "zoxide-0.10.0-aarch64-linux-android.tar.gz": [
+          {
+            "platform": "android",
+            "arch": "arm64"
+          }
+        ],
+        "zoxide-0.10.0-armv7-linux-androideabi.tar.gz": [
+          {
+            "platform": "android",
+            "arch": "arm"
+          }
+        ]
+      }
+    },
+    {
+      "repo": "zellij-org/zellij",
+      "tag": "v0.45.1",
+      "source": "https://github.com/zellij-org/zellij/releases/tag/v0.45.1",
+      "assets": [
+        "zellij-aarch64-apple-darwin.sha256sum",
+        "zellij-aarch64-apple-darwin.tar.gz",
+        "zellij-aarch64-unknown-linux-musl.sha256sum",
+        "zellij-aarch64-unknown-linux-musl.tar.gz",
+        "zellij-no-web-aarch64-apple-darwin.sha256sum",
+        "zellij-no-web-aarch64-apple-darwin.tar.gz",
+        "zellij-no-web-aarch64-unknown-linux-musl.sha256sum",
+        "zellij-no-web-aarch64-unknown-linux-musl.tar.gz",
+        "zellij-no-web-x86_64-apple-darwin.sha256sum",
+        "zellij-no-web-x86_64-apple-darwin.tar.gz",
+        "zellij-no-web-x86_64-pc-windows-msvc-installer.msi",
+        "zellij-no-web-x86_64-pc-windows-msvc-installer.sha256sum",
+        "zellij-no-web-x86_64-pc-windows-msvc.sha256sum",
+        "zellij-no-web-x86_64-pc-windows-msvc.zip",
+        "zellij-no-web-x86_64-unknown-linux-musl.sha256sum",
+        "zellij-no-web-x86_64-unknown-linux-musl.tar.gz",
+        "zellij-x86_64-apple-darwin.sha256sum",
+        "zellij-x86_64-apple-darwin.tar.gz",
+        "zellij-x86_64-pc-windows-msvc-installer.msi",
+        "zellij-x86_64-pc-windows-msvc-installer.sha256sum",
+        "zellij-x86_64-pc-windows-msvc.sha256sum",
+        "zellij-x86_64-pc-windows-msvc.zip",
+        "zellij-x86_64-unknown-linux-musl.sha256sum",
+        "zellij-x86_64-unknown-linux-musl.tar.gz"
+      ],
+      "expect": [
+        {
+          "platform": "macos",
+          "arch": "amd64",
+          "asset": null,
+          "reason": "Several feature variants have equal target and format evidence."
+        },
+        {
+          "platform": "macos",
+          "arch": "arm64",
+          "asset": null,
+          "reason": "Several feature variants have equal target and format evidence."
+        },
+        {
+          "platform": "windows",
+          "arch": "amd64",
+          "asset": null,
+          "reason": "Several feature variants have equal target and format evidence."
+        },
+        {
+          "platform": "linux",
+          "arch": "amd64",
+          "asset": null,
+          "reason": "Several feature variants have equal target and format evidence."
+        },
+        {
+          "platform": "linux",
+          "arch": "arm64",
+          "asset": null,
+          "reason": "Several feature variants have equal target and format evidence."
+        }
+      ],
+      "targetLabels": {}
+    },
+    {
+      "repo": "lencx/ChatGPT",
+      "tag": "v1.1.0",
+      "source": "https://github.com/lencx/ChatGPT/releases/tag/v1.1.0",
+      "assets": [
+        "ChatGPT_1.1.0_linux_x86_64.AppImage.tar.gz",
+        "ChatGPT_1.1.0_linux_x86_64.AppImage.tar.gz.sig",
+        "ChatGPT_1.1.0_linux_x86_64.deb",
+        "ChatGPT_1.1.0_macos_aarch64.app.tar.gz",
+        "ChatGPT_1.1.0_macos_aarch64.app.tar.gz.sig",
+        "ChatGPT_1.1.0_macos_aarch64.dmg",
+        "ChatGPT_1.1.0_macos_x86_64.app.tar.gz",
+        "ChatGPT_1.1.0_macos_x86_64.app.tar.gz.sig",
+        "ChatGPT_1.1.0_macos_x86_64.dmg",
+        "ChatGPT_1.1.0_windows_x86_64.msi",
+        "ChatGPT_1.1.0_windows_x86_64.msi.zip",
+        "ChatGPT_1.1.0_windows_x86_64.msi.zip.sig"
+      ],
+      "expect": [
+        {
+          "platform": "macos",
+          "arch": "amd64",
+          "asset": "ChatGPT_1.1.0_macos_x86_64.dmg"
+        },
+        {
+          "platform": "macos",
+          "arch": "arm64",
+          "asset": "ChatGPT_1.1.0_macos_aarch64.dmg"
+        },
+        {
+          "platform": "windows",
+          "arch": "amd64",
+          "asset": "ChatGPT_1.1.0_windows_x86_64.msi"
+        },
+        {
+          "platform": "linux",
+          "arch": "amd64",
+          "asset": "ChatGPT_1.1.0_linux_x86_64.deb"
+        },
+        {
+          "platform": "windows",
+          "arch": "arm64",
+          "asset": "ChatGPT_1.1.0_windows_x86_64.msi",
+          "reason": "No ARM64 build; Windows 11 on ARM emulates x64."
+        }
+      ],
+      "targetLabels": {
+        "ChatGPT_1.1.0_macos_x86_64.dmg": [
+          {
+            "platform": "macos",
+            "arch": "amd64"
+          }
+        ],
+        "ChatGPT_1.1.0_macos_aarch64.dmg": [
+          {
+            "platform": "macos",
+            "arch": "arm64"
+          }
+        ],
+        "ChatGPT_1.1.0_windows_x86_64.msi": [
+          {
+            "platform": "windows",
+            "arch": "amd64"
+          }
+        ],
+        "ChatGPT_1.1.0_linux_x86_64.deb": [
+          {
+            "platform": "linux",
+            "arch": "amd64"
+          }
+        ]
+      }
+    },
+    {
+      "repo": "tw93/Pake",
+      "tag": "V3.17.5",
+      "source": "https://github.com/tw93/Pake/releases/tag/V3.17.5",
+      "assets": [
+        "ChatGPT.dmg",
+        "ChatGPT_x64.msi",
+        "ChatGPT_x86_64.AppImage",
+        "ChatGPT_x86_64.deb",
+        "DeepSeek.dmg",
+        "DeepSeek_x64.msi",
+        "DeepSeek_x86_64.AppImage",
+        "DeepSeek_x86_64.deb",
+        "Excalidraw.dmg",
+        "Excalidraw_x64.msi",
+        "Excalidraw_x86_64.AppImage",
+        "Excalidraw_x86_64.deb",
+        "Flomo.dmg",
+        "Flomo_x64.msi",
+        "Flomo_x86_64.AppImage",
+        "Flomo_x86_64.deb",
+        "Gemini.dmg",
+        "Gemini_x64.msi",
+        "Gemini_x86_64.AppImage",
+        "Gemini_x86_64.deb",
+        "Grok.dmg",
+        "Grok_x64.msi",
+        "Grok_x86_64.AppImage",
+        "Grok_x86_64.deb",
+        "LiZhi.dmg",
+        "LiZhi_x64.msi",
+        "LiZhi_x86_64.AppImage",
+        "LiZhi_x86_64.deb",
+        "Notion.dmg",
+        "Notion_x64.msi",
+        "Notion_x86_64.AppImage",
+        "Notion_x86_64.deb",
+        "ProgramMusic.dmg",
+        "ProgramMusic_x64.msi",
+        "ProgramMusic_x86_64.AppImage",
+        "ProgramMusic_x86_64.deb",
+        "Qwerty.dmg",
+        "Qwerty_x64.msi",
+        "Qwerty_x86_64.AppImage",
+        "Qwerty_x86_64.deb",
+        "Twitter.dmg",
+        "Twitter_x64.msi",
+        "Twitter_x86_64.AppImage",
+        "Twitter_x86_64.deb",
+        "WeChat.dmg",
+        "WeChat_x64.msi",
+        "WeChat_x86_64.AppImage",
+        "WeChat_x86_64.deb",
+        "WeRead.dmg",
+        "WeRead_x64.msi",
+        "WeRead_x86_64.AppImage",
+        "WeRead_x86_64.deb",
+        "XiaoHongShu.dmg",
+        "XiaoHongShu_x64.msi",
+        "XiaoHongShu_x86_64.AppImage",
+        "XiaoHongShu_x86_64.deb",
+        "YouTube.dmg",
+        "YouTubeMusic.dmg",
+        "YouTubeMusic_x64.msi",
+        "YouTubeMusic_x86_64.AppImage",
+        "YouTubeMusic_x86_64.deb",
+        "YouTube_x64.msi",
+        "YouTube_x86_64.AppImage",
+        "YouTube_x86_64.deb"
+      ],
+      "expect": [
+        {
+          "platform": "macos",
+          "arch": "amd64",
+          "asset": null,
+          "reason": "Release includes many different applications; choosing one would be arbitrary."
+        },
+        {
+          "platform": "macos",
+          "arch": "arm64",
+          "asset": null,
+          "reason": "Release includes many different applications; choosing one would be arbitrary."
+        },
+        {
+          "platform": "windows",
+          "arch": "amd64",
+          "asset": null,
+          "reason": "Release includes many different applications; choosing one would be arbitrary."
+        },
+        {
+          "platform": "linux",
+          "arch": "amd64",
+          "asset": null,
+          "reason": "Release includes many different applications; choosing one would be arbitrary."
+        }
+      ],
+      "targetLabels": {}
+    },
+    {
+      "repo": "sxyazi/yazi",
+      "tag": "v26.9.1",
+      "source": "https://github.com/sxyazi/yazi/releases/tag/v26.9.1",
+      "assets": [
+        "yazi-aarch64-apple-darwin.zip",
+        "yazi-aarch64-pc-windows-msvc.zip",
+        "yazi-aarch64-unknown-linux-gnu.deb",
+        "yazi-aarch64-unknown-linux-gnu.zip",
+        "yazi-aarch64-unknown-linux-musl.deb",
+        "yazi-aarch64-unknown-linux-musl.zip",
+        "yazi-amd64.snap",
+        "yazi-arm64.snap",
+        "yazi-i686-unknown-linux-gnu.zip",
+        "yazi-riscv64gc-unknown-linux-gnu.zip",
+        "yazi-sparc64-unknown-linux-gnu.zip",
+        "yazi-x86_64-apple-darwin.zip",
+        "yazi-x86_64-pc-windows-msvc.zip",
+        "yazi-x86_64-unknown-linux-gnu.deb",
+        "yazi-x86_64-unknown-linux-gnu.zip",
+        "yazi-x86_64-unknown-linux-musl.deb",
+        "yazi-x86_64-unknown-linux-musl.zip"
+      ],
+      "expect": [
+        {
+          "platform": "macos",
+          "arch": "amd64",
+          "asset": "yazi-x86_64-apple-darwin.zip"
+        },
+        {
+          "platform": "macos",
+          "arch": "arm64",
+          "asset": "yazi-aarch64-apple-darwin.zip"
+        },
+        {
+          "platform": "windows",
+          "arch": "amd64",
+          "asset": "yazi-x86_64-pc-windows-msvc.zip"
+        },
+        {
+          "platform": "windows",
+          "arch": "arm64",
+          "asset": "yazi-aarch64-pc-windows-msvc.zip"
+        },
+        {
+          "platform": "linux",
+          "arch": "amd64",
+          "asset": "yazi-x86_64-unknown-linux-gnu.deb"
+        },
+        {
+          "platform": "linux",
+          "arch": "arm64",
+          "asset": "yazi-aarch64-unknown-linux-gnu.deb"
+        },
+        {
+          "platform": "linux",
+          "arch": "386",
+          "asset": "yazi-i686-unknown-linux-gnu.zip"
+        },
+        {
+          "platform": "linux",
+          "arch": "arm",
+          "asset": null,
+          "reason": "No unique compatible CPU build."
+        }
+      ],
+      "targetLabels": {
+        "yazi-x86_64-apple-darwin.zip": [
+          {
+            "platform": "macos",
+            "arch": "amd64"
+          }
+        ],
+        "yazi-aarch64-apple-darwin.zip": [
+          {
+            "platform": "macos",
+            "arch": "arm64"
+          }
+        ],
+        "yazi-x86_64-pc-windows-msvc.zip": [
+          {
+            "platform": "windows",
+            "arch": "amd64"
+          }
+        ],
+        "yazi-aarch64-pc-windows-msvc.zip": [
+          {
+            "platform": "windows",
+            "arch": "arm64"
+          }
+        ],
+        "yazi-x86_64-unknown-linux-gnu.deb": [
+          {
+            "platform": "linux",
+            "arch": "amd64"
+          }
+        ],
+        "yazi-aarch64-unknown-linux-gnu.deb": [
+          {
+            "platform": "linux",
+            "arch": "arm64"
+          }
+        ],
+        "yazi-i686-unknown-linux-gnu.zip": [
+          {
+            "platform": "linux",
+            "arch": "386"
           }
         ]
       }

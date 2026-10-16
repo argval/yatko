@@ -31,7 +31,8 @@ export type Asset = {
 type FormatEntry = { kind: string; platform?: string };
 type Catalog = {
   platforms: Record<Platform, { aliases: string[]; extensions: string[] }>;
-  architectures: Record<Exclude<Arch, "">, string[]>;
+  architectures: Record<string, string[]>;
+  unsupportedPlatforms: string[];
   libc: Record<"musl" | "gnu" | "static", string[]>;
   variants: string[];
   nonNative: string[];
@@ -63,8 +64,8 @@ const displayOrder: Platform[] = ["windows", "macos", "android", "ios", "linux"]
 export type ArtifactFacts = {
   original: string;
   canonical: string;
-  platforms: Platform[];
-  arches: Arch[];
+  platforms: string[];
+  arches: string[];
   libc: Libc;
   kind: ArtifactKind;
   extension: string;
@@ -122,7 +123,7 @@ function selectLongestHits(hits: AliasHit[]): AliasHit[] {
 
 function archAliasHits(name: string): AliasHit[] {
   const hits: AliasHit[] = [];
-  for (const [arch, kws] of Object.entries(archKeywords) as [Exclude<Arch, "">, string[]][]) {
+  for (const [arch, kws] of Object.entries(archKeywords)) {
     for (const kw of kws) {
       for (const [start, end] of boundedKeywordSpans(name, kw)) {
         hits.push({ start, end, key: arch, kw });
@@ -204,13 +205,34 @@ export function classify(name: string): ArtifactFacts {
     }
   }
 
+  for (const platform of catalog.unsupportedPlatforms) {
+    if (hasBoundedKeyword(canonical, platform)) {
+      facts.platforms.push(platform);
+      facts.evidence = appendUnique(facts.evidence, platform);
+    }
+  }
+
   const macArm = facts.platforms.includes("macos") || /\.(dmg|pkg)$/.test(canonical);
-  for (const hit of archAliasHits(canonical)) {
-    const arch = hit.kw === "arm" ? (macArm ? "arm64" : "arm") : hit.key as Exclude<Arch, "">;
+  const hits = archAliasHits(canonical);
+  for (const hit of hits) {
+    // Electron uses win32 for the OS namespace of x64 and ARM64 builds too.
+    if (hit.kw === "win32" && hits.length > 1) continue;
+    // On Macs, bare "arm" means Apple Silicon and bare "x86" means Intel 64-bit.
+    const arch = hit.kw === "arm" ? (macArm ? "arm64" : "arm") : hit.kw === "x86" && macArm ? "amd64" : hit.key;
     if (!facts.arches.includes(arch)) {
       facts.arches.push(arch);
     }
     facts.evidence = appendUnique(facts.evidence, hit.kw);
+  }
+
+  // Apple is a CPU clue only in a Mac name without an explicit architecture.
+  if (macArm && !facts.arches.length && hasBoundedKeyword(canonical, "apple")) {
+    facts.arches.push("arm64");
+    facts.evidence = appendUnique(facts.evidence, "apple");
+  }
+  if (macArm && hasBoundedKeyword(canonical, "universal")) {
+    facts.arches = ["amd64", "arm64"];
+    facts.evidence = appendUnique(facts.evidence, "universal");
   }
 
   facts.source = sourceArchive(canonical);
@@ -257,7 +279,8 @@ export function primaryPlatform(facts: ArtifactFacts): Platform | "" {
   const platforms = androidWithLinuxHost(facts)
     ? facts.platforms.filter((p) => p !== "linux")
     : facts.platforms;
-  if (platforms.length === 1) return platforms[0]!;
+  if (platforms.some((p) => !Object.hasOwn(platformKeywords, p))) return "";
+  if (platforms.length === 1) return platforms[0] as Platform;
   if (platforms.length === 0) return facts.formatPlatform;
   if (facts.formatPlatform && platforms.includes(facts.formatPlatform)) {
     return facts.formatPlatform;

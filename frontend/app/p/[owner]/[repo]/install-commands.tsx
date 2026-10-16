@@ -86,13 +86,13 @@ export function InstallCommands({ commands }: { commands: InstallCommand[] }) {
   );
 }
 
-/** Show only prerequisite commands whose stated target matches the selected device. */
+/** Show stated requirements whose OS and CPU match the selected device. */
 export function InstallPrerequisites({ command, target }: { command: InstallCommand; target: DetectedPlatform }) {
   const prerequisites = command.prerequisiteTargets
     ? [...new Set(command.prerequisiteTargets.filter((prerequisite) => installCommandMatchesTarget(prerequisite, target)).map((prerequisite) => prerequisite.command))]
     : command.prerequisites ?? [];
   if (!prerequisites.length) return null;
-  return <p className="text-xs text-muted px-4 py-1">Requires: {prerequisites.join(", ")}</p>;
+  return <p className="text-xs text-muted px-4 py-1">Prerequisites: {prerequisites.join("; ")}</p>;
 }
 
 function CopyBlock({ command, platform, platforms, arches }: { command: string; platform: InstallPlatform; platforms?: InstallPlatform[]; arches?: string[] }) {

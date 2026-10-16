@@ -72,6 +72,24 @@ func (c *Client) InspectArtifact(ctx context.Context, asset Asset) (ArtifactMeta
 	switch {
 	case strings.HasSuffix(name, ".zip"):
 		inspect = inspectZIP
+	case strings.HasSuffix(name, ".apk"):
+		inspect = inspectAPK
+	case hasAnySuffix(name, ".tar.xz", ".txz"):
+		inspect = inspectXZTar
+	case hasAnySuffix(name, ".tar.zst", ".tzst"):
+		inspect = inspectZstdTar
+	case strings.HasSuffix(name, ".xz"):
+		inspect = inspectXZ
+	case strings.HasSuffix(name, ".zst"):
+		inspect = inspectZstd
+	case strings.HasSuffix(name, ".7z"):
+		inspect = inspect7z
+	case strings.HasSuffix(name, ".rpm"):
+		inspect = inspectRPM
+	case strings.HasSuffix(name, ".msi"):
+		inspect = inspectMSI
+	case strings.HasSuffix(name, ".dmg"):
+		inspect = inspectDMG
 	case hasAnySuffix(name, ".tar.gz", ".tgz"):
 		inspect = tarInspector(func(r io.Reader) (io.Reader, error) { return gzip.NewReader(r) })
 	case hasAnySuffix(name, ".tar.bz2", ".tbz2", ".tbz"):
@@ -91,13 +109,15 @@ func (c *Client) InspectArtifact(ctx context.Context, asset Asset) (ArtifactMeta
 	ctx, cancel := context.WithTimeout(ctx, inspectTimeout)
 	defer cancel()
 	f := c.openAsset(ctx, u, asset.Size)
+	m.Status = "inspected"
 	err := inspect(f, &m)
 	switch {
 	case f.err != nil && !errors.Is(f.err, errInspectLimit):
 		m.Status = "failed"
 		return m, f.err
-	case err != nil && errors.Is(f.err, errInspectLimit):
+	case errors.Is(err, errInspectLimit), err != nil && errors.Is(f.err, errInspectLimit):
 		// The limit was hit before any structure parsed: too large, not broken.
+		m.Status = "unsupported"
 		note(&m, "", "inspection.skipped", "exceeds inspection limits")
 		return m, nil
 	case err != nil:
@@ -107,7 +127,6 @@ func (c *Client) InspectArtifact(ctx context.Context, asset Asset) (ArtifactMeta
 		}
 		return m, err
 	}
-	m.Status = "inspected"
 	return m, nil
 }
 
@@ -261,10 +280,10 @@ func sniffOrNote(r io.ReaderAt, m *ArtifactMetadata, at string) error {
 func inspectZIP(f *remoteFile, m *ArtifactMetadata) error {
 	// Prefetch the tail so the central directory usually costs one request.
 	n := min(f.size, archiveTailLimit)
-	if _, err := f.fetch(f.size-n, n, n); err != nil {
+	if _, err := f.ReadAt(make([]byte, n), f.size-n); err != nil {
 		return err
 	}
-	r, err := zip.NewReader(f, f.size)
+	r, err := boundedZIPReader(f, f.size)
 	if err != nil {
 		return err
 	}
@@ -315,6 +334,9 @@ func tarInspector(decompress func(io.Reader) (io.Reader, error)) func(*remoteFil
 		zr, err := decompress(io.NewSectionReader(f, 0, f.size))
 		if err != nil {
 			return err
+		}
+		if closer, ok := zr.(io.Closer); ok {
+			defer closer.Close()
 		}
 		tr := tar.NewReader(&capReader{r: zr, n: inspectMaxInflated})
 		var names []string
@@ -441,11 +463,26 @@ func debControl(r io.Reader, compression string, m *ArtifactMetadata) error {
 			return err
 		}
 		r = zr
+	case ".bz2":
+		r = bzip2.NewReader(r)
+	case ".xz", ".zst":
+		var err error
+		if compression == ".xz" {
+			r, err = newXZReader(r)
+		} else {
+			r, err = newZstdReader(r)
+		}
+		if err != nil {
+			return err
+		}
 	case "":
 	default:
-		// ponytail: xz/zstd need new deps; filename evidence covers these.
+		m.Status = "unsupported"
 		note(m, "", "deb.control_compression", strings.TrimPrefix(compression, "."))
 		return nil
+	}
+	if closer, ok := r.(io.Closer); ok {
+		defer closer.Close()
 	}
 	tr := tar.NewReader(&capReader{r: r, n: inspectMaxInflated})
 	for {
@@ -574,6 +611,10 @@ func binaryCandidate(name string, mode fs.FileMode, size int64) bool {
 	}
 	lower := strings.ToLower(name)
 	base := path.Base(lower)
+	// Libraries can have executable mode bits but do not identify the application.
+	if hasAnySuffix(base, ".dll", ".dylib", ".so", ".a", ".lib") || strings.Contains(base, ".so.") {
+		return false
+	}
 	switch {
 	case strings.Contains(lower, ".app/contents/macos/"), mode&0o111 != 0,
 		hasAnySuffix(lower, ".exe", ".appimage"):
@@ -746,13 +787,20 @@ func readELF(r io.ReaderAt, m *ArtifactMetadata, at string) error {
 			}
 		}
 	}
+	entry := uint64(bo.Uint32(h[24:]))
+	if is64 {
+		entry = bo.Uint64(h[24:])
+	}
 	switch {
-	case typ == elf.ET_EXEC, typ == elf.ET_DYN && interp != "":
+	case typ == elf.ET_EXEC, typ == elf.ET_DYN && (interp != "" || entry != 0):
 		observeRole(m, "application")
 	default:
 		observeRole(m, "metadata")
 	}
 	target := ArtifactTarget{Arch: elfArch(mach, is64)}
+	if h[5] == 2 && (target.Arch == "amd64" || target.Arch == "386" || target.Arch == "arm64" || target.Arch == "arm") {
+		target.Arch = "elf-be:" + target.Arch
+	}
 	switch len(oses) {
 	case 0:
 	case 1:

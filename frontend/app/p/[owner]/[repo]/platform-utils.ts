@@ -14,11 +14,34 @@ export const platformLabels: Record<Platform, string> = {
   ios: "iOS",
 };
 
+export const archLabels: Record<Exclude<Arch, "">, string> = {
+  amd64: "amd64",
+  arm64: "arm64",
+  arm: "arm",
+  "386": "x86",
+};
+
+/** Pretty "macOS arm64" line for the download-page detector. */
+export function formatDetectedLabel(platform: Platform, arch: Arch): string {
+  const os = platformLabels[platform];
+  if (arch === "") return os;
+  return `${os} ${archLabels[arch]}`;
+}
+
 /** Mirrors picker.DetectPlatform, but maps unknown → windows for UI defaults. */
 export function detectPlatformFromUA(userAgent: string): Platform {
   const ua = userAgent.toLowerCase();
   // Android before Linux; iPhone/iPad/iPod before macOS — same order as Go.
-  if (ua.includes("windows") || ua.includes("win64") || ua.includes("win32")) return "windows";
+  if (
+    ua.includes("windows") ||
+    ua.includes("win64") ||
+    ua.includes("win32") ||
+    ua.includes("mingw") ||
+    ua.includes("msys") ||
+    ua.includes("cygwin")
+  ) {
+    return "windows";
+  }
   if (ua.includes("android")) return "android";
   if (ua.includes("iphone") || ua.includes("ipad") || ua.includes("ipod")) return "ios";
   if (ua.includes("macintosh") || ua.includes("mac os") || ua.includes("darwin")) return "macos";
@@ -33,7 +56,9 @@ export function detectArchFromUA(userAgent: string): Arch {
   const ua = userAgent.toLowerCase();
   if (ua.includes("arm64") || ua.includes("aarch64")) return "arm64";
   if (ua.includes("armv7") || ua.includes("armv6") || ua.includes("armhf")) return "arm";
-  if (ua.includes("x86_64") || ua.includes("amd64") || ua.includes("win64")) return "amd64";
+  if (ua.includes("x86_64") || ua.includes("amd64") || ua.includes("win64") || ua.includes("x64")) {
+    return "amd64";
+  }
   if (ua.includes("i386") || ua.includes("i686") || ua.includes("wow64")) return "386";
   return "";
 }

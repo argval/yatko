@@ -66,6 +66,7 @@ export function pickFromReleaseTable(
 export function parseLinkPick(body: unknown): LinkPick | null {
   if (typeof body !== "object" || body === null) return null;
   const rec = body as Record<string, unknown>;
+  if (typeof rec.error === "string" && rec.error !== "") return null;
   if (rec.confidence === "low") return null;
   if (typeof rec.filename !== "string" || rec.filename === "") return null;
   if (typeof rec.url !== "string" || rec.url === "") return null;

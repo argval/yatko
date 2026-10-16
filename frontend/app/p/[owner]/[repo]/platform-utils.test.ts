@@ -2,11 +2,37 @@ import { afterEach, describe, expect, test } from "bun:test";
 import {
   detectArchFromUA,
   detectArchFromWebGL,
+  detectPlatformFromUA,
+  formatDetectedLabel,
   resetDetectArchFromWebGLCache,
 } from "./platform-utils";
 
 afterEach(() => {
   resetDetectArchFromWebGLCache();
+});
+
+describe("formatDetectedLabel", () => {
+  test("renders macOS arm64 like the download page copy", () => {
+    expect(formatDetectedLabel("macos", "arm64")).toBe("macOS arm64");
+  });
+
+  test("omits arch when it is unknown", () => {
+    expect(formatDetectedLabel("linux", "")).toBe("Linux");
+  });
+
+  test("pretty-prints 386 as x86", () => {
+    expect(formatDetectedLabel("windows", "386")).toBe("Windows x86");
+  });
+});
+
+describe("detectPlatformFromUA", () => {
+  test("reads darwin from a curl target triple", () => {
+    expect(detectPlatformFromUA("curl/8.4.0 (aarch64-apple-darwin24.0)")).toBe("macos");
+  });
+
+  test("reads mingw as Windows", () => {
+    expect(detectPlatformFromUA("curl/8.5.0 (x86_64-w64-mingw32)")).toBe("windows");
+  });
 });
 
 describe("detectArchFromUA", () => {

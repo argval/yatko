@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, use, useEffect, useState } from "react";
-import { type Asset, type Platform } from "./platform-utils";
+import { type Arch, type Asset, type Platform } from "./platform-utils";
 import { usePlatform } from "./use-platform";
 import {
   assetFromLinkPick,
@@ -12,6 +12,7 @@ import {
 } from "./link-decision";
 import { DownloadButton } from "./download-button";
 import { AssetChecksum } from "./asset-checksum";
+import { PlatformSwitcher } from "./platform-switcher";
 
 export function DownloadSection({
   owner,
@@ -31,8 +32,9 @@ export function DownloadSection({
   checksumsPromise: Promise<Record<string, string>>;
 }) {
   const detected = usePlatform();
-  const platform = detected?.platform ?? null;
-  const arch = detected?.arch ?? null;
+  const [override, setOverride] = useState<{ platform: Platform; arch: Arch } | null>(null);
+  const platform = override?.platform ?? detected?.platform ?? null;
+  const arch = override?.arch ?? detected?.arch ?? null;
   // Fallback path when /api/release predates the picks table (rolling deploy).
   const [fetchedPick, setFetchedPick] = useState<LinkPick | null | undefined>(undefined);
 
@@ -87,15 +89,22 @@ export function DownloadSection({
     );
   }
 
-  const { platform: visitorPlatform, arch: visitorArch } = detected;
+  const visitorPlatform = override?.platform ?? detected.platform;
+  const visitorArch = override?.arch ?? detected.arch;
 
   return (
     <div className="flex flex-col items-center gap-2">
+      <PlatformSwitcher
+        detected={detected}
+        platform={visitorPlatform}
+        arch={visitorArch}
+        onChange={setOverride}
+      />
       <DownloadButton
         owner={owner}
         repo={repo}
         platform={visitorPlatform}
-        arch={visitorArch ?? ""}
+        arch={visitorArch}
         primaryAsset={primaryAsset}
         hasAssets={assets.length > 0}
         tagName={tagName}

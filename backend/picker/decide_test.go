@@ -135,6 +135,10 @@ func TestDecideAssetPrefersSetupOverPortable(t *testing.T) {
 	if d := DecideAsset(assets[1:], Windows, AMD64, PickOpts{}); !d.ShouldAutoSelect() {
 		t.Fatalf("portable-only release should remain available: %+v", d)
 	}
+	unknownSetup := github.Asset{Name: "App-Setup.exe"}
+	if d := DecideAsset([]github.Asset{unknownSetup, assets[1]}, Windows, AMD64, PickOpts{}); !d.ShouldAutoSelect() || d.Asset.Name != assets[1].Name {
+		t.Fatalf("unknown setup CPU must not hide a compatible portable build: %+v", d)
+	}
 }
 
 // CPU fallback policy: native (or universal on Mac) first, then the closest

@@ -195,16 +195,22 @@ func DecideAsset(assets []github.Asset, platform Platform, arch Arch, opts PickO
 	if len(mainProduct) > 0 {
 		candidates = mainProduct
 	}
-	// When both Windows forms are available, the installer is the standard pick
-	// even if its 32-bit setup stub needs emulation on a 64-bit visitor.
-	var installable []scored
-	for _, c := range candidates {
-		if !hasBoundedKeyword(c.facts.Canonical, "portable") {
-			installable = append(installable, c)
+	// Prefer Setup over Portable only when Setup has CPU evidence compatible
+	// with this visitor. A 32-bit installer stub still runs on 64-bit Windows.
+	if platform == Windows {
+		var setupBuilds []scored
+		hasPortable := false
+		for _, c := range candidates {
+			if hasBoundedKeyword(c.facts.Canonical, "portable") {
+				hasPortable = true
+			} else if c.facts.Kind == KindInstaller &&
+				(arch == UnknownArch || len(c.facts.Arches) > 0) {
+				setupBuilds = append(setupBuilds, c)
+			}
 		}
-	}
-	if len(installable) > 0 {
-		candidates = installable
+		if hasPortable && len(setupBuilds) > 0 {
+			candidates = setupBuilds
+		}
 	}
 
 	// A known compatible CPU is safer than an installer whose CPU is unknown.

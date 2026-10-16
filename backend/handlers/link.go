@@ -39,6 +39,7 @@ type LinkResponse struct {
 	Libc       string   `json:"libc,omitempty"`
 	Confidence string   `json:"confidence,omitempty"`
 	Reasons    []string `json:"reasons,omitempty"`
+	Status     string   `json:"status"`
 }
 
 func (h *LinkHandler) Handle(c *gin.Context) {
@@ -62,12 +63,14 @@ func (h *LinkHandler) handle(c *gin.Context, owner, repo, version string) {
 	if !p.Decision.ShouldAutoSelect() {
 		logPickerMiss(owner, repo, p, IsScriptUA(p.UA), release.Assets)
 		c.JSON(http.StatusNotFound, gin.H{
-			"error":      "no suitable asset found for platform",
-			"platform":   string(p.Platform),
-			"arch":       string(p.Arch),
-			"url":        release.HTMLURL,
-			"confidence": string(p.Decision.Confidence),
-			"reasons":    p.Decision.Reasons,
+			"error":        "no suitable asset found for platform",
+			"platform":     string(p.Platform),
+			"arch":         string(p.Arch),
+			"url":          release.HTMLURL,
+			"confidence":   string(p.Decision.Confidence),
+			"reasons":      p.Decision.Reasons,
+			"status":       p.Decision.Status,
+			"alternatives": releaseDecision(p.Decision).Alternatives,
 		})
 		return
 	}
@@ -84,5 +87,6 @@ func (h *LinkHandler) handle(c *gin.Context, owner, repo, version string) {
 		Libc:       string(p.Libc),
 		Confidence: string(p.Decision.Confidence),
 		Reasons:    p.Decision.Reasons,
+		Status:     p.Decision.Status,
 	})
 }

@@ -1,6 +1,11 @@
 package picker
 
-import "sort"
+import (
+	"sort"
+	"strings"
+
+	"github.com/argval/yatko/github"
+)
 
 // ArtifactKind is the installable shape of a release asset, inferred from
 // filename tokens and exclusive extensions. Unknown means we did not invent one.
@@ -18,17 +23,21 @@ const (
 // catalog does not know stay absent — Classify never guesses a platform or arch
 // just because a caller needs one.
 type ArtifactFacts struct {
-	Original  string
-	Canonical string
-	Platforms []Platform
-	Arches    []Arch
-	Libc      Libc
-	Kind      ArtifactKind
-	Extension string // format key without a leading dot, e.g. "tar.gz"
-	Variants  []string
-	Source    bool
-	NonNative bool
-	Evidence  []string
+	Original   string
+	Canonical  string
+	Platforms  []Platform
+	Arches     []Arch
+	Libc       Libc
+	Kind       ArtifactKind
+	Extension  string // format key without a leading dot, e.g. "tar.gz"
+	Variants   []string
+	Source     bool
+	NonNative  bool
+	Evidence   []string
+	Targets    []github.ArtifactTarget
+	Conflicts  []string
+	Role       string
+	Inspection string
 	// FormatPlatform is set only when the extension itself implies an OS
 	// (exe → windows, dmg → macos). Generic archives leave it empty.
 	FormatPlatform Platform
@@ -169,10 +178,38 @@ func Classify(name string) ArtifactFacts {
 			}
 		}
 	}
+	for _, p := range catalog.UnsupportedPlatforms {
+		if hasBoundedKeyword(canonical, p) {
+			f.Platforms = appendUniquePlatform(f.Platforms, Platform(p))
+			f.Evidence = appendUnique(f.Evidence, p)
+		}
+	}
 
-	for _, hit := range archAliasHits(canonical) {
-		f.Arches = appendUniqueArch(f.Arches, Arch(hit.key))
+	hits := archAliasHits(canonical)
+	for _, hit := range hits {
+		// Electron uses win32 as an OS namespace even for x64 and ARM64.
+		if hit.kw == "win32" && len(hits) > 1 {
+			continue
+		}
+		a := Arch(hit.key)
+		mac := f.HasPlatform(MacOS) || strings.HasSuffix(canonical, ".dmg") || strings.HasSuffix(canonical, ".pkg")
+		if hit.kw == "arm" && mac {
+			a = ARM64
+		}
+		if hit.kw == "x86" && mac { // Macs have no 32-bit builds; "x86" there means Intel 64-bit.
+			a = AMD64
+		}
+		f.Arches = appendUniqueArch(f.Arches, a)
 		f.Evidence = appendUnique(f.Evidence, hit.kw)
+	}
+	if (f.HasPlatform(MacOS) || strings.HasSuffix(canonical, ".dmg") || strings.HasSuffix(canonical, ".pkg")) && hasBoundedKeyword(canonical, "universal") {
+		f.Arches = []Arch{AMD64, ARM64}
+		f.Evidence = appendUnique(f.Evidence, "universal")
+	}
+
+	if f.HasPlatform(MacOS) && len(f.Arches) == 0 && hasBoundedKeyword(canonical, "apple") {
+		f.Arches = appendUniqueArch(f.Arches, ARM64)
+		f.Evidence = appendUnique(f.Evidence, "apple")
 	}
 
 	f.Source = sourceArchive(canonical, f.Platforms, f.Arches)

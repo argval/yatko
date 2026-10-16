@@ -25,13 +25,19 @@ type APIError struct {
 func (e *APIError) Error() string { return e.Message }
 
 type Asset struct {
+	ID                 int64  `json:"id,omitempty"`
 	Name               string `json:"name"`
+	Label              string `json:"label,omitempty"`
+	State              string `json:"state,omitempty"`
+	Digest             string `json:"digest,omitempty"`
+	UpdatedAt          string `json:"updated_at,omitempty"`
 	BrowserDownloadURL string `json:"browser_download_url"`
 	Size               int64  `json:"size"`
 	ContentType        string `json:"content_type"`
 	DownloadCount      int64  `json:"download_count"`
 	// ArchivePlatform is verified from ZIP contents, never supplied by GitHub.
-	ArchivePlatform string `json:"archive_platform,omitempty"`
+	ArchivePlatform string            `json:"archive_platform,omitempty"`
+	Artifact        *ArtifactMetadata `json:"artifact,omitempty"`
 }
 
 type Release struct {

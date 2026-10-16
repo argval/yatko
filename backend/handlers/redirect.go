@@ -2,15 +2,12 @@ package handlers
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"net/http"
 	"slices"
-	"time"
 
 	"github.com/argval/yatko/cache"
 	"github.com/argval/yatko/github"
-	"github.com/argval/yatko/picker"
 	"github.com/gin-gonic/gin"
 )
 
@@ -73,25 +70,6 @@ func (h *RedirectHandler) getRelease(c *gin.Context, owner, repo, version string
 	// Copy before enrichment: the release can be shared by concurrent cache hits.
 	result := *release
 	result.Assets = slices.Clone(release.Assets)
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 3*time.Second)
-	defer cancel()
-	inspected := 0
-	for i, asset := range result.Assets {
-		facts := picker.Classify(asset.Name)
-		if facts.Extension != "zip" || len(facts.Platforms) != 0 || len(facts.Arches) != 0 || facts.NonNative {
-			continue
-		}
-		// Bound work even for releases with many ambiguous archives.
-		if inspected == 4 || ctx.Err() != nil {
-			break
-		}
-		inspected++
-		key := fmt.Sprintf("archive-platform:v1:%s:%d", asset.BrowserDownloadURL, asset.Size)
-		platform, _ := cache.FetchCached(ctx, h.cache, key, func(ctx context.Context, _ string) (string, string, bool, error) {
-			platform, err := h.gh.ZIPPlatform(ctx, asset)
-			return platform, "", false, err
-		})
-		result.Assets[i].ArchivePlatform = platform
-	}
+	h.enrichArtifacts(c.Request.Context(), result.Assets)
 	return &result, nil
 }

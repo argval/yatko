@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { assetPlatformLabel, platformLabels, formatSize, type Asset } from "./platform-utils";
+import { assetMatchesTarget, assetTargetLabel, platformLabels, formatSize, type Asset } from "./platform-utils";
 import { usePlatform } from "./use-platform";
 import { CollapsibleCard } from "./collapsible-card";
 import { PlatformFilterToggle } from "./platform-filter-toggle";
@@ -16,17 +16,17 @@ export function AllDownloads({ assets }: { assets: Asset[] }) {
   const [filterEnabled, setFilterEnabled] = useState(false);
 
   const visible =
-    filterEnabled && detected
-      ? assets.filter((a) => assetPlatformLabel(a.name) === platformLabels[detected.platform])
+    filterEnabled && detected?.platform
+      ? assets.filter((a) => assetMatchesTarget(a, detected))
       : assets;
 
   return (
     <CollapsibleCard title="All Downloads">
-      <PlatformFilterToggle checked={filterEnabled} onChange={setFilterEnabled} />
+      <PlatformFilterToggle disabled={!detected?.platform} checked={filterEnabled} onChange={setFilterEnabled} />
 
       {visible.length === 0 && (
         <p className="text-sm text-foreground/40 py-2">
-          {filterEnabled && detected
+          {filterEnabled && detected?.platform
             ? `No assets found for ${platformLabels[detected.platform]}. Try unchecking the filter.`
             : "No downloads available for this release."}
         </p>
@@ -34,17 +34,18 @@ export function AllDownloads({ assets }: { assets: Asset[] }) {
 
       <ul className="space-y-1">
         {visible.map((asset) => {
-          const platformLabel = assetPlatformLabel(asset.name);
+          const platformLabel = assetTargetLabel(asset);
           return (
             <li key={asset.name}>
               <a
                 href={asset.browser_download_url}
-                className="flex items-center justify-between gap-4 px-3 py-2 rounded-lg hover:bg-foreground/5 transition-colors"
+                target="_blank" rel="noopener noreferrer"
+                className="flex min-h-11 items-center justify-between gap-4 px-3 py-2 rounded-lg hover:bg-foreground/5 active:bg-foreground/10 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-foreground"
               >
-                <span className="flex items-center gap-2 min-w-0">
+                <span className="grid flex-1 gap-1 min-w-0">
                   <span className="text-sm font-mono truncate">{asset.name}</span>
                   {platformLabel && (
-                    <span className="shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-foreground/10 text-foreground/60">
+                    <span className="w-fit max-w-full text-xs font-medium px-1.5 py-0.5 rounded-md bg-foreground/10 text-foreground/60">
                       {platformLabel}
                     </span>
                   )}

@@ -26,6 +26,17 @@ describe("detectPlatformFromUA", () => {
 });
 
 describe("detectArchFromUA", () => {
+  test("matches Go's bounded ARM detection without matching unrelated words", () => {
+    for (const ua of ["arm", "ARM", "Mozilla/5.0 (X11; Linux arm)", "curl/8.5.0 (arm-unknown-linux-gnueabihf)", "linux_arm", "arm32"]) {
+      expect(detectArchFromUA(ua)).toBe("arm");
+    }
+    for (const ua of ["charm-client/1.0", "farm", "armada", "armv8"]) {
+      expect(detectArchFromUA(ua)).toBe("");
+    }
+    expect(detectArchFromUA("arm arm64")).toBe("arm64");
+    expect(detectArchFromUA("arm aarch64")).toBe("arm64");
+  });
+
   test("reads arm64 from explicit UA tokens", () => {
     expect(
       detectArchFromUA(

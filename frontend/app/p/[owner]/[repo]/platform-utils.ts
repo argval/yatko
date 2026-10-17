@@ -41,7 +41,7 @@ export function detectPlatformFromUA(userAgent: string): Platform | "" {
 export function detectArchFromUA(userAgent: string): Arch {
   const ua = userAgent.toLowerCase();
   if (ua.includes("arm64") || ua.includes("aarch64")) return "arm64";
-  if (ua.includes("armv7") || ua.includes("armv6") || ua.includes("armhf")) return "arm";
+  if (ua.includes("armv7") || ua.includes("armv6") || ua.includes("armhf") || /(^|[^a-z])arm([^a-z]|$)/.test(ua)) return "arm";
   if (ua.includes("x86_64") || ua.includes("amd64") || ua.includes("win64") || ua.includes("x64")) {
     return "amd64";
   }

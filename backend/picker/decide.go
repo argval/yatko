@@ -195,20 +195,22 @@ func DecideAsset(assets []github.Asset, platform Platform, arch Arch, opts PickO
 	if len(mainProduct) > 0 {
 		candidates = mainProduct
 	}
-	// Prefer Setup over Portable only when Setup has CPU evidence compatible
-	// with this visitor. A 32-bit installer stub still runs on 64-bit Windows.
+	// Prefer Setup unless it would discard the requested format. Setup
+	// needs compatible CPU evidence; a 32-bit stub runs on 64-bit Windows.
 	if platform == Windows {
 		var setupBuilds []scored
-		hasPortable := false
+		hasPortable, preferFormat, preferSetup := false, false, false
 		for _, c := range candidates {
+			preferFormat = preferFormat || c.extRank == -1
 			if hasBoundedKeyword(c.facts.Canonical, "portable") {
 				hasPortable = true
 			} else if c.facts.Kind == KindInstaller &&
 				(arch == UnknownArch || len(c.facts.Arches) > 0) {
 				setupBuilds = append(setupBuilds, c)
+				preferSetup = preferSetup || c.extRank == -1
 			}
 		}
-		if hasPortable && len(setupBuilds) > 0 {
+		if hasPortable && len(setupBuilds) > 0 && (!preferFormat || preferSetup) {
 			candidates = setupBuilds
 		}
 	}

@@ -40,9 +40,15 @@ func main() {
 	}
 	defer closeScanStore()
 	redirectHandler.ScanStore = scanStore
-	// Jev shadow mode is opt-in and log-only: it never changes a response.
-	if os.Getenv("JEV_SHADOW") == "1" {
-		if jc := jev.NewClientFromEnv(); jc != nil {
+	// Jev is the primary asset decider whenever a TypeSafe key is set; the rule
+	// picker answers when Jev errors, is slow, or JEV_PRIMARY=0. Shadow mode
+	// (log-only comparison) applies only while Jev is not primary.
+	if jc := jev.NewClientFromEnv(); jc != nil {
+		switch {
+		case os.Getenv("JEV_PRIMARY") != "0":
+			redirectHandler.Primary = &jev.Primary{Client: jc, Cache: redisCache}
+			log.Printf("jev primary decider enabled model=%s", jc.ModelName())
+		case os.Getenv("JEV_SHADOW") == "1":
 			redirectHandler.Shadow = jc.Decide
 			log.Printf("jev shadow mode enabled model=%s", jc.ModelName())
 		}

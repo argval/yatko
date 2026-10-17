@@ -118,7 +118,7 @@ func (h *PageHandler) handle(c *gin.Context, owner, repo, version string) {
 	}
 	// Precomputed DecideAsset results so the release page can paint the
 	// filename as soon as platform/arch is known — without waiting on /api/link.
-	if picks := buildReleasePicks(release.Assets); picks != nil {
+	if picks := h.redirect.buildPicks(c.Request.Context(), owner, repo, release.Assets); picks != nil {
 		payload["picks"] = picks
 	}
 	c.JSON(http.StatusOK, payload)

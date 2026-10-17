@@ -44,6 +44,10 @@ func deepAuthoritative(m github.ArtifactMetadata) bool {
 	return len(m.Targets) > 0 && !slices.ContainsFunc(m.Targets, func(t github.ArtifactTarget) bool { return t.Platform == "" || t.Arch == "" })
 }
 
+// contentEvidence marks targets as read from the file, as the inspector's own
+// evidence does in production.
+var contentEvidence = []github.ArtifactEvidence{{Source: "content-inspection", Field: "inspection", Value: "harvest"}}
+
 // Observed combines publisher manifest facts with content inspection the way
 // /dl does (github.MergeObservations). An authoritative full-file result
 // replaces the shallow content read. ok is false when no evidence exists.
@@ -55,11 +59,11 @@ func (a HarvestAsset) Observed() (m github.ArtifactMetadata, ok bool) {
 	case a.Deep != nil && deepAuthoritative(*a.Deep):
 		return *a.Deep, true
 	case a.Manifest != nil && content:
-		return github.MergeObservations(*a.Manifest, github.ArtifactMetadata{Status: a.Status, Targets: a.Targets}), true
+		return github.MergeObservations(*a.Manifest, github.ArtifactMetadata{Status: a.Status, Targets: a.Targets, Evidence: contentEvidence}), true
 	case a.Manifest != nil:
 		return *a.Manifest, true
 	case content:
-		return github.ArtifactMetadata{Status: a.Status, Targets: a.Targets}, true
+		return github.ArtifactMetadata{Status: a.Status, Targets: a.Targets, Evidence: contentEvidence}, true
 	}
 	return m, false
 }

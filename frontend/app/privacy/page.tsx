@@ -53,6 +53,16 @@ export default function PrivacyPage() {
         </section>
 
         <section className="space-y-3">
+          <h2 className="text-base font-medium text-foreground">Choosing your download</h2>
+          <p>
+            To pick the right file for your computer, Yatko sends a release&rsquo;s public file
+            names, the repository name, and your device type (such as macOS on Apple Silicon) to
+            TypeSafe&rsquo;s decision model. It does not send your IP address or browser
+            details. TypeSafe processes that data under its own privacy terms.
+          </p>
+        </section>
+
+        <section className="space-y-3">
           <h2 className="text-base font-medium text-foreground">Caching</h2>
           <p>
             Public release and search responses may be cached briefly so the same repo does not

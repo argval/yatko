@@ -170,7 +170,7 @@ func (c *Client) Decide(ctx context.Context, repo string, assets []github.Asset,
 			blocked[a.Name] = true
 			continue
 		}
-		if a.Artifact != nil && a.Artifact.Status == "inspected" && len(a.Artifact.Targets) > 0 {
+		if observedArtifact(a.Artifact) {
 			inspected[a.Name] = a
 		}
 	}
@@ -402,4 +402,12 @@ func appBundle(name string) bool {
 		}
 	}
 	return false
+}
+
+// observedArtifact reports whether targets come from content or a publisher
+// manifest. After enrichment every asset carries filename-derived targets too
+// (picker.DescribeAsset), which must not override Jev's reading of the name.
+func observedArtifact(m *github.ArtifactMetadata) bool {
+	return m != nil && m.Status == "inspected" && len(m.Targets) > 0 &&
+		slices.ContainsFunc(m.Evidence, func(e github.ArtifactEvidence) bool { return e.Source != "" && e.Source != "filename" })
 }

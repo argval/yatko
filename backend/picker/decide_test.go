@@ -141,6 +141,41 @@ func TestDecideAssetPrefersSetupOverPortable(t *testing.T) {
 	}
 }
 
+func TestDecideAssetSetupRespectsFormatPreference(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		prefer   string
+		setup    string
+		portable string
+		want     string
+	}{
+		{"default setup", "", "App-Setup-x64.exe", "App-windows-x64-Portable.zip", "App-Setup-x64.exe"},
+		{"explicit zip", "zip", "App-Setup-x64.exe", "App-windows-x64-Portable.zip", "App-windows-x64-Portable.zip"},
+		{"normalized zip", " .ZIP ", "App-Setup-x64.exe", "App-windows-x64-Portable.zip", "App-windows-x64-Portable.zip"},
+		{"unavailable format", "7z", "App-Setup-x86.exe", "App-windows-x64-Portable.zip", "App-Setup-x86.exe"},
+		{"invalid preference", "invalid", "App-Setup-x86.exe", "App-windows-x64-Portable.zip", "App-Setup-x86.exe"},
+		{"same format keeps setup", "exe", "App-Setup-x86.exe", "App-windows-x64-Portable.exe", "App-Setup-x86.exe"},
+		{"incompatible zip", "zip", "App-Setup-x64.exe", "App-windows-arm64-Portable.zip", "App-Setup-x64.exe"},
+		{"native setup beats emulated zip", "zip", "App-Setup-x64.exe", "App-windows-x86-Portable.zip", "App-Setup-x64.exe"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			assets := []github.Asset{{Name: tc.setup}, {Name: tc.portable}}
+			d := DecideAsset(assets, Windows, AMD64, PickOpts{Prefer: tc.prefer})
+			if !d.ShouldAutoSelect() || d.Asset.Name != tc.want {
+				t.Fatalf("prefer=%q: got %+v, want %s", tc.prefer, d, tc.want)
+			}
+		})
+	}
+	assets := []github.Asset{
+		{Name: "App-Setup-x64.exe"},
+		{Name: "App-windows-x64-Portable.exe"},
+		{Name: "App-windows-x64.zip"},
+	}
+	if d := DecideAsset(assets, Windows, AMD64, PickOpts{Prefer: "zip"}); !d.ShouldAutoSelect() || d.Asset.Name != assets[2].Name {
+		t.Fatalf("setup filtering must keep a requested archive without a Portable token: %+v", d)
+	}
+}
+
 // CPU fallback policy: native (or universal on Mac) first, then the closest
 // emulated build — Windows ARM64: x64 then x86; Windows x64: x86; Apple
 // Silicon: Intel via Rosetta. Nothing runs "upward" (x86 never gets x64).

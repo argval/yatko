@@ -10,6 +10,7 @@ import (
 	"github.com/argval/yatko/cache"
 	"github.com/argval/yatko/github"
 	"github.com/argval/yatko/handlers"
+	"github.com/argval/yatko/jev"
 	"github.com/argval/yatko/middleware"
 	"github.com/argval/yatko/ratelimit"
 	"github.com/argval/yatko/search"
@@ -32,6 +33,13 @@ func main() {
 	limiter := ratelimit.New()
 
 	redirectHandler := handlers.NewRedirectHandler(ghClient, redisCache)
+	// Jev shadow mode is opt-in and log-only: it never changes a response.
+	if os.Getenv("JEV_SHADOW") == "1" {
+		if jc := jev.NewClientFromEnv(); jc != nil {
+			redirectHandler.Shadow = jc.Decide
+			log.Printf("jev shadow mode enabled model=%s", jev.Model)
+		}
+	}
 	pageHandler := handlers.NewPageHandler(redirectHandler, ghClient, redisCache)
 	linkHandler := handlers.NewLinkHandler(redirectHandler)
 	releasesHandler := handlers.NewReleasesHandler(ghClient, redisCache)

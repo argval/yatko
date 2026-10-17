@@ -90,6 +90,7 @@ func (h *LinkHandler) handle(c *gin.Context, owner, repo, version string) {
 	}
 
 	p := pickReleaseAsset(c, release.Assets)
+	h.redirect.startShadow(c, owner, repo, release, p)
 	if !p.Decision.ShouldAutoSelect() {
 		logPickerMiss(owner, repo, p, IsScriptUA(p.UA), release.Assets)
 		c.JSON(http.StatusNotFound, linkResponse(release, p))

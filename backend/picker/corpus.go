@@ -51,7 +51,16 @@ type CorpusScore struct {
 	DecideNanos         int64
 }
 
-func loadCorpusFile(path string) ([]CorpusRelease, error) {
+// Decider picks an asset for one corpus case. The rule picker ignores repo;
+// model-backed deciders (backend/jev) use it as context.
+type Decider func(repo string, assets []github.Asset, platform Platform, arch Arch, opts PickOpts) AssetDecision
+
+func ruleDecider(_ string, assets []github.Asset, platform Platform, arch Arch, opts PickOpts) AssetDecision {
+	return DecideAsset(assets, platform, arch, opts)
+}
+
+// LoadCorpusFile reads the labeled release corpus (shared/picker/corpus.json).
+func LoadCorpusFile(path string) ([]CorpusRelease, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
@@ -74,12 +83,12 @@ func assetsFromNames(names []string) []github.Asset {
 	return out
 }
 
-func scoreExpectation(rel CorpusRelease, exp CorpusExpectation) (gotName string, auto, wrongPlatform, wrongArch, unlabeled bool, elapsed time.Duration) {
+func scoreExpectation(rel CorpusRelease, exp CorpusExpectation, decide Decider) (gotName string, auto, wrongPlatform, wrongArch, unlabeled bool, elapsed time.Duration) {
 	assets := assetsFromNames(rel.Assets)
 	platform := Platform(exp.Platform)
 	arch := Arch(exp.Arch)
 	start := time.Now()
-	d := DecideAsset(assets, platform, arch, PickOpts{
+	d := decide(rel.Repo, assets, platform, arch, PickOpts{
 		Prefer:    exp.Prefer,
 		Libc:      ResolveLibc(exp.Libc),
 		UserAgent: exp.UserAgent,
@@ -108,12 +117,18 @@ func scoreExpectation(rel CorpusRelease, exp CorpusExpectation) (gotName string,
 }
 
 func scoreCorpus(releases []CorpusRelease) (CorpusScore, []string) {
+	return ScoreCorpusWith(releases, ruleDecider)
+}
+
+// ScoreCorpusWith scores any decider against the labeled corpus, so a model
+// can be measured with exactly the same metrics as the rule picker.
+func ScoreCorpusWith(releases []CorpusRelease, decide Decider) (CorpusScore, []string) {
 	var score CorpusScore
 	var mismatches []string
 	for _, rel := range releases {
 		for _, exp := range rel.Expect {
 			score.Total++
-			gotName, auto, wrongPlatform, wrongArch, unlabeled, elapsed := scoreExpectation(rel, exp)
+			gotName, auto, wrongPlatform, wrongArch, unlabeled, elapsed := scoreExpectation(rel, exp, decide)
 			score.DecideNanos += elapsed.Nanoseconds()
 			if auto && wrongPlatform {
 				score.WrongPlatform++

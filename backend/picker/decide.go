@@ -133,7 +133,7 @@ func DecideAsset(assets []github.Asset, platform Platform, arch Arch, opts PickO
 		// Only accept them when the filename identifies this platform, so source files
 		// and unrelated extensionless assets still stay out of the CTA.
 		if !matched && facts.HasPlatform(platform) && (arch == UnknownArch || facts.HasArch(arch)) &&
-			(nativeBinaryName(facts.Canonical) || (facts.Inspection == "inspected" && facts.Role == "application")) {
+			(NativeBinaryName(facts.Canonical) || (facts.Inspection == "inspected" && facts.Role == "application")) {
 			rank, matched = len(exts), true
 		}
 		if !matched {
@@ -397,7 +397,9 @@ func emulationCost(f ArtifactFacts, platform Platform, visitor Arch) int {
 	return cost
 }
 
-func nativeBinaryName(name string) bool {
+// NativeBinaryName reports whether name looks like an extensionless binary;
+// version dots (tool-1.2) are not file extensions.
+func NativeBinaryName(name string) bool {
 	if !containsDot(name) {
 		return true
 	}

@@ -17,7 +17,7 @@ func sharedPickerPath(t *testing.T, name string) string {
 }
 
 func TestCorpusMetrics(t *testing.T) {
-	releases, err := loadCorpusFile(sharedPickerPath(t, "corpus.json"))
+	releases, err := LoadCorpusFile(sharedPickerPath(t, "corpus.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -51,7 +51,7 @@ func TestCorpusMetrics(t *testing.T) {
 }
 
 func TestCorpusUnknownTokenHarvest(t *testing.T) {
-	releases, err := loadCorpusFile(sharedPickerPath(t, "corpus.json"))
+	releases, err := LoadCorpusFile(sharedPickerPath(t, "corpus.json"))
 	if err != nil {
 		t.Fatal(err)
 	}

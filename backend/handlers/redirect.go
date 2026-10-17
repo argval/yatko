@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"slices"
+	"sync"
 
 	"github.com/argval/yatko/cache"
 	"github.com/argval/yatko/github"
@@ -14,10 +15,22 @@ import (
 type RedirectHandler struct {
 	gh    *github.Client
 	cache *cache.Cache
+
+	// Shadow, when set, runs next to the rule picker for logs only (see shadow.go).
+	Shadow      ShadowDecider
+	shadowMu    sync.Mutex
+	shadowSeen  map[string]struct{}
+	shadowSlots chan struct{}
+	shadowWG    sync.WaitGroup
 }
 
 func NewRedirectHandler(gh *github.Client, c *cache.Cache) *RedirectHandler {
-	return &RedirectHandler{gh: gh, cache: c}
+	return &RedirectHandler{
+		gh:          gh,
+		cache:       c,
+		shadowSeen:  make(map[string]struct{}),
+		shadowSlots: make(chan struct{}, maxShadowInFlight),
+	}
 }
 
 func (h *RedirectHandler) Handle(c *gin.Context) {
@@ -38,6 +51,7 @@ func (h *RedirectHandler) handle(c *gin.Context, owner, repo, version string) {
 	}
 
 	p := pickReleaseAsset(c, release.Assets)
+	h.startShadow(c, owner, repo, release, p)
 	if !p.Decision.ShouldAutoSelect() {
 		respondDownloadMiss(c, owner, repo, release, p)
 		return

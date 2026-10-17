@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"os"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/argval/yatko/github"
@@ -204,7 +205,8 @@ func installable(assets []github.Asset, bareArchives bool) []github.Asset {
 		if f.Source || f.NonNative || f.Role == "debug" || f.Role == "metadata" {
 			continue
 		}
-		if f.Extension == "" && !picker.NativeBinaryName(f.Canonical) {
+		// .bin is a common suffix for bare binaries (nullhub-linux-x86_64.bin).
+		if f.Extension == "" && !picker.NativeBinaryName(f.Canonical) && !strings.HasSuffix(f.Canonical, ".bin") {
 			continue
 		}
 		if !bareArchives && f.Kind == picker.KindArchive && len(f.Platforms) == 0 && len(f.Arches) == 0 {

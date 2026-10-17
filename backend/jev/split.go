@@ -58,6 +58,8 @@ type fileJudgment struct {
 	rank  int     // picker.FormatRank: lower is better
 	// libcMiss marks a build for a libc the visitor did not ask for.
 	libcMiss bool
+	// universal marks a macOS build for both Intel and Apple Silicon.
+	universal bool
 }
 
 // DecideFit was the second experiment: Jev judges each file's fit for this
@@ -139,6 +141,11 @@ func choose(judged []fileJudgment, tieBreak breakTie) picker.AssetDecision {
 	// Only narrow to main builds when one exists: all-CLI releases still pick.
 	if mains := keep(pool, func(j fileJudgment) bool { return j.main >= 0.5 }); len(mains) > 0 {
 		pool = mains
+	}
+	// Like the rule picker: a universal Mac build runs on every Mac, so it
+	// beats single-CPU builds before format is compared.
+	if univ := keep(pool, func(j fileJudgment) bool { return j.universal }); len(univ) > 0 {
+		pool = univ
 	}
 	bestRank := pool[0].rank
 	for _, j := range pool {

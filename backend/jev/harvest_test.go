@@ -91,7 +91,6 @@ func TestJevHarvest(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	type decideFunc func(context.Context, string, []github.Asset, picker.Platform, picker.Arch, picker.PickOpts) (picker.AssetDecision, Usage, error)
 	for _, split := range []string{"tune", "holdout"} {
 		if s := os.Getenv("JEV_SPLIT"); s != "" && s != split {
 			continue
@@ -102,17 +101,16 @@ func TestJevHarvest(t *testing.T) {
 				part = append(part, r)
 			}
 		}
-		for _, v := range []struct {
-			label  string
-			decide decideFunc
-		}{{"attrs", c.Decide}} {
-			// DecideFit and DecideChoice ask once per visitor, so the no-run
-			// cases would be new paid calls; compare them on the corpus only.
+		// Only Decide runs here: DecideFit and DecideChoice ask once per
+		// visitor, so the no-run cases would be new paid calls; compare them on
+		// the corpus only. Cold = filenames only; warm = with inspection results.
+		for _, warm := range []bool{false, true} {
+			mode := map[bool]string{false: "cold", true: "warm"}[warm]
 			var tokens, errs atomic.Int64
 			decide := func(repo string, assets []github.Asset, platform picker.Platform, arch picker.Arch, opts picker.PickOpts) picker.AssetDecision {
 				ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 				defer cancel()
-				d, usage, err := v.decide(ctx, repo, assets, platform, arch, opts)
+				d, usage, err := c.Decide(ctx, repo, assets, platform, arch, opts)
 				tokens.Add(int64(usage.InputTokens))
 				if err != nil {
 					errs.Add(1)
@@ -120,12 +118,12 @@ func TestJevHarvest(t *testing.T) {
 				}
 				return d
 			}
-			score, lines := picker.ScoreHarvestWith(part, decide, 8)
-			t.Logf("jev=%s model=%s split=%s releases=%d %s errors=%d input_tokens=%d", v.label, c.ModelName(), split, len(part), score, errs.Load(), tokens.Load())
+			score, lines := picker.ScoreHarvestWith(part, decide, 8, warm)
+			t.Logf("jev=attrs %s model=%s split=%s releases=%d %s errors=%d input_tokens=%d", mode, c.ModelName(), split, len(part), score, errs.Load(), tokens.Load())
 			if split == "tune" && testing.Verbose() && os.Getenv("JEV_SHOW") != "" {
 				for _, l := range lines {
 					if strings.Contains(l, os.Getenv("JEV_SHOW")) {
-						t.Log(l)
+						t.Log(mode + " " + l)
 					}
 				}
 			}

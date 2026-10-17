@@ -173,8 +173,13 @@ func (c *Client) Decide(ctx context.Context, repo string, assets []github.Asset,
 	judged := make([]fileJudgment, len(attrs))
 	for i, a := range attrs {
 		obs, observed := inspected[a.Name]
-		if observed {
+		switch {
+		case observed:
 			a = withObservedTargets(a, picker.CorrectedTargets(obs.Name, obs.Artifact.Targets))
+		case appBundle(a.Name):
+			// Code knows this one: both Jev versions read Tauri's
+			// Name_x64.app.tar.gz as Linux.
+			a.OS, observed = map[string]float64{osMac: 1}, true
 		}
 		native, emulated, maybe := runProbability(a, platform, arch)
 		if f := picker.FactsForAsset(github.Asset{Name: a.Name}); !observed && len(f.Platforms) == 0 && f.FormatPlatform == "" &&
@@ -195,6 +200,7 @@ func (c *Client) Decide(ctx context.Context, repo string, assets []github.Asset,
 		}
 		// libc is spelled out in filenames, so code reads it: glibc is the default.
 		j.libcMiss = picker.FactsForAsset(j.asset).HasMusl != wantMusl
+		j.universal = platform == picker.MacOS && a.CPU[cpuUniversal] >= 0.5
 		judged[i] = j
 	}
 	d := choose(judged, func(tied []fileJudgment) (int, bool, string) {
@@ -316,7 +322,11 @@ func (c *Client) breakTie(ctx context.Context, repo string, platform picker.Plat
 			best, bestP = i, p
 		}
 	}
-	ok := fwd.Choice == rev.Choice && fwd.Choice == names[best] && bestP >= max(0.5, 1/float64(len(names))+tieBreakMargin)
+	need := max(0.5, 1/float64(len(names))+tieBreakMargin)
+	if len(names) >= manyProgramsTie {
+		need = manyProgramsProbability
+	}
+	ok := fwd.Choice == rev.Choice && fwd.Choice == names[best] && bestP >= need
 	return best, ok, fmt.Sprintf("jev tie-break among %d: %q p=%.2f agree=%v", len(names), names[best], bestP, fwd.Choice == rev.Choice)
 }
 
@@ -325,6 +335,14 @@ func (c *Client) breakTie(ctx context.Context, repo string, platform picker.Plat
 // visitor's computer, so a weak but consistent preference is safe; Pake's 16
 // different apps gave ChatGPT.dmg a consistent 45%, which still abstains.
 const tieBreakMargin = 0.05
+
+// After every policy step one program rarely leaves 4+ equal files, so a tie
+// that large usually means several different programs (Pake ships 16 apps,
+// and jev-1.14 gave ChatGPT_x86_64.AppImage 56%). Those need a strong winner.
+const (
+	manyProgramsTie         = 4
+	manyProgramsProbability = 0.8
+)
 
 var platformKey = map[string]string{
 	"macos": osMac, "windows": osWindows, "linux": osLinux, "android": osAndroid, "ios": osIOS,
@@ -363,4 +381,16 @@ func withObservedTargets(a FileAttrs, targets []github.ArtifactTarget) FileAttrs
 		}
 	}
 	return a
+}
+
+// appBundle reports a zipped or tarred macOS .app bundle (Maccy.app.zip,
+// Yaak_x64.app.tar.gz).
+func appBundle(name string) bool {
+	n := strings.ToLower(name)
+	for _, ext := range []string{".app.zip", ".app.tar.gz", ".app.tgz", ".app.tar.xz"} {
+		if strings.HasSuffix(n, ext) {
+			return true
+		}
+	}
+	return false
 }

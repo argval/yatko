@@ -209,3 +209,11 @@ func TestJevGuessCalibration(t *testing.T) {
 		t.Logf("model=%s inferred-OS threshold %.2f: right %d wrong %d", c.ModelName(), th, right, wrong)
 	}
 }
+
+func TestAppBundle(t *testing.T) {
+	for name, want := range map[string]bool{"Maccy.app.zip": true, "Yaak_x64.app.tar.gz": true, "app.zip": false, "Appify.tar.gz": false} {
+		if appBundle(name) != want {
+			t.Errorf("appBundle(%q) = %v", name, !want)
+		}
+	}
+}

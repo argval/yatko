@@ -104,6 +104,12 @@ func TestChooseAppliesPolicyOrder(t *testing.T) {
 	if d := choose(tie, func([]fileJudgment) (int, bool, string) { return 0, false, "test" }); d.ShouldAutoSelect() {
 		t.Fatal("an unclear tie-break must abstain")
 	}
+	// A universal Mac build settles a tie in code, like the rule picker.
+	univ := j("app-universal.dmg", fitNative, 0.9)
+	univ.universal = true
+	if d := choose([]fileJudgment{j("app-x64.dmg", fitNative, 0.9), univ}, nil); name(d) != "app-universal.dmg" || !d.ShouldAutoSelect() {
+		t.Fatalf("universal: got %v (%s)", name(d), d.Confidence)
+	}
 }
 
 // TestJevCorpus scores Jev against the labeled corpus next to the rule picker.

@@ -20,8 +20,10 @@ func TestHarvestRules(t *testing.T) {
 				part = append(part, r)
 			}
 		}
-		s, lines := ScoreHarvestWith(part, ruleDecider, 1)
+		s, lines := ScoreHarvestWith(part, ruleDecider, 1, false)
 		t.Logf("rules split=%s releases=%d %s", split, len(part), s)
+		warm, _ := ScoreHarvestWith(part, ruleDecider, 1, true)
+		t.Logf("rules warm split=%s releases=%d %s", split, len(part), warm)
 		if split == "tune" && testing.Verbose() {
 			show := os.Getenv("HARVEST_SHOW") // extra substring to print, e.g. "abstained"
 			for _, l := range lines {

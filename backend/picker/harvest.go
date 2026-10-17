@@ -108,6 +108,8 @@ const ArchUnproven Arch = "unproven"
 //   - On Windows, a 32-bit x86 label on a file whose name names no CPU or
 //     another CPU is usually the setup stub, and an x64 label on an arm64(ec)
 //     name is a hybrid binary: the CPU is unproven.
+//   - An empty CPU (the inspector does not read .dmg contents) takes the one
+//     CPU the filename names, else stays empty, which callers treat as unproven.
 func CorrectedTargets(name string, targets []github.ArtifactTarget) []github.ArtifactTarget {
 	facts := FactsForAsset(github.Asset{Name: name})
 	defaultOS := string(Linux)
@@ -132,6 +134,9 @@ func CorrectedTargets(name string, targets []github.ArtifactTarget) []github.Art
 			t.Platform = defaultOS
 		}
 		t.Arch = normalizeInspectedArch(t.Arch)
+		if t.Arch == "" && len(facts.Arches) == 1 {
+			t.Arch = string(facts.Arches[0])
+		}
 		if Platform(t.Platform) == Windows && t.Arch != "" && !slices.Contains(facts.Arches, Arch(t.Arch)) &&
 			(Arch(t.Arch) == X86 || len(facts.Arches) > 0) {
 			t.Arch = string(ArchUnproven)
@@ -167,9 +172,11 @@ func fit(a HarvestAsset, platform Platform, arch Arch) (fitLevel int, otherOS bo
 		}
 		otherOS = false
 		switch {
-		case Arch(t.Arch) == ArchUnproven:
+		case Arch(t.Arch) == ArchUnproven || t.Arch == "":
+			// An unknown CPU is not proof that it runs: AutoClip_aarch64.dmg
+			// has no inspected CPU and does not run on an Intel Mac.
 			unproven = true
-		case t.Arch == "" || Arch(t.Arch) == arch:
+		case Arch(t.Arch) == arch:
 			return 2, false
 		default:
 			if _, ok := EmulationRank(platform, arch, Arch(t.Arch)); ok {
@@ -185,10 +192,12 @@ func fit(a HarvestAsset, platform Platform, arch Arch) (fitLevel int, otherOS bo
 
 const fitUnproven = -1
 
-// ScoreHarvestWith runs decide over every release and visitor with names only
-// (no inspection data), so rules and models judge the same evidence a cold
-// /dl request has. workers > 1 runs cases in parallel; decide must be safe for that.
-func ScoreHarvestWith(releases []HarvestRelease, decide Decider, workers int) (HarvestScore, []string) {
+// ScoreHarvestWith runs decide over every release and visitor. Cold (warm=false)
+// passes names only, the evidence a first /dl request has. Warm also passes the
+// inspector's results, as /dl has once enrichArtifacts has probed a release;
+// it is an upper bound, since the scorer's labels are the same observations.
+// workers > 1 runs cases in parallel; decide must be safe for that.
+func ScoreHarvestWith(releases []HarvestRelease, decide Decider, workers int, warm bool) (HarvestScore, []string) {
 	type job struct {
 		rel     HarvestRelease
 		visitor int
@@ -205,7 +214,7 @@ func ScoreHarvestWith(releases []HarvestRelease, decide Decider, workers int) (H
 		go func() {
 			defer wg.Done()
 			for j := range jobs {
-				s, line := scoreHarvestCase(j.rel, HarvestVisitors[j.visitor].Platform, HarvestVisitors[j.visitor].Arch, decide)
+				s, line := scoreHarvestCase(j.rel, HarvestVisitors[j.visitor].Platform, HarvestVisitors[j.visitor].Arch, decide, warm)
 				results <- result{s, line}
 			}
 		}()
@@ -242,13 +251,16 @@ func ScoreHarvestWith(releases []HarvestRelease, decide Decider, workers int) (H
 	return total, lines
 }
 
-func scoreHarvestCase(rel HarvestRelease, platform Platform, arch Arch, decide Decider) (HarvestScore, string) {
+func scoreHarvestCase(rel HarvestRelease, platform Platform, arch Arch, decide Decider, warm bool) (HarvestScore, string) {
 	var s HarvestScore
 	bestFit := 0
 	byName := map[string]HarvestAsset{}
 	assets := make([]github.Asset, len(rel.Assets))
 	for i, a := range rel.Assets {
 		assets[i] = github.Asset{Name: a.Name}
+		if warm && (a.Status == "inspected" || a.Status == "failed") {
+			assets[i].Artifact = &github.ArtifactMetadata{Status: a.Status, Targets: a.Targets}
+		}
 		byName[a.Name] = a
 		if f, _ := fit(a, platform, arch); f > bestFit {
 			bestFit = f

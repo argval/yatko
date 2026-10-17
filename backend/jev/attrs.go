@@ -164,14 +164,22 @@ func (c *Client) Decide(ctx context.Context, repo string, assets []github.Asset,
 		arch = picker.AMD64 // most computers; rules make the same assumption
 	}
 	inspected := map[string]github.Asset{}
+	blocked := map[string]bool{}
 	for _, a := range assets {
+		if a.Artifact != nil && (len(a.Artifact.Conflicts) > 0 || a.Artifact.Status == "failed") {
+			blocked[a.Name] = true
+			continue
+		}
 		if a.Artifact != nil && a.Artifact.Status == "inspected" && len(a.Artifact.Targets) > 0 {
 			inspected[a.Name] = a
 		}
 	}
 	wantMusl := opts.Libc == picker.LibcMusl
-	judged := make([]fileJudgment, len(attrs))
-	for i, a := range attrs {
+	judged := make([]fileJudgment, 0, len(attrs))
+	for _, a := range attrs {
+		if blocked[a.Name] {
+			continue
+		}
 		obs, observed := inspected[a.Name]
 		switch {
 		case observed:
@@ -201,7 +209,7 @@ func (c *Client) Decide(ctx context.Context, repo string, assets []github.Asset,
 		// libc is spelled out in filenames, so code reads it: glibc is the default.
 		j.libcMiss = picker.FactsForAsset(j.asset).HasMusl != wantMusl
 		j.universal = platform == picker.MacOS && a.CPU[cpuUniversal] >= 0.5
-		judged[i] = j
+		judged = append(judged, j)
 	}
 	d := choose(judged, func(tied []fileJudgment) (int, bool, string) {
 		return c.breakTie(ctx, repo, platform, arch, tied, &usage)

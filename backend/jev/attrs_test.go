@@ -55,6 +55,21 @@ func TestWithObservedTargets(t *testing.T) {
 	}
 }
 
+func TestDecideRejectsFailedOrConflictedEvidence(t *testing.T) {
+	for _, metadata := range []github.ArtifactMetadata{
+		{Status: "failed"},
+		{Status: "inspected", Targets: []github.ArtifactTarget{{Platform: "windows", Arch: "amd64"}}, Conflicts: []string{"publisher targets conflict with file contents"}},
+	} {
+		c := &Client{model: Model}
+		name := "app-windows-x64.exe"
+		c.attrCache.put(cacheKey(Model, "acme/app", []string{name}), []FileAttrs{{Name: name, OS: map[string]float64{osWindows: 1}, CPU: map[string]float64{cpuAMD64: 1}, Main: 1}})
+		d, _, err := c.Decide(context.Background(), "acme/app", []github.Asset{{Name: name, Artifact: &metadata}}, picker.Windows, picker.AMD64, picker.PickOpts{})
+		if err != nil || d.Asset != nil {
+			t.Fatalf("unsafe evidence selected: %+v %v", d, err)
+		}
+	}
+}
+
 // TestJevAttrAccuracy measures Describe file by file against inspected
 // targets on the tune split only. It reuses the harvest eval's cached calls.
 func TestJevAttrAccuracy(t *testing.T) {
@@ -108,10 +123,14 @@ func TestJevAttrAccuracy(t *testing.T) {
 		osOK, osN, 100*float64(osOK)/float64(max(osN, 1)), cpuOK, cpuN, 100*float64(cpuOK)/float64(max(cpuN, 1)), cpuUnstated, cpuN-cpuOK-cpuUnstated)
 }
 
-// inspectedLabel turns corrected inspected targets (picker.CorrectedTargets)
+// inspectedLabel turns corrected observed targets (contents plus manifests)
 // into Describe option keys. Empty means "no clean label".
 func inspectedLabel(a picker.HarvestAsset) (osKey, cpuKey string) {
-	targets := picker.CorrectedTargets(a.Name, a.Targets)
+	obs, _ := a.Observed()
+	if len(obs.Conflicts) > 0 || obs.Status == "failed" {
+		return "", ""
+	}
+	targets := picker.CorrectedTargets(a.Name, obs.Targets)
 	if len(targets) == 0 {
 		return "", ""
 	}

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"hash/fnv"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -22,6 +23,39 @@ type HarvestAsset struct {
 	Name    string                  `json:"name"`
 	Status  string                  `json:"status"`
 	Targets []github.ArtifactTarget `json:"targets"`
+	// Manifest holds publisher manifest facts (harvest_manifests.json), if any.
+	Manifest *github.ArtifactMetadata `json:"-"`
+}
+
+// Observed combines publisher manifest facts with content inspection the way
+// /dl does (github.MergeObservations). ok is false when neither exists.
+func (a HarvestAsset) Observed() (m github.ArtifactMetadata, ok bool) {
+	content := a.Status == "inspected" || a.Status == "failed"
+	switch {
+	case a.Manifest != nil && content:
+		return github.MergeObservations(*a.Manifest, github.ArtifactMetadata{Status: a.Status, Targets: a.Targets}), true
+	case a.Manifest != nil:
+		return *a.Manifest, true
+	case content:
+		return github.ArtifactMetadata{Status: a.Status, Targets: a.Targets}, true
+	}
+	return m, false
+}
+
+// labelTargets are the targets the scorer trusts: file contents, corroborated
+// or filled in by the publisher's manifest.
+func (a HarvestAsset) labelTargets() []github.ArtifactTarget {
+	m, _ := a.Observed()
+	if m.Status == "failed" {
+		return nil
+	}
+	if len(m.Conflicts) > 0 {
+		if a.Status == "inspected" {
+			return a.Targets
+		}
+		return nil
+	}
+	return m.Targets
 }
 
 // HarvestRelease groups harvested assets by release.
@@ -41,8 +75,17 @@ var HarvestVisitors = []struct {
 	{Linux, AMD64}, {Linux, ARM64},
 }
 
-// LoadHarvest reads shared/picker/harvest.jsonl, keeping release order.
+// LoadHarvest reads shared/picker/harvest.jsonl, keeping release order, and
+// attaches publisher manifest facts from harvest_manifests.json beside it.
 func LoadHarvest(path string) ([]HarvestRelease, error) {
+	manifests := map[string]map[string]github.ArtifactMetadata{}
+	if data, err := os.ReadFile(filepath.Join(filepath.Dir(path), "harvest_manifests.json")); err == nil {
+		if err := json.Unmarshal(data, &manifests); err != nil {
+			return nil, err
+		}
+	} else if !os.IsNotExist(err) {
+		return nil, err
+	}
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
@@ -58,6 +101,9 @@ func LoadHarvest(path string) ([]HarvestRelease, error) {
 			return nil, err
 		}
 		key := a.Repo + "@" + a.Tag
+		if m, ok := manifests[key][a.Name]; ok {
+			a.Manifest = &m
+		}
 		i, ok := index[key]
 		if !ok {
 			i = len(out)
@@ -110,6 +156,7 @@ const ArchUnproven Arch = "unproven"
 //     name is a hybrid binary: the CPU is unproven.
 //   - An empty CPU (the inspector does not read .dmg contents) takes the one
 //     CPU the filename names, else stays empty, which callers treat as unproven.
+//     Installer EXEs keep an unknown payload CPU unproven even with a named CPU.
 func CorrectedTargets(name string, targets []github.ArtifactTarget) []github.ArtifactTarget {
 	facts := FactsForAsset(github.Asset{Name: name})
 	defaultOS := string(Linux)
@@ -134,7 +181,7 @@ func CorrectedTargets(name string, targets []github.ArtifactTarget) []github.Art
 			t.Platform = defaultOS
 		}
 		t.Arch = normalizeInspectedArch(t.Arch)
-		if t.Arch == "" && len(facts.Arches) == 1 {
+		if t.Arch == "" && len(facts.Arches) == 1 && !strings.HasSuffix(facts.Canonical, ".exe") {
 			t.Arch = string(facts.Arches[0])
 		}
 		if Platform(t.Platform) == Windows && t.Arch != "" && !slices.Contains(facts.Arches, Arch(t.Arch)) &&
@@ -166,7 +213,7 @@ func normalizeInspectedArch(a string) string {
 func fit(a HarvestAsset, platform Platform, arch Arch) (fitLevel int, otherOS bool) {
 	otherOS = true
 	unproven := false
-	for _, t := range CorrectedTargets(a.Name, a.Targets) {
+	for _, t := range CorrectedTargets(a.Name, a.labelTargets()) {
 		if Platform(t.Platform) != platform {
 			continue
 		}
@@ -258,8 +305,8 @@ func scoreHarvestCase(rel HarvestRelease, platform Platform, arch Arch, decide D
 	assets := make([]github.Asset, len(rel.Assets))
 	for i, a := range rel.Assets {
 		assets[i] = github.Asset{Name: a.Name}
-		if warm && (a.Status == "inspected" || a.Status == "failed") {
-			assets[i].Artifact = &github.ArtifactMetadata{Status: a.Status, Targets: a.Targets}
+		if m, ok := a.Observed(); warm && ok {
+			assets[i].Artifact = &m
 		}
 		byName[a.Name] = a
 		if f, _ := fit(a, platform, arch); f > bestFit {
@@ -277,7 +324,7 @@ func scoreHarvestCase(rel HarvestRelease, platform Platform, arch Arch, decide D
 			return s, ""
 		}
 		picked := byName[d.Asset.Name]
-		if f, _ := fit(picked, platform, arch); len(picked.Targets) > 0 && f == 0 {
+		if f, _ := fit(picked, platform, arch); len(picked.labelTargets()) > 0 && f == 0 {
 			s.NoRunWrong = 1
 			return s, fmt.Sprintf("%s: WRONG pick %s where nothing runs", tag, d.Asset.Name)
 		}
@@ -292,7 +339,7 @@ func scoreHarvestCase(rel HarvestRelease, platform Platform, arch Arch, decide D
 		return s, fmt.Sprintf("%s: abstained (%s) %s", tag, d.Confidence, strings.Join(d.Reasons, "; "))
 	}
 	picked := byName[d.Asset.Name]
-	if len(picked.Targets) == 0 {
+	if len(picked.labelTargets()) == 0 {
 		s.Unverified = 1
 		return s, fmt.Sprintf("%s: picked uninspected %s", tag, d.Asset.Name)
 	}

@@ -90,6 +90,8 @@ func (c *Client) InspectArtifact(ctx context.Context, asset Asset) (ArtifactMeta
 		inspect = inspectMSI
 	case strings.HasSuffix(name, ".dmg"):
 		inspect = inspectDMG
+	case strings.HasSuffix(name, ".exe"):
+		inspect = inspectEXE
 	case hasAnySuffix(name, ".tar.gz", ".tgz"):
 		inspect = tarInspector(func(r io.Reader) (io.Reader, error) { return gzip.NewReader(r) })
 	case hasAnySuffix(name, ".tar.bz2", ".tbz2", ".tbz"):

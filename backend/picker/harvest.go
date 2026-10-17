@@ -7,6 +7,7 @@ import (
 	"hash/fnv"
 	"os"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -90,43 +91,90 @@ type HarvestScore struct {
 	EmulatedNative int // auto-picked an emulated build although a native one exists
 	Unverified     int // auto-picked a file the inspector could not read
 	FalseAbstain   int // no auto-pick although an inspected file runs
+	NoRunCases     int // release × visitor where no inspected file provably runs
+	NoRunWrong     int // ...and the picker still auto-picked a file proven not to run
 	DecideNanos    int64
+}
+
+// ArchUnproven marks an inspected target whose OS is proven but whose CPU
+// label is not trustworthy (see CorrectedTargets).
+const ArchUnproven Arch = "unproven"
+
+// CorrectedTargets fixes known inspector quirks in a file's observed targets,
+// so they match what a visitor can actually run:
+//   - An empty platform is an ELF/Mach-O slice whose header names no OS. It
+//     takes the OS of the file's other slices (universal zips), else an OS the
+//     filename names, else Linux (Linux binaries use the default ELF OS ABI).
+//   - On Windows, a 32-bit x86 label on a file whose name names no CPU or
+//     another CPU is usually the setup stub, and an x64 label on an arm64(ec)
+//     name is a hybrid binary: the CPU is unproven.
+func CorrectedTargets(name string, targets []github.ArtifactTarget) []github.ArtifactTarget {
+	facts := FactsForAsset(github.Asset{Name: name})
+	defaultOS := string(Linux)
+	switch {
+	case slices.Contains(facts.Platforms, MacOS):
+		defaultOS = string(MacOS)
+	default:
+		for _, os := range []string{"dragonfly", "solaris", "illumos", "sunos", "aix", "plan9", "haiku"} {
+			if hasBoundedKeyword(facts.Canonical, os) {
+				defaultOS = os
+			}
+		}
+	}
+	for _, t := range targets {
+		if t.Platform != "" {
+			defaultOS = t.Platform
+		}
+	}
+	out := make([]github.ArtifactTarget, len(targets))
+	for i, t := range targets {
+		if t.Platform == "" {
+			t.Platform = defaultOS
+		}
+		t.Arch = normalizeInspectedArch(t.Arch)
+		if Platform(t.Platform) == Windows && t.Arch != "" && !slices.Contains(facts.Arches, Arch(t.Arch)) &&
+			(Arch(t.Arch) == X86 || len(facts.Arches) > 0) {
+			t.Arch = string(ArchUnproven)
+		}
+		out[i] = t
+	}
+	return out
+}
+
+// normalizeInspectedArch maps the inspector's package-format arch spellings
+// (rpm:armv7, linux-i686, arm64e) onto picker Arch values.
+func normalizeInspectedArch(a string) string {
+	a = strings.TrimPrefix(strings.TrimPrefix(a, "rpm:"), "linux-")
+	switch a {
+	case "i686":
+		return string(X86)
+	case "armv5", "armv5tel", "armv6", "armv7", "armhf":
+		return string(ARM)
+	case "arm64e":
+		return string(ARM64)
+	}
+	return a
 }
 
 // fit is how an inspected asset runs for a visitor: 0 no, 1 emulated,
 // 2 native, or fitUnproven when the OS matches but the CPU is not proven.
 func fit(a HarvestAsset, platform Platform, arch Arch) (fitLevel int, otherOS bool) {
-	// An empty platform is an ELF/Mach-O slice whose header names no OS: it
-	// shares the OS of the file's other slices (universal zips), else it is
-	// Linux, since Linux binaries use the default ELF OS ABI.
-	defaultOS := string(Linux)
-	for _, t := range a.Targets {
-		if t.Platform != "" {
-			defaultOS = t.Platform
-		}
-	}
-	nameArches := FactsForAsset(github.Asset{Name: a.Name}).Arches
 	otherOS = true
 	unproven := false
-	for _, t := range a.Targets {
-		if t.Platform == "" {
-			t.Platform = defaultOS
-		}
+	for _, t := range CorrectedTargets(a.Name, a.Targets) {
 		if Platform(t.Platform) != platform {
 			continue
 		}
 		otherOS = false
-		// A Windows setup stub is often 32-bit x86 whatever it installs. When
-		// the filename names another CPU, the OS is proven but the CPU is not.
-		if platform == Windows && Arch(t.Arch) == X86 && len(nameArches) > 0 && !slices.Contains(nameArches, X86) {
+		switch {
+		case Arch(t.Arch) == ArchUnproven:
 			unproven = true
-			continue
-		}
-		if t.Arch == "" || Arch(t.Arch) == arch {
+		case t.Arch == "" || Arch(t.Arch) == arch:
 			return 2, false
-		}
-		if _, ok := EmulationRank(platform, arch, Arch(t.Arch)); ok {
-			fitLevel = 1
+		default:
+			if _, ok := EmulationRank(platform, arch, Arch(t.Arch)); ok {
+				fitLevel = 1
+			}
 		}
 	}
 	if fitLevel == 0 && unproven {
@@ -184,6 +232,8 @@ func ScoreHarvestWith(releases []HarvestRelease, decide Decider, workers int) (H
 		total.EmulatedNative += s.EmulatedNative
 		total.Unverified += s.Unverified
 		total.FalseAbstain += s.FalseAbstain
+		total.NoRunCases += s.NoRunCases
+		total.NoRunWrong += s.NoRunWrong
 		total.DecideNanos += s.DecideNanos
 		if r.line != "" {
 			lines = append(lines, r.line)
@@ -204,17 +254,30 @@ func scoreHarvestCase(rel HarvestRelease, platform Platform, arch Arch, decide D
 			bestFit = f
 		}
 	}
-	if bestFit == 0 {
-		return s, "" // nothing provably runs: not scorable from inspection alone
+	tag := fmt.Sprintf("%s %s/%s", rel.Repo, platform, arch)
+	if bestFit <= 0 {
+		// Nothing provably runs here, so only a proven-wrong pick is scorable:
+		// a picker that guesses an OS for unmarked files fails here, not above.
+		s.NoRunCases = 1
+		d, elapsed := timedDecide(decide, rel.Repo, assets, platform, arch)
+		s.DecideNanos = elapsed
+		if !d.ShouldAutoSelect() {
+			return s, ""
+		}
+		picked := byName[d.Asset.Name]
+		if f, _ := fit(picked, platform, arch); len(picked.Targets) > 0 && f == 0 {
+			s.NoRunWrong = 1
+			return s, fmt.Sprintf("%s: WRONG pick %s where nothing runs", tag, d.Asset.Name)
+		}
+		return s, ""
 	}
 	s.Cases = 1
 
 	d, elapsed := timedDecide(decide, rel.Repo, assets, platform, arch)
 	s.DecideNanos = elapsed
-	tag := fmt.Sprintf("%s %s/%s", rel.Repo, platform, arch)
 	if !d.ShouldAutoSelect() {
 		s.FalseAbstain = 1
-		return s, fmt.Sprintf("%s: abstained (%s)", tag, d.Confidence)
+		return s, fmt.Sprintf("%s: abstained (%s) %s", tag, d.Confidence, strings.Join(d.Reasons, "; "))
 	}
 	picked := byName[d.Asset.Name]
 	if len(picked.Targets) == 0 {
@@ -248,6 +311,6 @@ func timedDecide(decide Decider, repo string, assets []github.Asset, platform Pl
 
 func (s HarvestScore) String() string {
 	pct := func(n int) float64 { return 100 * float64(n) / float64(max(s.Cases, 1)) }
-	return fmt.Sprintf("cases=%d runs=%d (%.1f%%) wrong_os=%d wrong_cpu=%d emulated_over_native=%d unverified=%d (%.1f%%) false_abstain=%d (%.1f%%)",
-		s.Cases, s.Runs, pct(s.Runs), s.WrongPlatform, s.WrongArch, s.EmulatedNative, s.Unverified, pct(s.Unverified), s.FalseAbstain, pct(s.FalseAbstain))
+	return fmt.Sprintf("cases=%d runs=%d (%.1f%%) wrong_os=%d wrong_cpu=%d emulated_over_native=%d unverified=%d (%.1f%%) false_abstain=%d (%.1f%%) norun_cases=%d norun_wrong=%d",
+		s.Cases, s.Runs, pct(s.Runs), s.WrongPlatform, s.WrongArch, s.EmulatedNative, s.Unverified, pct(s.Unverified), s.FalseAbstain, pct(s.FalseAbstain), s.NoRunCases, s.NoRunWrong)
 }

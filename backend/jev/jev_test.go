@@ -84,16 +84,25 @@ func TestChooseAppliesPolicyOrder(t *testing.T) {
 		j("app-arm64.zip", fitNative, 0.9),
 		j("app-arm64.dmg", fitNative, 0.9),
 		j("app-linux-arm64.tar.gz", fitNone, 0.9),
-	})
+	}, nil)
 	if d.Asset == nil || d.Asset.Name != "app-arm64.dmg" || d.Confidence != picker.ConfidenceHigh {
 		t.Fatalf("got %v (%s), want app-arm64.dmg high", name(d), d.Confidence)
 	}
-	if d := choose([]fileJudgment{j("app.exe", fitNone, 0.9)}); d.ShouldAutoSelect() {
+	if d := choose([]fileJudgment{j("app.exe", fitNone, 0.9)}, nil); d.ShouldAutoSelect() {
 		t.Fatal("no fitting file must abstain")
 	}
 	// Several different apps that tie on every signal: abstain instead of guessing.
-	if d := choose([]fileJudgment{j("ChatGPT.dmg", fitNative, 0.9), j("DeepSeek.dmg", fitNative, 0.85)}); d.ShouldAutoSelect() {
+	if d := choose([]fileJudgment{j("ChatGPT.dmg", fitNative, 0.9), j("DeepSeek.dmg", fitNative, 0.85)}, nil); d.ShouldAutoSelect() {
 		t.Fatalf("tie must abstain, got %v (%s)", name(d), d.Confidence)
+	}
+	// A confident tie-break picks its winner, but never with high confidence.
+	tie := []fileJudgment{j("app-setup.exe", fitNative, 0.9), j("app.exe", fitNative, 0.9)}
+	d = choose(tie, func([]fileJudgment) (int, bool, string) { return 1, true, "test" })
+	if name(d) != "app.exe" || d.Confidence != picker.ConfidenceMedium {
+		t.Fatalf("broken tie: got %v (%s), want app.exe medium", name(d), d.Confidence)
+	}
+	if d := choose(tie, func([]fileJudgment) (int, bool, string) { return 0, false, "test" }); d.ShouldAutoSelect() {
+		t.Fatal("an unclear tie-break must abstain")
 	}
 }
 

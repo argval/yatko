@@ -105,7 +105,9 @@ func TestJevHarvest(t *testing.T) {
 		for _, v := range []struct {
 			label  string
 			decide decideFunc
-		}{{"attrs", c.Decide}, {"fit", c.DecideFit}, {"choice", c.DecideChoice}} {
+		}{{"attrs", c.Decide}} {
+			// DecideFit and DecideChoice ask once per visitor, so the no-run
+			// cases would be new paid calls; compare them on the corpus only.
 			var tokens, errs atomic.Int64
 			decide := func(repo string, assets []github.Asset, platform picker.Platform, arch picker.Arch, opts picker.PickOpts) picker.AssetDecision {
 				ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)

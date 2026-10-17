@@ -181,10 +181,11 @@ func visitorState(platform picker.Platform, arch picker.Arch, opts picker.PickOp
 }
 
 // installable keeps every file a person could install. It drops only what is
-// never a download target: source, debug, metadata, unknown formats (checksums.txt)
-// and bare versioned archives with no OS/CPU token, which Yatko treats as source.
-// Jev still makes every OS/CPU decision.
-func installable(assets []github.Asset) []github.Asset {
+// never a download target: source, debug, metadata and unknown formats
+// (checksums.txt). With bareArchives false it also drops archives with no OS
+// or CPU token, which the rule picker treats as source. Describe keeps them:
+// Jev can tell Maccy.app.zip is a macOS app, and code still requires an OS match.
+func installable(assets []github.Asset, bareArchives bool) []github.Asset {
 	var out []github.Asset
 	for _, a := range assets {
 		if a.State != "" && a.State != "uploaded" {
@@ -197,7 +198,7 @@ func installable(assets []github.Asset) []github.Asset {
 		if f.Extension == "" && !picker.NativeBinaryName(f.Canonical) {
 			continue
 		}
-		if f.Kind == picker.KindArchive && len(f.Platforms) == 0 && len(f.Arches) == 0 {
+		if !bareArchives && f.Kind == picker.KindArchive && len(f.Platforms) == 0 && len(f.Arches) == 0 {
 			continue
 		}
 		out = append(out, a)
@@ -212,7 +213,7 @@ func (c *Client) DecideChoice(ctx context.Context, repo string, assets []github.
 	if _, ok := osNames[platform]; !ok {
 		return picker.AssetDecision{Status: "unknown", Confidence: picker.ConfidenceLow, Reasons: []string{"unknown platform"}}, Usage{}, nil
 	}
-	candidates := installable(assets)
+	candidates := installable(assets, false)
 	if len(candidates) == 0 {
 		return picker.AssetDecision{Status: "incompatible", Confidence: picker.ConfidenceLow, Reasons: []string{"no installable assets"}}, Usage{}, nil
 	}
@@ -305,7 +306,7 @@ func decisionFrom(candidates []github.Asset, fwd, rev answer, consistent bool) p
 	}
 }
 
-// post sends one request, retrying 429/529 with exponential backoff as the
+// post sends one request, retrying network errors and 429/529 with backoff as the
 // API docs ask (https://docs.typesafe.ai/api.md#handling-rate-limits).
 func (c *Client) post(ctx context.Context, req request) (*response, error) {
 	body, err := json.Marshal(req)
@@ -322,6 +323,11 @@ func (c *Client) post(ctx context.Context, req request) (*response, error) {
 		httpReq.Header.Set("Content-Type", "application/json")
 		res, err := c.http.Do(httpReq)
 		if err != nil {
+			// Network errors are retried like 429/529, unless the caller gave up.
+			if ctx.Err() == nil && attempt < 3 {
+				backoff = c.wait(ctx, backoff)
+				continue
+			}
 			return nil, fmt.Errorf("jev: %w", err)
 		}
 		data, err := io.ReadAll(io.LimitReader(res.Body, 1<<20))
@@ -330,12 +336,7 @@ func (c *Client) post(ctx context.Context, req request) (*response, error) {
 			return nil, fmt.Errorf("jev: read body: %w", err)
 		}
 		if (res.StatusCode == http.StatusTooManyRequests || res.StatusCode == 529) && attempt < 3 {
-			select {
-			case <-ctx.Done():
-				return nil, ctx.Err()
-			case <-time.After(backoff):
-			}
-			backoff *= 2
+			backoff = c.wait(ctx, backoff)
 			continue
 		}
 		if res.StatusCode != http.StatusOK {
@@ -347,4 +348,14 @@ func (c *Client) post(ctx context.Context, req request) (*response, error) {
 		}
 		return &out, nil
 	}
+}
+
+// wait sleeps for backoff (or until ctx ends; the next request then fails
+// fast) and returns the doubled backoff.
+func (c *Client) wait(ctx context.Context, backoff time.Duration) time.Duration {
+	select {
+	case <-ctx.Done():
+	case <-time.After(backoff):
+	}
+	return 2 * backoff
 }

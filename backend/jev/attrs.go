@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 
@@ -36,8 +37,11 @@ var cpuCriteria = orderedCriteria{
 	{name: cpuUniversal}, {name: cpuOther}, {name: cpuNotStated},
 }
 
+// The main-program option says that format, libc and CPU never make a build
+// "special": those are code's choices, and Jev rated .tar.gz next to a bare
+// binary, or a musl build, as variants when this was left unsaid.
 var roleCriteria = orderedCriteria{
-	{name: roleMain},
+	{name: roleMain, desc: "The program the repository is about. The same program packaged in another file format (.tar.gz, .tar.xz, .zip, .AppImage, .deb, a bare binary), built for another libc (glibc, musl, static) or for another CPU is still the main program."},
 	{name: "a companion tool", desc: "A separate CLI, server, daemon, SDK, library, editor extension (.vsix) or plugin shipped next to a main app."},
 	{name: "a debug, symbols or profiling build"},
 	{name: "a special variant", desc: "Baseline, legacy, portable, lite, minimal, no-web or similar, next to a standard build of the same program."},
@@ -49,6 +53,19 @@ var platformOS = map[picker.Platform]string{
 }
 
 var cpuArch = map[string]picker.Arch{cpuAMD64: picker.AMD64, cpuARM64: picker.ARM64, cpuARM: picker.ARM, cpuX86: picker.X86}
+
+// osQuestion lets Jev infer an unmarked file's OS from the rest of the
+// release. Those guesses are calibrated but not always right, so Decide
+// auto-selects an inferred OS only at inferredOSThreshold.
+const osQuestion = "Which operating system is `file` built for? If the name of `file` does not say, " +
+	"use the other files in `files`: a release usually ships one set of builds per operating system, " +
+	"so an unmarked file usually belongs to an operating system that has no other build in the release. " +
+	"A portable build is usually for Windows. Answer \"operating system not stated\" only when `files` gives no clue either."
+
+// inferredOSThreshold gates guesses for files whose name names no OS. On the
+// tune split, guesses at >= 0.9 were right 236 times and wrong twice; at 0.5,
+// 302 right and 12 wrong. Below it a file only "maybe" fits.
+const inferredOSThreshold = 0.9
 
 // filesPerRequest keeps one request well inside the 64k-token context:
 // three questions per file. ponytail: sequential chunks; parallelize if big releases get slow.
@@ -69,7 +86,7 @@ func attrQuestion(file, text string, criteria orderedCriteria) question {
 // Describe asks Jev what each installable file is: OS, CPU and role. The
 // answers do not depend on the visitor, so one cached call serves every visitor.
 func (c *Client) Describe(ctx context.Context, repo string, assets []github.Asset) ([]FileAttrs, Usage, error) {
-	candidates := installable(assets)
+	candidates := installable(assets, true)
 	names := make([]string, len(candidates))
 	for i, a := range candidates {
 		names[i] = a.Name
@@ -102,7 +119,7 @@ func (c *Client) describe(ctx context.Context, repo string, names []string) ([]F
 		chunk := names[start:min(start+filesPerRequest, len(names))]
 		questions := make(map[string]question, 3*len(chunk))
 		for i, name := range chunk {
-			questions[fmt.Sprintf("os_%d", i)] = attrQuestion(name, "Which operating system is `file` built for?", osCriteria)
+			questions[fmt.Sprintf("os_%d", i)] = attrQuestion(name, osQuestion, osCriteria)
 			questions[fmt.Sprintf("cpu_%d", i)] = attrQuestion(name, "Which CPU is `file` built for?", cpuCriteria)
 			questions[fmt.Sprintf("role_%d", i)] = attrQuestion(name, "What is `file` in this release of `repository`? `files` lists every file in the release.", roleCriteria)
 		}
@@ -146,24 +163,43 @@ func (c *Client) Decide(ctx context.Context, repo string, assets []github.Asset,
 	if arch == picker.UnknownArch {
 		arch = picker.AMD64 // most computers; rules make the same assumption
 	}
+	inspected := map[string]github.Asset{}
+	for _, a := range assets {
+		if a.Artifact != nil && a.Artifact.Status == "inspected" && len(a.Artifact.Targets) > 0 {
+			inspected[a.Name] = a
+		}
+	}
 	wantMusl := opts.Libc == picker.LibcMusl
 	judged := make([]fileJudgment, len(attrs))
 	for i, a := range attrs {
-		native, emulated := runProbability(a, platform, arch)
+		obs, observed := inspected[a.Name]
+		if observed {
+			a = withObservedTargets(a, picker.CorrectedTargets(obs.Name, obs.Artifact.Targets))
+		}
+		native, emulated, maybe := runProbability(a, platform, arch)
+		if f := picker.FactsForAsset(github.Asset{Name: a.Name}); !observed && len(f.Platforms) == 0 && f.FormatPlatform == "" &&
+			a.OS[platformOS[platform]] < inferredOSThreshold {
+			// The OS is Jev's inference, and not a confident one: never auto-select.
+			native, emulated, maybe = 0, 0, native+emulated+maybe
+		}
 		j := fileJudgment{asset: github.Asset{Name: a.Name}, main: a.Main, rank: picker.FormatRank(a.Name, platform, opts)}
 		switch {
 		case native >= 0.5:
 			j.fit, j.fitP = fitNative, native
 		case native+emulated >= 0.5:
 			j.fit, j.fitP = fitEmulated, native+emulated
+		case native+emulated+maybe >= 0.5:
+			j.fit, j.fitP = fitMaybe, native+emulated+maybe
 		default:
-			j.fit, j.fitP = fitNone, 1-native-emulated
+			j.fit, j.fitP = fitNone, 1-native-emulated-maybe
 		}
 		// libc is spelled out in filenames, so code reads it: glibc is the default.
 		j.libcMiss = picker.FactsForAsset(j.asset).HasMusl != wantMusl
 		judged[i] = j
 	}
-	d := choose(judged)
+	d := choose(judged, func(tied []fileJudgment) (int, bool, string) {
+		return c.breakTie(ctx, repo, platform, arch, tied, &usage)
+	})
 	// Return the caller's asset (with its download URL), not our name-only copy.
 	if d.Asset != nil {
 		for i := range assets {
@@ -177,10 +213,14 @@ func (c *Client) Decide(ctx context.Context, repo string, assets []github.Asset,
 }
 
 // runProbability combines Jev's OS and CPU distributions for one visitor.
-// "CPU not stated" means x86-64 on Windows and Linux, any CPU on Android, and
-// unproven on macOS (it may be universal or arm64-only), so it is never native there.
-func runProbability(a FileAttrs, platform picker.Platform, arch picker.Arch) (native, emulated float64) {
+// "CPU not stated" means x86-64 on Windows and Linux and any CPU on Android.
+// On macOS it always runs on Apple Silicon (native, Rosetta or universal). On
+// an Intel Mac, unmarked .dmg/.pkg installers run (universal or Intel in
+// practice), but ~20% of unmarked zips and binaries were arm64-only in the
+// harvest, so those only "maybe" run.
+func runProbability(a FileAttrs, platform picker.Platform, arch picker.Arch) (native, emulated, maybe float64) {
 	pOS := a.OS[platformOS[platform]]
+	macInstaller := picker.FactsForAsset(github.Asset{Name: a.Name}).FormatPlatform == picker.MacOS
 	for option, p := range a.CPU {
 		cpu, known := cpuArch[option]
 		switch {
@@ -190,8 +230,10 @@ func runProbability(a FileAttrs, platform picker.Platform, arch picker.Arch) (na
 			native += p
 		case option == cpuNotStated && platform == picker.Android:
 			native += p
-		case option == cpuNotStated && platform == picker.MacOS:
+		case option == cpuNotStated && platform == picker.MacOS && (arch == picker.ARM64 || macInstaller):
 			emulated += p
+		case option == cpuNotStated && platform == picker.MacOS:
+			maybe += p
 		case option == cpuNotStated && (platform == picker.Windows || platform == picker.Linux):
 			cpu, known = picker.AMD64, true
 			fallthrough
@@ -203,7 +245,7 @@ func runProbability(a FileAttrs, platform picker.Platform, arch picker.Arch) (na
 			}
 		}
 	}
-	return pOS * native, pOS * emulated
+	return pOS * native, pOS * emulated, pOS * maybe
 }
 
 func cacheKey(repo string, names []string) string {
@@ -234,4 +276,91 @@ func (c *attrCache) put(key string, v []FileAttrs) {
 		c.m = map[string][]FileAttrs{}
 	}
 	c.m[key] = v
+}
+
+// tieQuestion compares near-equal files directly. Describe judges each file
+// alone, so two builds of one app look the same; a Choice compares them.
+const tieQuestion = "All `candidates` run on the `visitor`'s computer. Which one should a typical visitor download " +
+	"to install and use the main program of `repository`? Prefer the standard build over a special edition, " +
+	"and a build for a common, current system version over one for an older or niche version."
+
+// breakTie asks one Choice over the tied files in forward and reverse order
+// (Jev 1.13 leans toward the first option) and accepts the winner only when
+// both orders agree and it has a clear majority (see tieBreakMargin).
+func (c *Client) breakTie(ctx context.Context, repo string, platform picker.Platform, arch picker.Arch, tied []fileJudgment, usage *Usage) (int, bool, string) {
+	forward := make(orderedCriteria, len(tied))
+	names := make([]string, len(tied))
+	for i, j := range tied {
+		forward[i] = option{name: j.asset.Name}
+		names[i] = j.asset.Name
+	}
+	reverse := slices.Clone(forward)
+	slices.Reverse(reverse)
+	visitor := map[string]string{"operating_system": osNames[platform], "cpu": cpuNames[arch]}
+	resp, err := c.post(ctx, request{
+		Model: Model,
+		State: map[string]any{"repository": repo, "visitor": visitor, "candidates": names},
+		Questions: map[string]question{
+			"forward": {Type: "choice", Instructions: tieQuestion, Criteria: forward},
+			"reverse": {Type: "choice", Instructions: tieQuestion, Criteria: reverse},
+		},
+	})
+	if err != nil {
+		return 0, false, "jev tie-break failed: " + err.Error()
+	}
+	usage.InputTokens += resp.Usage.InputTokens
+	fwd, rev := resp.Answers["forward"], resp.Answers["reverse"]
+	best, bestP := 0, -1.0
+	for i, name := range names {
+		if p := (fwd.Probabilities[name] + rev.Probabilities[name]) / 2; p > bestP {
+			best, bestP = i, p
+		}
+	}
+	ok := fwd.Choice == rev.Choice && fwd.Choice == names[best] && bestP >= max(0.5, 1/float64(len(names))+tieBreakMargin)
+	return best, ok, fmt.Sprintf("jev tie-break among %d: %q p=%.2f agree=%v", len(names), names[best], bestP, fwd.Choice == rev.Choice)
+}
+
+// tieBreakMargin: the winner needs a majority and must beat an even split by
+// this much, and both orders must agree. Every tied file already runs on the
+// visitor's computer, so a weak but consistent preference is safe; Pake's 16
+// different apps gave ChatGPT.dmg a consistent 45%, which still abstains.
+const tieBreakMargin = 0.05
+
+var platformKey = map[string]string{
+	"macos": osMac, "windows": osWindows, "linux": osLinux, "android": osAndroid, "ios": osIOS,
+	"freebsd": osBSD, "openbsd": osBSD, "netbsd": osBSD, "dragonfly": osBSD,
+}
+
+// withObservedTargets replaces Jev's OS/CPU guesses with what Yatko's artifact
+// inspector proved from the file's contents. The role stays Jev's judgment, and
+// an unproven CPU (a Windows setup stub) keeps Jev's CPU answer.
+func withObservedTargets(a FileAttrs, targets []github.ArtifactTarget) FileAttrs {
+	osKey := ""
+	var arches []picker.Arch
+	for _, t := range targets {
+		k, ok := platformKey[t.Platform]
+		if !ok {
+			k = osOther
+		}
+		if osKey != "" && osKey != k {
+			return a // several OSes in one file: keep Jev's view
+		}
+		osKey = k
+		arches = append(arches, picker.Arch(t.Arch))
+	}
+	a.OS = map[string]float64{osKey: 1}
+	slices.Sort(arches)
+	arches = slices.Compact(arches)
+	switch {
+	case len(arches) == 2 && osKey == osMac && slices.Contains(arches, picker.AMD64) && slices.Contains(arches, picker.ARM64):
+		a.CPU = map[string]float64{cpuUniversal: 1}
+	case len(arches) == 1 && arches[0] != picker.UnknownArch && arches[0] != picker.ArchUnproven:
+		a.CPU = map[string]float64{cpuOther: 1}
+		for key, arch := range cpuArch {
+			if arch == arches[0] {
+				a.CPU = map[string]float64{key: 1}
+			}
+		}
+	}
+	return a
 }

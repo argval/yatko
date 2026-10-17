@@ -90,6 +90,8 @@ func (c *Client) InspectArtifact(ctx context.Context, asset Asset) (ArtifactMeta
 		inspect = inspectMSI
 	case strings.HasSuffix(name, ".dmg"):
 		inspect = inspectDMG
+	case strings.HasSuffix(name, ".exe"):
+		inspect = inspectEXE
 	case hasAnySuffix(name, ".tar.gz", ".tgz"):
 		inspect = tarInspector(func(r io.Reader) (io.Reader, error) { return gzip.NewReader(r) })
 	case hasAnySuffix(name, ".tar.bz2", ".tbz2", ".tbz"):
@@ -890,9 +892,8 @@ func elfArch(m elf.Machine, is64 bool) string {
 	return "elf:" + strconv.FormatUint(uint64(m), 10)
 }
 
-// readPE records machine, subsystem, and DLL/CLR flags. A PE image targets
-// Windows unless its subsystem is EFI. CLR images keep their machine constraint
-// because the CLR header alone does not establish AnyCPU support.
+// readPE records machine, hybrid metadata, subsystem, and DLL/CLR flags.
+// Windows is assumed except for EFI. CPU-neutral IL needs validated CLR metadata.
 func readPE(r io.ReaderAt, m *ArtifactMetadata, at string) (bool, error) {
 	dos := make([]byte, 64)
 	if n, _ := r.ReadAt(dos, 0); n < 64 {
@@ -915,6 +916,7 @@ func readPE(r io.ReaderAt, m *ArtifactMetadata, at string) (bool, error) {
 	if target.Arch == "" {
 		target.Arch = fmt.Sprintf("pe:0x%x", machine)
 	}
+	anyCPU := false
 	if len(opt) >= 70 {
 		subsystem := binary.LittleEndian.Uint16(opt[68:])
 		note(m, at, "pe.subsystem", strconv.Itoa(int(subsystem)))
@@ -927,7 +929,17 @@ func readPE(r io.ReaderAt, m *ArtifactMetadata, at string) (bool, error) {
 		}
 		if clr := dd + 14*8; len(opt) >= clr+8 && binary.LittleEndian.Uint32(opt[clr:]) != 0 {
 			note(m, at, "pe.clr", "present")
-			// CLR presence does not prove AnyCPU; 32BITREQUIRED may still constrain x86.
+			if target.Platform == "windows" {
+				anyCPU = peCLR(r, lfanew, h[:24], opt, m, at)
+			}
+		}
+	}
+	if target.Platform == "windows" && (machine == 0x8664 || machine == 0xaa64) {
+		if hybrid := peHybrid(r, lfanew, h[:24], opt); hybrid != "" {
+			note(m, at, "pe.hybrid", hybrid)
+			if hybrid == "arm64ec" || hybrid == "arm64x" {
+				target.Arch = "arm64"
+			}
 		}
 	}
 	if chars&0x2000 == 0 && chars&0x0002 != 0 {
@@ -935,11 +947,17 @@ func readPE(r io.ReaderAt, m *ArtifactMetadata, at string) (bool, error) {
 	} else {
 		observeRole(m, "metadata")
 	}
-	addTarget(m, target)
+	if anyCPU {
+		for _, arch := range []string{"386", "amd64", "arm64"} {
+			addTarget(m, ArtifactTarget{Platform: "windows", Arch: arch})
+		}
+	} else {
+		addTarget(m, target)
+	}
 	return true, nil
 }
 
-var peArch = map[uint16]string{0x8664: "amd64", 0xaa64: "arm64", 0xa641: "arm64", 0x14c: "386", 0x1c4: "arm", 0x5064: "riscv64"}
+var peArch = map[uint16]string{0x8664: "amd64", 0xaa64: "arm64", 0x14c: "386", 0x1c4: "arm", 0x5064: "riscv64"}
 
 func machoOrder(b []byte) binary.ByteOrder {
 	switch binary.LittleEndian.Uint32(b) {

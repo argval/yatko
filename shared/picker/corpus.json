@@ -1690,35 +1690,71 @@
         {
           "platform": "macos",
           "arch": "amd64",
-          "asset": null,
-          "reason": "Several feature variants have equal target and format evidence."
+          "asset": "zellij-x86_64-apple-darwin.tar.gz",
+          "reason": "The full build is the standard download; no-web is a reduced variant.",
+          "knownMiss": true
         },
         {
           "platform": "macos",
           "arch": "arm64",
-          "asset": null,
-          "reason": "Several feature variants have equal target and format evidence."
+          "asset": "zellij-aarch64-apple-darwin.tar.gz",
+          "reason": "The full build is the standard download; no-web is a reduced variant.",
+          "knownMiss": true
         },
         {
           "platform": "windows",
           "arch": "amd64",
-          "asset": null,
-          "reason": "Several feature variants have equal target and format evidence."
+          "asset": "zellij-x86_64-pc-windows-msvc-installer.msi",
+          "reason": "The full build is the standard download; no-web is a reduced variant.",
+          "knownMiss": true
         },
         {
           "platform": "linux",
           "arch": "amd64",
-          "asset": null,
-          "reason": "Several feature variants have equal target and format evidence."
+          "asset": "zellij-x86_64-unknown-linux-musl.tar.gz",
+          "reason": "The full build is the standard download; no-web is a reduced variant.",
+          "knownMiss": true
         },
         {
           "platform": "linux",
           "arch": "arm64",
-          "asset": null,
-          "reason": "Several feature variants have equal target and format evidence."
+          "asset": "zellij-aarch64-unknown-linux-musl.tar.gz",
+          "reason": "The full build is the standard download; no-web is a reduced variant.",
+          "knownMiss": true
         }
       ],
-      "targetLabels": {}
+      "targetLabels": {
+        "zellij-x86_64-apple-darwin.tar.gz": [
+          {
+            "platform": "macos",
+            "arch": "amd64"
+          }
+        ],
+        "zellij-aarch64-apple-darwin.tar.gz": [
+          {
+            "platform": "macos",
+            "arch": "arm64"
+          }
+        ],
+        "zellij-x86_64-pc-windows-msvc-installer.msi": [
+          {
+            "platform": "windows",
+            "arch": "amd64"
+          }
+        ],
+        "zellij-x86_64-unknown-linux-musl.tar.gz": [
+          {
+            "platform": "linux",
+            "arch": "amd64"
+          }
+        ],
+        "zellij-aarch64-unknown-linux-musl.tar.gz": [
+          {
+            "platform": "linux",
+            "arch": "arm64"
+          }
+        ]
+      }
     },
     {
       "repo": "lencx/ChatGPT",

@@ -35,11 +35,26 @@ func (h *RedirectHandler) enrichArtifacts(parent context.Context, assets []githu
 		} // Keep valid observations when another manifest fails.
 		return m, "", false, err
 	})
-	type probe struct{ i, rank int }
-	var queue []probe
 	for i := range assets {
 		if m, ok := metadata[assets[i].Name]; ok {
 			assets[i].Artifact = &m
+		}
+	}
+	scans := h.scanArtifacts(parent, assets)
+	authoritative := make([]bool, len(assets))
+	type probe struct{ i, rank int }
+	var queue []probe
+	for i := range assets {
+		if record, ok := scans[assets[i].BrowserDownloadURL]; ok && artifactIdentity(record.Asset) == artifactIdentity(assets[i]) && record.Ready() {
+			observed := *record.Metadata
+			if authoritativeScanMetadata(observed) {
+				if assets[i].Artifact != nil {
+					observed = github.MergeObservations(*assets[i].Artifact, observed)
+				}
+				assets[i].Artifact = &observed
+				authoritative[i] = true
+				continue
+			}
 		}
 		if rank, ok := inspectionRank(assets[i]); ok {
 			queue = append(queue, probe{i, rank})
@@ -55,7 +70,7 @@ func (h *RedirectHandler) enrichArtifacts(parent context.Context, assets []githu
 			break
 		}
 		a := assets[p.i]
-		k := fmt.Sprintf("artifact-content:v2:%x", sha256.Sum256([]byte(artifactIdentity(a))))
+		k := fmt.Sprintf("artifact-content:v3:%x", sha256.Sum256([]byte(artifactIdentity(a))))
 		observed, hit := cache.GetCached[github.ArtifactMetadata](ctx, h.cache, k)
 		if !hit {
 			if probes == 4 {
@@ -67,19 +82,22 @@ func (h *RedirectHandler) enrichArtifacts(parent context.Context, assets []githu
 				m, err := h.gh.InspectArtifact(ctx, a)
 				return m, "", false, err
 			})
-			if err != nil && (errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) || ctx.Err() != nil) {
-				continue // A timeout says nothing about the file; keep filename/manifest facts.
+			if err != nil && (!errors.Is(err, github.ErrMalformedArtifact) || ctx.Err() != nil) {
+				continue // A transport failure says nothing about the file; keep fast facts.
 			}
 			if err != nil {
 				observed = github.ArtifactMetadata{Status: "failed", Role: "unknown"}
 			}
 		}
 		if a.Artifact != nil {
-			observed = mergeObservations(*a.Artifact, observed)
+			observed = github.MergeObservations(*a.Artifact, observed)
 		}
 		assets[p.i].Artifact = &observed
 	}
 	for i := range assets {
+		if record, ok := scans[assets[i].BrowserDownloadURL]; ok && artifactIdentity(record.Asset) == artifactIdentity(assets[i]) && record.Ready() && !authoritative[i] {
+			appendScanEvidence(&assets[i], *record.Metadata)
+		}
 		m := picker.DescribeAsset(assets[i])
 		assets[i].Artifact = &m
 	}
@@ -102,65 +120,4 @@ func inspectionRank(a github.Asset) (int, bool) {
 		return 2, true
 	}
 	return 0, false
-}
-
-// mergeObservations intersects corroborating targets and preserves contradictions.
-func mergeObservations(a, b github.ArtifactMetadata) github.ArtifactMetadata {
-	out := a
-	out.Evidence = slices.Clone(a.Evidence)
-	out.Conflicts = slices.Clone(a.Conflicts)
-	for _, e := range b.Evidence {
-		if !slices.Contains(out.Evidence, e) {
-			out.Evidence = append(out.Evidence, e)
-		}
-	}
-	out.Conflicts = append(out.Conflicts, b.Conflicts...)
-	if out.Role == "" || out.Role == "unknown" {
-		out.Role = b.Role
-	} else if b.Role != "" && b.Role != "unknown" && out.Role != b.Role {
-		// Installer/application describe the same runnable payload at different layers.
-		if !((out.Role == "installer" && b.Role == "application") || (out.Role == "application" && b.Role == "installer")) {
-			out.Conflicts = append(out.Conflicts, "publisher role conflicts with file contents")
-		}
-	}
-	if len(out.Targets) == 0 {
-		out.Targets = b.Targets
-	} else if len(b.Targets) > 0 {
-		var combined []github.ArtifactTarget
-		for _, x := range out.Targets {
-			for _, y := range b.Targets {
-				if x.Platform != "" && y.Platform != "" && x.Platform != y.Platform {
-					continue
-				}
-				if x.Arch != "" && y.Arch != "" && x.Arch != y.Arch {
-					continue
-				}
-				if x.Libc != "" && y.Libc != "" && x.Libc != y.Libc && x.Libc != "static" && y.Libc != "static" {
-					continue
-				}
-				merged := x
-				if merged.Platform == "" {
-					merged.Platform = y.Platform
-				}
-				if merged.Arch == "" {
-					merged.Arch = y.Arch
-				}
-				if merged.Libc == "" {
-					merged.Libc = y.Libc
-				}
-				if !slices.Contains(combined, merged) {
-					combined = append(combined, merged)
-				}
-			}
-		}
-		if len(combined) == 0 {
-			out.Conflicts = append(out.Conflicts, "publisher targets conflict with file contents")
-		} else {
-			out.Targets = combined
-		}
-	}
-	if b.Status == "failed" || b.Status == "inspected" || out.Status == "" || out.Status == "unknown" {
-		out.Status = b.Status
-	}
-	return out
 }

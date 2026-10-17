@@ -326,6 +326,12 @@ func parseElectronUpdate(source string, data []byte, target ArtifactTarget, inv 
 		if !ok {
 			return
 		}
+		// Some publishers list every platform's files in one channel file
+		// (AFFiNE's latest.yml names its .dmg and .deb). The channel's OS
+		// only describes files that do not name another OS themselves.
+		if os := namedDesktopOS(name); os != "" && os != t.Platform {
+			return
+		}
 		m := ArtifactMetadata{Role: "unknown", Status: "inspected", Targets: []ArtifactTarget{t},
 			Evidence: []ArtifactEvidence{{Source: source, Field: field, Value: ref}}}
 		mergeManifestFact(out, name, m)
@@ -344,4 +350,31 @@ func parseElectronUpdate(source string, data []byte, target ArtifactTarget, inv 
 		add("packages."+arch+".path", p.Path, t)
 	}
 	return out, nil
+}
+
+// namedDesktopOS is the desktop OS a filename states through its format or a
+// bounded OS token, or "" when it states none. It only rejects manifest claims.
+func namedDesktopOS(name string) string {
+	n := strings.ToLower(name)
+	for os, suffixes := range map[string][]string{
+		"macos":   {".dmg", ".pkg"},
+		"linux":   {".deb", ".rpm", ".appimage", ".flatpak", ".snap"},
+		"windows": {".exe", ".msi", ".msix", ".appx"},
+	} {
+		if hasAnySuffix(n, suffixes...) {
+			return os
+		}
+	}
+	tokens := strings.FieldsFunc(n, func(r rune) bool { return !('a' <= r && r <= 'z' || '0' <= r && r <= '9') })
+	for _, tok := range tokens {
+		switch tok {
+		case "mac", "macos", "osx", "darwin":
+			return "macos"
+		case "linux":
+			return "linux"
+		case "win", "windows", "win32", "win64":
+			return "windows"
+		}
+	}
+	return ""
 }

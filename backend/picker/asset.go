@@ -223,6 +223,23 @@ func ResolveLibc(param string) Libc {
 
 // extRankFor returns the platform extension rank for name. When prefer matches
 // the asset's extension, rank is -1 so it beats the default order.
+// FormatRank is DecideAsset's installer-format preference for one filename:
+// lower is better, -1 for the ?prefer= format, and unknown formats (bare
+// binaries) rank last. Model-backed pickers use it to share one format policy.
+func FormatRank(name string, platform Platform, opts PickOpts) int {
+	exts, ok := platformExts(platform)
+	if !ok {
+		return 0
+	}
+	if platform == Linux && opts.Prefer == "" && opts.UserAgent != "" {
+		exts = linuxExtensionsForUA(opts.UserAgent)
+	}
+	if rank, ok := extRankFor(canonicalizeName(name), exts, ResolvePrefer(opts.Prefer)); ok {
+		return rank
+	}
+	return len(exts)
+}
+
 func extRankFor(name string, exts []string, prefer string) (rank int, ok bool) {
 	for i, ext := range exts {
 		low := strings.ToLower(ext)

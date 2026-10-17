@@ -5,19 +5,38 @@ import (
 	"log"
 	"net/http"
 	"slices"
+	"sync"
 
+	"github.com/argval/yatko/artifactscan"
 	"github.com/argval/yatko/cache"
 	"github.com/argval/yatko/github"
+	"github.com/argval/yatko/jev"
 	"github.com/gin-gonic/gin"
 )
 
 type RedirectHandler struct {
 	gh    *github.Client
 	cache *cache.Cache
+	// ScanStore adds durable full-file evidence; nil keeps inspection disabled.
+	ScanStore *artifactscan.Store
+	// Primary makes Jev the main decider, with the rule picker as fallback; nil keeps the rules.
+	Primary *jev.Primary
+
+	// Shadow, when set, runs next to the rule picker for logs only (see shadow.go).
+	Shadow      ShadowDecider
+	shadowMu    sync.Mutex
+	shadowSeen  map[string]struct{}
+	shadowSlots chan struct{}
+	shadowWG    sync.WaitGroup
 }
 
 func NewRedirectHandler(gh *github.Client, c *cache.Cache) *RedirectHandler {
-	return &RedirectHandler{gh: gh, cache: c}
+	return &RedirectHandler{
+		gh:          gh,
+		cache:       c,
+		shadowSeen:  make(map[string]struct{}),
+		shadowSlots: make(chan struct{}, maxShadowInFlight),
+	}
 }
 
 func (h *RedirectHandler) Handle(c *gin.Context) {
@@ -37,7 +56,8 @@ func (h *RedirectHandler) handle(c *gin.Context, owner, repo, version string) {
 		return
 	}
 
-	p := pickReleaseAsset(c, release.Assets)
+	p := h.pick(c, owner, repo, release.Assets)
+	h.startShadow(c, owner, repo, release, p)
 	if !p.Decision.ShouldAutoSelect() {
 		respondDownloadMiss(c, owner, repo, release, p)
 		return

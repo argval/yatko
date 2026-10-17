@@ -87,3 +87,29 @@ func TestLoadHarvestManifestSnapshot(t *testing.T) {
 		t.Fatal("ignored invalid manifest snapshot")
 	}
 }
+
+// A proven full-file result replaces the setup-stub label; an unknown one
+// keeps the content facts, as /dl does.
+func TestHarvestDeepEvidencePrecedence(t *testing.T) {
+	stub := []github.ArtifactTarget{{Platform: "windows", Arch: "386"}}
+	a := HarvestAsset{Name: "App-Setup.exe", Status: "inspected", Targets: stub,
+		Deep: &github.ArtifactMetadata{Status: "inspected", Role: "application", Targets: []github.ArtifactTarget{{Platform: "windows", Arch: "amd64"}, {Platform: "windows", Arch: "arm64"}}}}
+	if fit, _ := fit(a, Windows, ARM64); fit != 2 {
+		t.Fatalf("proven deep arm64 payload does not fit arm64: %d", fit)
+	}
+	a.Deep = &github.ArtifactMetadata{Status: "unknown", Role: "unknown"}
+	if !slices.Equal(a.labelTargets(), stub) {
+		t.Fatalf("unknown deep result erased content facts: %+v", a.labelTargets())
+	}
+}
+
+// The setup-stub rule is for shallow reads; a proven 32-bit payload stays 32-bit.
+func TestCorrectedTargetsTrustsPayloadCPU(t *testing.T) {
+	x86 := []github.ArtifactTarget{{Platform: "windows", Arch: "386"}}
+	if got := CorrectedTargets("cmder.zip", x86, false); got[0].Arch != string(ArchUnproven) {
+		t.Fatalf("shallow x86 label should be unproven, got %+v", got)
+	}
+	if got := CorrectedTargets("cmder.zip", x86, true); got[0].Arch != string(X86) {
+		t.Fatalf("payload x86 label should stay 386, got %+v", got)
+	}
+}

@@ -183,7 +183,8 @@ func (c *Client) Decide(ctx context.Context, repo string, assets []github.Asset,
 		obs, observed := inspected[a.Name]
 		switch {
 		case observed:
-			a = withObservedTargets(a, picker.CorrectedTargets(obs.Name, obs.Artifact.Targets))
+			payload := slices.ContainsFunc(obs.Artifact.Evidence, func(e github.ArtifactEvidence) bool { return e.Source == "deep-inspection" })
+			a = withObservedTargets(a, picker.CorrectedTargets(obs.Name, obs.Artifact.Targets, payload))
 		case appBundle(a.Name):
 			// Code knows this one: both Jev versions read Tauri's
 			// Name_x64.app.tar.gz as Linux.

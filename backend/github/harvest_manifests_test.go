@@ -65,8 +65,12 @@ func TestSnapshotHarvestManifests(t *testing.T) {
 		}
 		facts, err := c.ReleaseMetadata(ctx, rel.Assets)
 		cancel()
-		if err != nil {
+		switch {
+		case err != nil && len(facts) == 0:
 			t.Errorf("%s@%s: %v", r.repo, r.tag, err)
+		case err != nil:
+			// Like /dl: one malformed manifest keeps the other manifests' facts.
+			t.Logf("%s@%s: kept valid facts despite: %v", r.repo, r.tag, err)
 		}
 		if len(facts) > 0 {
 			out[r.repo+"@"+r.tag] = facts

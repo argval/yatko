@@ -35,11 +35,26 @@ func (h *RedirectHandler) enrichArtifacts(parent context.Context, assets []githu
 		} // Keep valid observations when another manifest fails.
 		return m, "", false, err
 	})
-	type probe struct{ i, rank int }
-	var queue []probe
 	for i := range assets {
 		if m, ok := metadata[assets[i].Name]; ok {
 			assets[i].Artifact = &m
+		}
+	}
+	scans := h.scanArtifacts(parent, assets)
+	authoritative := make([]bool, len(assets))
+	type probe struct{ i, rank int }
+	var queue []probe
+	for i := range assets {
+		if record, ok := scans[assets[i].BrowserDownloadURL]; ok && artifactIdentity(record.Asset) == artifactIdentity(assets[i]) && record.Ready() {
+			observed := *record.Metadata
+			if authoritativeScanMetadata(observed) {
+				if assets[i].Artifact != nil {
+					observed = github.MergeObservations(*assets[i].Artifact, observed)
+				}
+				assets[i].Artifact = &observed
+				authoritative[i] = true
+				continue
+			}
 		}
 		if rank, ok := inspectionRank(assets[i]); ok {
 			queue = append(queue, probe{i, rank})
@@ -67,8 +82,8 @@ func (h *RedirectHandler) enrichArtifacts(parent context.Context, assets []githu
 				m, err := h.gh.InspectArtifact(ctx, a)
 				return m, "", false, err
 			})
-			if err != nil && (errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) || ctx.Err() != nil) {
-				continue // A timeout says nothing about the file; keep filename/manifest facts.
+			if err != nil && (!errors.Is(err, github.ErrMalformedArtifact) || ctx.Err() != nil) {
+				continue // A transport failure says nothing about the file; keep fast facts.
 			}
 			if err != nil {
 				observed = github.ArtifactMetadata{Status: "failed", Role: "unknown"}
@@ -80,6 +95,9 @@ func (h *RedirectHandler) enrichArtifacts(parent context.Context, assets []githu
 		assets[p.i].Artifact = &observed
 	}
 	for i := range assets {
+		if record, ok := scans[assets[i].BrowserDownloadURL]; ok && artifactIdentity(record.Asset) == artifactIdentity(assets[i]) && record.Ready() && !authoritative[i] {
+			appendScanEvidence(&assets[i], *record.Metadata)
+		}
 		m := picker.DescribeAsset(assets[i])
 		assets[i].Artifact = &m
 	}

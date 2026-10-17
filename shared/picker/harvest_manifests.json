@@ -19466,9 +19466,6 @@
     {
      "platform": "linux",
      "arch": "amd64"
-    },
-    {
-     "platform": "windows"
     }
    ],
    "role": "unknown",
@@ -19477,26 +19474,15 @@
      "source": "latest-linux.yml",
      "field": "files.url",
      "value": "affine-0.27.4-stable-linux-x64.appimage"
-    },
-    {
-     "source": "latest.yml",
-     "field": "files.url",
-     "value": "affine-0.27.4-stable-linux-x64.appimage"
     }
    ],
-   "status": "inspected",
-   "conflicts": [
-    "manifests disagree on platform: [linux] vs [windows]"
-   ]
+   "status": "inspected"
   },
   "affine-0.27.4-stable-linux-x64.deb": {
    "targets": [
     {
      "platform": "linux",
      "arch": "amd64"
-    },
-    {
-     "platform": "windows"
     }
    ],
    "role": "unknown",
@@ -19505,26 +19491,15 @@
      "source": "latest-linux.yml",
      "field": "files.url",
      "value": "affine-0.27.4-stable-linux-x64.deb"
-    },
-    {
-     "source": "latest.yml",
-     "field": "files.url",
-     "value": "affine-0.27.4-stable-linux-x64.deb"
     }
    ],
-   "status": "inspected",
-   "conflicts": [
-    "manifests disagree on platform: [linux] vs [windows]"
-   ]
+   "status": "inspected"
   },
   "affine-0.27.4-stable-linux-x64.flatpak": {
    "targets": [
     {
      "platform": "linux",
      "arch": "amd64"
-    },
-    {
-     "platform": "windows"
     }
    ],
    "role": "unknown",
@@ -19533,26 +19508,15 @@
      "source": "latest-linux.yml",
      "field": "files.url",
      "value": "affine-0.27.4-stable-linux-x64.flatpak"
-    },
-    {
-     "source": "latest.yml",
-     "field": "files.url",
-     "value": "affine-0.27.4-stable-linux-x64.flatpak"
     }
    ],
-   "status": "inspected",
-   "conflicts": [
-    "manifests disagree on platform: [linux] vs [windows]"
-   ]
+   "status": "inspected"
   },
   "affine-0.27.4-stable-linux-x64.zip": {
    "targets": [
     {
      "platform": "linux",
      "arch": "amd64"
-    },
-    {
-     "platform": "windows"
     }
    ],
    "role": "unknown",
@@ -19561,25 +19525,14 @@
      "source": "latest-linux.yml",
      "field": "files.url",
      "value": "affine-0.27.4-stable-linux-x64.zip"
-    },
-    {
-     "source": "latest.yml",
-     "field": "files.url",
-     "value": "affine-0.27.4-stable-linux-x64.zip"
     }
    ],
-   "status": "inspected",
-   "conflicts": [
-    "manifests disagree on platform: [linux] vs [windows]"
-   ]
+   "status": "inspected"
   },
   "affine-0.27.4-stable-macos-arm64.dmg": {
    "targets": [
     {
      "platform": "macos"
-    },
-    {
-     "platform": "windows"
     }
    ],
    "role": "unknown",
@@ -19588,25 +19541,14 @@
      "source": "latest-mac.yml",
      "field": "files.url",
      "value": "affine-0.27.4-stable-macos-arm64.dmg"
-    },
-    {
-     "source": "latest.yml",
-     "field": "files.url",
-     "value": "affine-0.27.4-stable-macos-arm64.dmg"
     }
    ],
-   "status": "inspected",
-   "conflicts": [
-    "manifests disagree on platform: [macos] vs [windows]"
-   ]
+   "status": "inspected"
   },
   "affine-0.27.4-stable-macos-arm64.zip": {
    "targets": [
     {
      "platform": "macos"
-    },
-    {
-     "platform": "windows"
     }
    ],
    "role": "unknown",
@@ -19615,25 +19557,14 @@
      "source": "latest-mac.yml",
      "field": "files.url",
      "value": "affine-0.27.4-stable-macos-arm64.zip"
-    },
-    {
-     "source": "latest.yml",
-     "field": "files.url",
-     "value": "affine-0.27.4-stable-macos-arm64.zip"
     }
    ],
-   "status": "inspected",
-   "conflicts": [
-    "manifests disagree on platform: [macos] vs [windows]"
-   ]
+   "status": "inspected"
   },
   "affine-0.27.4-stable-macos-x64.dmg": {
    "targets": [
     {
      "platform": "macos"
-    },
-    {
-     "platform": "windows"
     }
    ],
    "role": "unknown",
@@ -19642,25 +19573,14 @@
      "source": "latest-mac.yml",
      "field": "files.url",
      "value": "affine-0.27.4-stable-macos-x64.dmg"
-    },
-    {
-     "source": "latest.yml",
-     "field": "files.url",
-     "value": "affine-0.27.4-stable-macos-x64.dmg"
     }
    ],
-   "status": "inspected",
-   "conflicts": [
-    "manifests disagree on platform: [macos] vs [windows]"
-   ]
+   "status": "inspected"
   },
   "affine-0.27.4-stable-macos-x64.zip": {
    "targets": [
     {
      "platform": "macos"
-    },
-    {
-     "platform": "windows"
     }
    ],
    "role": "unknown",
@@ -19669,17 +19589,9 @@
      "source": "latest-mac.yml",
      "field": "files.url",
      "value": "affine-0.27.4-stable-macos-x64.zip"
-    },
-    {
-     "source": "latest.yml",
-     "field": "files.url",
-     "value": "affine-0.27.4-stable-macos-x64.zip"
     }
    ],
-   "status": "inspected",
-   "conflicts": [
-    "manifests disagree on platform: [macos] vs [windows]"
-   ]
+   "status": "inspected"
   },
   "affine-0.27.4-stable-windows-arm64.exe": {
    "targets": [

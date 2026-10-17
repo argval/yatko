@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/argval/yatko/artifactscan"
 	"github.com/argval/yatko/cache"
 	"github.com/argval/yatko/github"
 	"github.com/argval/yatko/handlers"
@@ -33,6 +34,12 @@ func main() {
 	limiter := ratelimit.New()
 
 	redirectHandler := handlers.NewRedirectHandler(ghClient, redisCache)
+	scanStore, closeScanStore, err := artifactscan.OpenFromEnv(github.DeepInspectorVersion)
+	if err != nil {
+		log.Fatalf("artifact scan configuration: %v", err)
+	}
+	defer closeScanStore()
+	redirectHandler.ScanStore = scanStore
 	// Jev shadow mode is opt-in and log-only: it never changes a response.
 	if os.Getenv("JEV_SHADOW") == "1" {
 		if jc := jev.NewClientFromEnv(); jc != nil {

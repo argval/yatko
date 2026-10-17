@@ -44,12 +44,12 @@ func TestRunProbabilityPolicy(t *testing.T) {
 // Inspected targets override Jev's guess, with the setup-stub CPU left to Jev.
 func TestWithObservedTargets(t *testing.T) {
 	guess := FileAttrs{Name: "App-x64.zip", OS: map[string]float64{osWindows: 0.9}, CPU: map[string]float64{cpuAMD64: 1}, Main: 0.9}
-	got := withObservedTargets(guess, picker.CorrectedTargets(guess.Name, []github.ArtifactTarget{{Platform: "macos", Arch: "amd64"}}))
+	got := withObservedTargets(guess, picker.CorrectedTargets(guess.Name, []github.ArtifactTarget{{Platform: "macos", Arch: "amd64"}}, false))
 	if got.OS[osMac] != 1 || got.CPU[cpuAMD64] != 1 || got.Main != 0.9 {
 		t.Fatalf("observed macOS zip: %+v", got)
 	}
 	stub := FileAttrs{Name: "App-Setup-x64.exe", OS: map[string]float64{osWindows: 1}, CPU: map[string]float64{cpuAMD64: 1}}
-	got = withObservedTargets(stub, picker.CorrectedTargets(stub.Name, []github.ArtifactTarget{{Platform: "windows", Arch: "386"}}))
+	got = withObservedTargets(stub, picker.CorrectedTargets(stub.Name, []github.ArtifactTarget{{Platform: "windows", Arch: "386"}}, false))
 	if got.CPU[cpuAMD64] != 1 {
 		t.Fatalf("setup stub must keep Jev's CPU, got %+v", got.CPU)
 	}
@@ -130,7 +130,7 @@ func inspectedLabel(a picker.HarvestAsset) (osKey, cpuKey string) {
 	if len(obs.Conflicts) > 0 || obs.Status == "failed" {
 		return "", ""
 	}
-	targets := picker.CorrectedTargets(a.Name, obs.Targets)
+	targets := picker.CorrectedTargets(a.Name, obs.Targets, a.FromPayload())
 	if len(targets) == 0 {
 		return "", ""
 	}

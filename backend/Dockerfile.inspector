@@ -1,0 +1,53 @@
+# syntax=docker/dockerfile:1
+
+FROM golang:1.25.1-bookworm AS go-builder
+WORKDIR /source
+COPY go.mod go.sum ./
+RUN --mount=type=cache,target=/go/pkg/mod go mod download
+COPY cmd/artifactscan ./cmd/artifactscan
+COPY artifactscan ./artifactscan
+COPY github ./github
+RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
+    mkdir -p /out && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/artifactscan ./cmd/artifactscan
+
+FROM rust:1.97.1-slim-bookworm@sha256:2775a09d208ff0d7c1f50490c45b62db929e87ba1dcbc3f2132ac71a704bcdd3 AS inno-builder
+WORKDIR /source
+COPY tools/inno-inspect ./
+RUN --mount=type=cache,target=/usr/local/cargo/registry --mount=type=cache,target=/usr/local/cargo/git \
+    cargo build --release --locked
+
+FROM debian:bookworm-slim AS sevenzip
+ARG TARGETARCH
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl xz-utils \
+    && rm -rf /var/lib/apt/lists/*
+RUN set -eu; \
+    case "$TARGETARCH" in \
+      arm64) archive=7z2604-linux-arm64.tar.xz; checksum=5b0ac3aa91c1e3499f011d6af69d7f6b4de3ef2f011d9e2ff44c58ebd04aa388 ;; \
+      amd64) archive=7z2604-linux-x64.tar.xz; checksum=fc0327ba27e89bd086cf426dff17d77de582953cdbbc10a6576540a06853ffcd ;; \
+      *) echo "unsupported inspector architecture: $TARGETARCH" >&2; exit 1 ;; \
+    esac; \
+    curl --fail --silent --show-error --location --connect-timeout 20 --max-time 120 \
+      --retry 2 --proto '=https' --tlsv1.2 \
+      "https://github.com/ip7z/7zip/releases/download/26.04/$archive" -o /tmp/7zip.tar.xz; \
+    echo "$checksum  /tmp/7zip.tar.xz" | sha256sum --check -; \
+    mkdir /out; \
+    tar -xJf /tmp/7zip.tar.xz -C /out; \
+    install -m 0755 /out/7zzs /out/7zz-static
+
+FROM debian:bookworm-slim
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates libgcc-s1 \
+    && rm -rf /var/lib/apt/lists/* \
+    && mkdir -p /data \
+    && chown 65532:65532 /data
+COPY --from=go-builder /out/artifactscan /usr/local/bin/artifactscan
+COPY --from=inno-builder /source/target/release/inno-inspect /usr/local/bin/inno-inspect
+COPY --from=inno-builder /source/LICENSE /usr/share/doc/inno-inspect/LICENSE
+COPY --from=inno-builder /source/INNO-LICENSE-MIT /usr/share/doc/inno-inspect/INNO-LICENSE-MIT
+COPY --from=sevenzip /out/7zz-static /usr/local/bin/7zz
+COPY --from=sevenzip /out/License.txt /usr/share/doc/7zip/License.txt
+ENV ARTIFACT_SCAN_7ZIP=/usr/local/bin/7zz \
+    ARTIFACT_SCAN_INNO=/usr/local/bin/inno-inspect
+USER 65532:65532
+WORKDIR /data
+ENTRYPOINT ["artifactscan"]
+CMD ["worker"]

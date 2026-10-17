@@ -7,6 +7,7 @@ import (
 	"slices"
 	"sync"
 
+	"github.com/argval/yatko/artifactscan"
 	"github.com/argval/yatko/cache"
 	"github.com/argval/yatko/github"
 	"github.com/gin-gonic/gin"
@@ -15,6 +16,8 @@ import (
 type RedirectHandler struct {
 	gh    *github.Client
 	cache *cache.Cache
+	// ScanStore adds durable full-file evidence; nil keeps inspection disabled.
+	ScanStore *artifactscan.Store
 
 	// Shadow, when set, runs next to the rule picker for logs only (see shadow.go).
 	Shadow      ShadowDecider

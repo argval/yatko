@@ -25,13 +25,35 @@ type HarvestAsset struct {
 	Targets []github.ArtifactTarget `json:"targets"`
 	// Manifest holds publisher manifest facts (harvest_manifests.json), if any.
 	Manifest *github.ArtifactMetadata `json:"-"`
+	// Deep holds full-file inspection facts (harvest_deep.json), if any.
+	Deep *github.ArtifactMetadata `json:"-"`
+}
+
+// deepAuthoritative mirrors handlers.authoritativeScanMetadata: a full-file
+// result settles the asset when it proves OS and CPU, or proves it unusable.
+func deepAuthoritative(m github.ArtifactMetadata) bool {
+	if m.Status == "failed" {
+		return true
+	}
+	if m.Status != "inspected" {
+		return false
+	}
+	if m.Role == "source" || m.Role == "metadata" || m.Role == "debug" {
+		return true
+	}
+	return len(m.Targets) > 0 && !slices.ContainsFunc(m.Targets, func(t github.ArtifactTarget) bool { return t.Platform == "" || t.Arch == "" })
 }
 
 // Observed combines publisher manifest facts with content inspection the way
-// /dl does (github.MergeObservations). ok is false when neither exists.
+// /dl does (github.MergeObservations). An authoritative full-file result
+// replaces the shallow content read. ok is false when no evidence exists.
 func (a HarvestAsset) Observed() (m github.ArtifactMetadata, ok bool) {
 	content := a.Status == "inspected" || a.Status == "failed"
 	switch {
+	case a.Deep != nil && deepAuthoritative(*a.Deep) && a.Manifest != nil:
+		return github.MergeObservations(*a.Manifest, *a.Deep), true
+	case a.Deep != nil && deepAuthoritative(*a.Deep):
+		return *a.Deep, true
 	case a.Manifest != nil && content:
 		return github.MergeObservations(*a.Manifest, github.ArtifactMetadata{Status: a.Status, Targets: a.Targets}), true
 	case a.Manifest != nil:
@@ -40,6 +62,12 @@ func (a HarvestAsset) Observed() (m github.ArtifactMetadata, ok bool) {
 		return github.ArtifactMetadata{Status: a.Status, Targets: a.Targets}, true
 	}
 	return m, false
+}
+
+// FromPayload reports whether the asset's labels come from an authoritative
+// full-file read of the app payload rather than a shallow header read.
+func (a HarvestAsset) FromPayload() bool {
+	return a.Deep != nil && deepAuthoritative(*a.Deep)
 }
 
 // labelTargets are the targets the scorer trusts: file contents, corroborated
@@ -76,7 +104,8 @@ var HarvestVisitors = []struct {
 }
 
 // LoadHarvest reads shared/picker/harvest.jsonl, keeping release order, and
-// attaches publisher manifest facts from harvest_manifests.json beside it.
+// attaches publisher manifest facts (harvest_manifests.json) and full-file
+// inspection facts (harvest_deep.json) from the same directory.
 func LoadHarvest(path string) ([]HarvestRelease, error) {
 	manifests := map[string]map[string]github.ArtifactMetadata{}
 	if data, err := os.ReadFile(filepath.Join(filepath.Dir(path), "harvest_manifests.json")); err == nil {
@@ -84,6 +113,10 @@ func LoadHarvest(path string) ([]HarvestRelease, error) {
 			return nil, err
 		}
 	} else if !os.IsNotExist(err) {
+		return nil, err
+	}
+	deep, err := loadDeepReport(filepath.Join(filepath.Dir(path), "harvest_deep.json"))
+	if err != nil {
 		return nil, err
 	}
 	f, err := os.Open(path)
@@ -103,6 +136,9 @@ func LoadHarvest(path string) ([]HarvestRelease, error) {
 		key := a.Repo + "@" + a.Tag
 		if m, ok := manifests[key][a.Name]; ok {
 			a.Manifest = &m
+		}
+		if m, ok := deep[key][a.Name]; ok {
+			a.Deep = &m
 		}
 		i, ok := index[key]
 		if !ok {
@@ -153,11 +189,12 @@ const ArchUnproven Arch = "unproven"
 //     filename names, else Linux (Linux binaries use the default ELF OS ABI).
 //   - On Windows, a 32-bit x86 label on a file whose name names no CPU or
 //     another CPU is usually the setup stub, and an x64 label on an arm64(ec)
-//     name is a hybrid binary: the CPU is unproven.
+//     name is a hybrid binary: the CPU is unproven. This applies only to
+//     shallow reads; payload (full-file) evidence reads the app itself.
 //   - An empty CPU (the inspector does not read .dmg contents) takes the one
 //     CPU the filename names, else stays empty, which callers treat as unproven.
 //     Installer EXEs keep an unknown payload CPU unproven even with a named CPU.
-func CorrectedTargets(name string, targets []github.ArtifactTarget) []github.ArtifactTarget {
+func CorrectedTargets(name string, targets []github.ArtifactTarget, payload bool) []github.ArtifactTarget {
 	facts := FactsForAsset(github.Asset{Name: name})
 	defaultOS := string(Linux)
 	switch {
@@ -184,7 +221,7 @@ func CorrectedTargets(name string, targets []github.ArtifactTarget) []github.Art
 		if t.Arch == "" && len(facts.Arches) == 1 && !strings.HasSuffix(facts.Canonical, ".exe") {
 			t.Arch = string(facts.Arches[0])
 		}
-		if Platform(t.Platform) == Windows && t.Arch != "" && !slices.Contains(facts.Arches, Arch(t.Arch)) &&
+		if !payload && Platform(t.Platform) == Windows && t.Arch != "" && !slices.Contains(facts.Arches, Arch(t.Arch)) &&
 			(Arch(t.Arch) == X86 || len(facts.Arches) > 0) {
 			t.Arch = string(ArchUnproven)
 		}
@@ -213,7 +250,7 @@ func normalizeInspectedArch(a string) string {
 func fit(a HarvestAsset, platform Platform, arch Arch) (fitLevel int, otherOS bool) {
 	otherOS = true
 	unproven := false
-	for _, t := range CorrectedTargets(a.Name, a.labelTargets()) {
+	for _, t := range CorrectedTargets(a.Name, a.labelTargets(), a.FromPayload()) {
 		if Platform(t.Platform) != platform {
 			continue
 		}
@@ -372,4 +409,38 @@ func (s HarvestScore) String() string {
 	pct := func(n int) float64 { return 100 * float64(n) / float64(max(s.Cases, 1)) }
 	return fmt.Sprintf("cases=%d runs=%d (%.1f%%) wrong_os=%d wrong_cpu=%d emulated_over_native=%d unverified=%d (%.1f%%) false_abstain=%d (%.1f%%) norun_cases=%d norun_wrong=%d",
 		s.Cases, s.Runs, pct(s.Runs), s.WrongPlatform, s.WrongArch, s.EmulatedNative, s.Unverified, pct(s.Unverified), s.FalseAbstain, pct(s.FalseAbstain), s.NoRunCases, s.NoRunWrong)
+}
+
+// loadDeepReport reads an `artifactscan inspect` report (a JSON array of
+// {repo, tag, asset, metadata}) keyed by repo@tag and asset name. A missing
+// file means no full-file evidence.
+func loadDeepReport(path string) (map[string]map[string]github.ArtifactMetadata, error) {
+	data, err := os.ReadFile(path)
+	if os.IsNotExist(err) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var report []struct {
+		Repo     string                   `json:"repo"`
+		Tag      string                   `json:"tag"`
+		Asset    github.Asset             `json:"asset"`
+		Metadata *github.ArtifactMetadata `json:"metadata"`
+	}
+	if err := json.Unmarshal(data, &report); err != nil {
+		return nil, err
+	}
+	out := map[string]map[string]github.ArtifactMetadata{}
+	for _, r := range report {
+		if r.Metadata == nil {
+			continue
+		}
+		key := r.Repo + "@" + r.Tag
+		if out[key] == nil {
+			out[key] = map[string]github.ArtifactMetadata{}
+		}
+		out[key][r.Asset.Name] = *r.Metadata
+	}
+	return out, nil
 }

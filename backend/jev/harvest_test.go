@@ -87,7 +87,7 @@ func sharedPath(name string) string {
 //	set -a; source ../.env; set +a; JEV_EVAL=1 go test ./jev -run TestJevHarvest -v -timeout 60m
 func TestJevHarvest(t *testing.T) {
 	c, ct := evalClient(t)
-	releases, err := picker.LoadHarvest(sharedPath("harvest.jsonl"))
+	releases, err := picker.LoadHarvest(harvestPath(t))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -130,4 +130,16 @@ func TestJevHarvest(t *testing.T) {
 		}
 	}
 	t.Logf("cache hits=%d misses=%d (misses are paid calls)", ct.hits.Load(), ct.misses.Load())
+}
+
+// harvestPath skips the test when the harvest snapshot is absent. The data is
+// kept out of the repo; restore shared/picker/harvest*.json* from commit
+// b7a5b95 to rerun the evaluation.
+func harvestPath(t *testing.T) string {
+	t.Helper()
+	path := sharedPath("harvest.jsonl")
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		t.Skip("harvest snapshot not in the repo; restore shared/picker/harvest*.json* from commit b7a5b95")
+	}
+	return path
 }

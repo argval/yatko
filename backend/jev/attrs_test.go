@@ -74,7 +74,7 @@ func TestDecideRejectsFailedOrConflictedEvidence(t *testing.T) {
 // targets on the tune split only. It reuses the harvest eval's cached calls.
 func TestJevAttrAccuracy(t *testing.T) {
 	c, _ := evalClient(t)
-	releases, err := picker.LoadHarvest(sharedPath("harvest.jsonl"))
+	releases, err := picker.LoadHarvest(harvestPath(t))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -176,7 +176,7 @@ func argmax(probs map[string]float64) string {
 // each probability. Tune split only; reuses Describe's cached calls.
 func TestJevGuessCalibration(t *testing.T) {
 	c, _ := evalClient(t)
-	releases, err := picker.LoadHarvest(sharedPath("harvest.jsonl"))
+	releases, err := picker.LoadHarvest(harvestPath(t))
 	if err != nil {
 		t.Fatal(err)
 	}

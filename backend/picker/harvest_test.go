@@ -13,7 +13,7 @@ import (
 // TestHarvestRules is the free baseline: the rule picker on filename-only
 // harvest cases, scored against inspected targets. Holdout prints totals only.
 func TestHarvestRules(t *testing.T) {
-	releases, err := LoadHarvest(sharedPickerPath(t, "harvest.jsonl"))
+	releases, err := LoadHarvest(harvestPath(t))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -112,4 +112,16 @@ func TestCorrectedTargetsTrustsPayloadCPU(t *testing.T) {
 	if got := CorrectedTargets("cmder.zip", x86, true); got[0].Arch != string(X86) {
 		t.Fatalf("payload x86 label should stay 386, got %+v", got)
 	}
+}
+
+// harvestPath skips the test when the harvest snapshot is absent. The data is
+// kept out of the repo; restore shared/picker/harvest*.json* from commit
+// b7a5b95 to rerun the evaluation.
+func harvestPath(t *testing.T) string {
+	t.Helper()
+	path := sharedPickerPath(t, "harvest.jsonl")
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		t.Skip("harvest snapshot not in the repo; restore shared/picker/harvest*.json* from commit b7a5b95")
+	}
+	return path
 }

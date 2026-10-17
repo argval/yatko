@@ -104,7 +104,7 @@ func scoreExpectation(rel CorpusRelease, exp CorpusExpectation, decide Decider) 
 			if target.Platform == exp.Platform {
 				platformMatch = true
 				// Wrong CPU means "cannot run", so listed emulation fallbacks count as a match.
-				_, emulated := emulationRank(platform, arch, Arch(target.Arch))
+				_, emulated := EmulationRank(platform, arch, Arch(target.Arch))
 				if exp.Arch == "" || target.Arch == "" || target.Arch == exp.Arch || emulated {
 					archMatch = true
 				}

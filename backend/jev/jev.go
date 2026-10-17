@@ -40,9 +40,10 @@ const (
 
 // Client calls the TypeSafe System One endpoint.
 type Client struct {
-	apiKey   string
-	endpoint string
-	http     *http.Client
+	apiKey    string
+	endpoint  string
+	http      *http.Client
+	attrCache attrCache
 }
 
 // NewClientFromEnv returns nil when no API key is set, so callers can treat

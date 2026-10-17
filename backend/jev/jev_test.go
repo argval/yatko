@@ -6,9 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -105,12 +102,8 @@ func TestChooseAppliesPolicyOrder(t *testing.T) {
 //
 //	set -a; source ../.env; set +a; JEV_EVAL=1 go test ./jev -run TestJevCorpus -v -timeout 15m
 func TestJevCorpus(t *testing.T) {
-	c := NewClientFromEnv()
-	if os.Getenv("JEV_EVAL") != "1" || c == nil {
-		t.Skip("set JEV_EVAL=1 and TYPESAFE_API_KEY to run the paid Jev corpus eval")
-	}
-	_, thisFile, _, _ := runtime.Caller(0)
-	releases, err := picker.LoadCorpusFile(filepath.Join(filepath.Dir(thisFile), "..", "..", "shared", "picker", "corpus.json"))
+	c, _ := evalClient(t)
+	releases, err := picker.LoadCorpusFile(sharedPath("corpus.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -119,7 +112,7 @@ func TestJevCorpus(t *testing.T) {
 	for _, variant := range []struct {
 		label  string
 		decide decideFunc
-	}{{"split", c.Decide}, {"choice", c.DecideChoice}} {
+	}{{"attrs", c.Decide}, {"fit", c.DecideFit}, {"choice", c.DecideChoice}} {
 		t.Run(variant.label, func(t *testing.T) { evalCorpus(t, releases, variant.decide) })
 	}
 }

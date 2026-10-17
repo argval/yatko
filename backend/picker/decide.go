@@ -327,7 +327,7 @@ func factsForTarget(f ArtifactFacts, platform Platform, arch Arch, libc Libc) (A
 		if t.Platform != "" && t.Platform != string(platform) {
 			continue
 		}
-		if _, emulated := emulationRank(platform, arch, Arch(t.Arch)); arch != UnknownArch && t.Arch != "" && t.Arch != string(arch) && !emulated {
+		if _, emulated := EmulationRank(platform, arch, Arch(t.Arch)); arch != UnknownArch && t.Arch != "" && t.Arch != string(arch) && !emulated {
 			continue
 		}
 		if libc != LibcAny && t.Libc != "" && t.Libc != string(libc) && t.Libc != "static" {
@@ -368,9 +368,9 @@ var emulation = map[Platform]map[Arch][]Arch{
 	MacOS:   {ARM64: {AMD64}},
 }
 
-// emulationRank reports whether a visitor CPU can run an asset CPU, and how far
+// EmulationRank reports whether a visitor CPU can run an asset CPU, and how far
 // down the fallback list it sits (1 = closest).
-func emulationRank(platform Platform, visitor, asset Arch) (int, bool) {
+func EmulationRank(platform Platform, visitor, asset Arch) (int, bool) {
 	for i, a := range emulation[platform][visitor] {
 		if a == asset {
 			return i + 1, true
@@ -390,7 +390,7 @@ func emulationCost(f ArtifactFacts, platform Platform, visitor Arch) int {
 		if t.Arch == "" || Arch(t.Arch) == visitor {
 			return 0
 		}
-		if r, ok := emulationRank(platform, visitor, Arch(t.Arch)); ok && (cost == 0 || r < cost) {
+		if r, ok := EmulationRank(platform, visitor, Arch(t.Arch)); ok && (cost == 0 || r < cost) {
 			cost = r
 		}
 	}

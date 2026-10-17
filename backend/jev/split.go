@@ -51,12 +51,14 @@ type fileJudgment struct {
 	fitP  float64 // probability of that level
 	main  float64 // probability the file is the standard main build
 	rank  int     // picker.FormatRank: lower is better
+	// libcMiss marks a build for a libc the visitor did not ask for.
+	libcMiss bool
 }
 
-// Decide splits the decision: Jev judges each file on its own (a Score for
-// OS/CPU fit and a Noul for "standard main build"), and code applies Yatko's
-// format policy. Judging files one at a time removes Choice's option-order bias.
-func (c *Client) Decide(ctx context.Context, repo string, assets []github.Asset, platform picker.Platform, arch picker.Arch, opts picker.PickOpts) (picker.AssetDecision, Usage, error) {
+// DecideFit was the second experiment: Jev judges each file's fit for this
+// visitor (a Score) and whether it is the standard main build (a Noul); code
+// applies the format policy. Decide (attrs.go) replaced it; kept for the eval.
+func (c *Client) DecideFit(ctx context.Context, repo string, assets []github.Asset, platform picker.Platform, arch picker.Arch, opts picker.PickOpts) (picker.AssetDecision, Usage, error) {
 	if _, ok := osNames[platform]; !ok {
 		return picker.AssetDecision{Status: "unknown", Confidence: picker.ConfidenceLow, Reasons: []string{"unknown platform"}}, Usage{}, nil
 	}
@@ -124,6 +126,9 @@ func choose(judged []fileJudgment) picker.AssetDecision {
 	// Only narrow to main builds when one exists: all-musl or all-CLI releases still pick.
 	if mains := keep(pool, func(j fileJudgment) bool { return j.main >= 0.5 }); len(mains) > 0 {
 		pool = mains
+	}
+	if fits := keep(pool, func(j fileJudgment) bool { return !j.libcMiss }); len(fits) > 0 {
+		pool = fits
 	}
 	bestRank := pool[0].rank
 	for _, j := range pool {

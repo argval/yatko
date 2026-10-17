@@ -151,3 +151,61 @@ func argmax(probs map[string]float64) string {
 	}
 	return best
 }
+
+// TestJevGuessCalibration re-checks inferredOSThreshold for the current model:
+// for files whose name names no OS, how often Jev's guessed OS is right at
+// each probability. Tune split only; reuses Describe's cached calls.
+func TestJevGuessCalibration(t *testing.T) {
+	c, _ := evalClient(t)
+	releases, err := picker.LoadHarvest(sharedPath("harvest.jsonl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	type guess struct {
+		p  float64
+		ok bool
+	}
+	var guesses []guess
+	for _, rel := range releases {
+		if picker.HarvestSplit(rel.Repo) != "tune" {
+			continue
+		}
+		assets := make([]github.Asset, len(rel.Assets))
+		byName := map[string]picker.HarvestAsset{}
+		for i, a := range rel.Assets {
+			assets[i] = github.Asset{Name: a.Name}
+			byName[a.Name] = a
+		}
+		attrs, _, err := c.Describe(context.Background(), rel.Repo, assets)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, a := range attrs {
+			if f := picker.FactsForAsset(github.Asset{Name: a.Name}); len(f.Platforms) > 0 || f.FormatPlatform != "" {
+				continue // OS named in the filename: not a guess
+			}
+			want, _ := inspectedLabel(byName[a.Name])
+			got := argmax(a.OS)
+			if want == "" || got == osNotStated || got == osOther {
+				continue
+			}
+			guesses = append(guesses, guess{a.OS[got], got == want})
+			if got != want && testing.Verbose() {
+				t.Logf("wrong p=%.2f %s -> %s (want %s)", a.OS[got], a.Name, got, want)
+			}
+		}
+	}
+	for _, th := range []float64{0.5, 0.7, 0.8, 0.9, 0.95} {
+		var right, wrong int
+		for _, g := range guesses {
+			if g.p >= th {
+				if g.ok {
+					right++
+				} else {
+					wrong++
+				}
+			}
+		}
+		t.Logf("model=%s inferred-OS threshold %.2f: right %d wrong %d", c.ModelName(), th, right, wrong)
+	}
+}

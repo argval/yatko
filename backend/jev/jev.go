@@ -22,9 +22,10 @@ import (
 
 const (
 	defaultEndpoint = "https://api.typesafe.ai/v1/systemone"
-	// Model is pinned, not "jev-latest": confidence thresholds are tuned
-	// against one version, and an alias can move under us.
-	Model = "jev-1.13.0"
+	// Model is the default, pinned, not "jev-latest": thresholds are tuned
+	// against one version, and an alias can move under us. JEV_MODEL overrides
+	// it to evaluate or adopt a new version.
+	Model = "jev-1.14.0"
 	// NoneOption lets Jev say no file fits instead of forcing a guess.
 	NoneOption = "none of these files"
 	// maxOptions is the API's Choice limit (255) minus NoneOption.
@@ -42,9 +43,13 @@ const (
 type Client struct {
 	apiKey    string
 	endpoint  string
+	model     string
 	http      *http.Client
 	attrCache attrCache
 }
+
+// ModelName is the versioned model this client sends.
+func (c *Client) ModelName() string { return c.model }
 
 // NewClientFromEnv returns nil when no API key is set, so callers can treat
 // Jev as optional. TYPESAFE_API_KEY is the SDK name; TYPESAFE_API is accepted too.
@@ -56,7 +61,11 @@ func NewClientFromEnv() *Client {
 	if key == "" {
 		return nil
 	}
-	return &Client{apiKey: key, endpoint: defaultEndpoint, http: &http.Client{Timeout: 10 * time.Second}}
+	model := os.Getenv("JEV_MODEL")
+	if model == "" {
+		model = Model
+	}
+	return &Client{apiKey: key, endpoint: defaultEndpoint, model: model, http: &http.Client{Timeout: 10 * time.Second}}
 }
 
 // Usage is what one decision cost, for eval and logging.
@@ -233,7 +242,7 @@ func (c *Client) DecideChoice(ctx context.Context, repo string, assets []github.
 	reverse = append(reverse, forward[len(forward)-1])
 
 	req := request{
-		Model: Model,
+		Model: c.model,
 		State: map[string]any{"repository": repo, "visitor": visitorState(platform, arch, opts)},
 		Questions: map[string]question{
 			"forward": {Type: "choice", Instructions: choiceInstructions, Criteria: forward},

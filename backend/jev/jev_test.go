@@ -122,11 +122,11 @@ func TestJevCorpus(t *testing.T) {
 		label  string
 		decide decideFunc
 	}{{"attrs", c.Decide}, {"fit", c.DecideFit}, {"choice", c.DecideChoice}} {
-		t.Run(variant.label, func(t *testing.T) { evalCorpus(t, releases, variant.decide) })
+		t.Run(variant.label, func(t *testing.T) { evalCorpus(t, c.ModelName(), releases, variant.decide) })
 	}
 }
 
-func evalCorpus(t *testing.T, releases []picker.CorpusRelease, jevDecide func(context.Context, string, []github.Asset, picker.Platform, picker.Arch, picker.PickOpts) (picker.AssetDecision, Usage, error)) {
+func evalCorpus(t *testing.T, model string, releases []picker.CorpusRelease, jevDecide func(context.Context, string, []github.Asset, picker.Platform, picker.Arch, picker.PickOpts) (picker.AssetDecision, Usage, error)) {
 	var tokens, calls, inconsistent, failed int
 	var disagree []string
 	decide := func(repo string, assets []github.Asset, platform picker.Platform, arch picker.Arch, opts picker.PickOpts) picker.AssetDecision {
@@ -153,7 +153,7 @@ func evalCorpus(t *testing.T, releases []picker.CorpusRelease, jevDecide func(co
 
 	score, mismatches := picker.ScoreCorpusWith(releases, decide)
 	t.Logf("jev model=%s cases=%d top1=%d abstain=%d false_abstain=%d false_auto=%d wrong_platform=%d wrong_arch=%d known_miss=%d known_miss_resolved=%d",
-		Model, score.Total, score.Top1, score.Abstain, score.FalseAbstain, score.FalseAuto, score.WrongPlatform, score.WrongArch, score.KnownMiss, score.KnownMissResolved)
+		model, score.Total, score.Top1, score.Abstain, score.FalseAbstain, score.FalseAuto, score.WrongPlatform, score.WrongArch, score.KnownMiss, score.KnownMissResolved)
 	t.Logf("jev calls=%d errors=%d order_inconsistent=%d input_tokens=%d avg_latency=%s",
 		calls, failed, inconsistent, tokens, time.Duration(score.DecideNanos/int64(max(score.Total, 1))))
 	for _, m := range mismatches {

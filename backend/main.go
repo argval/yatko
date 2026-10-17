@@ -37,7 +37,7 @@ func main() {
 	if os.Getenv("JEV_SHADOW") == "1" {
 		if jc := jev.NewClientFromEnv(); jc != nil {
 			redirectHandler.Shadow = jc.Decide
-			log.Printf("jev shadow mode enabled model=%s", jev.Model)
+			log.Printf("jev shadow mode enabled model=%s", jc.ModelName())
 		}
 	}
 	pageHandler := handlers.NewPageHandler(redirectHandler, ghClient, redisCache)

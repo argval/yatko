@@ -83,7 +83,7 @@ func (c *Client) DecideFit(ctx context.Context, repo string, assets []github.Ass
 		questions[fmt.Sprintf("main_%d", i)] = question{Type: "noul", Instructions: mainInstructions(a.Name)}
 	}
 	resp, err := c.post(ctx, request{
-		Model:     Model,
+		Model:     c.model,
 		State:     map[string]any{"repository": repo, "visitor": visitorState(platform, arch, opts), "files": names},
 		Questions: questions,
 	})

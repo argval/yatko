@@ -91,13 +91,13 @@ func (c *Client) Describe(ctx context.Context, repo string, assets []github.Asse
 	for i, a := range candidates {
 		names[i] = a.Name
 	}
-	key := cacheKey(repo, names)
+	key := cacheKey(c.model, repo, names)
 	if attrs, ok := c.attrCache.get(key); ok {
-		return attrs, Usage{Model: Model, Consistent: true}, nil
+		return attrs, Usage{Model: c.model, Consistent: true}, nil
 	}
 	// Concurrent visitors of one cold release share a single paid call. Only
 	// the caller that made it reports its tokens, so cost totals stay honest.
-	paid := Usage{Model: Model, Consistent: true}
+	paid := Usage{Model: c.model, Consistent: true}
 	v, err, _ := c.attrCache.flight.Do(key, func() (any, error) {
 		attrs, usage, err := c.describe(ctx, repo, names)
 		if err == nil {
@@ -124,7 +124,7 @@ func (c *Client) describe(ctx context.Context, repo string, names []string) ([]F
 			questions[fmt.Sprintf("role_%d", i)] = attrQuestion(name, "What is `file` in this release of `repository`? `files` lists every file in the release.", roleCriteria)
 		}
 		resp, err := c.post(ctx, request{
-			Model:     Model,
+			Model:     c.model,
 			State:     map[string]any{"repository": repo, "files": names},
 			Questions: questions,
 		})
@@ -248,8 +248,8 @@ func runProbability(a FileAttrs, platform picker.Platform, arch picker.Arch) (na
 	return pOS * native, pOS * emulated, pOS * maybe
 }
 
-func cacheKey(repo string, names []string) string {
-	sum := sha256.Sum256([]byte(Model + "\x00" + repo + "\x00" + strings.Join(names, "\x00")))
+func cacheKey(model, repo string, names []string) string {
+	sum := sha256.Sum256([]byte(model + "\x00" + repo + "\x00" + strings.Join(names, "\x00")))
 	return hex.EncodeToString(sum[:])
 }
 
@@ -298,7 +298,7 @@ func (c *Client) breakTie(ctx context.Context, repo string, platform picker.Plat
 	slices.Reverse(reverse)
 	visitor := map[string]string{"operating_system": osNames[platform], "cpu": cpuNames[arch]}
 	resp, err := c.post(ctx, request{
-		Model: Model,
+		Model: c.model,
 		State: map[string]any{"repository": repo, "visitor": visitor, "candidates": names},
 		Questions: map[string]question{
 			"forward": {Type: "choice", Instructions: tieQuestion, Criteria: forward},

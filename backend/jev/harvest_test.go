@@ -121,7 +121,7 @@ func TestJevHarvest(t *testing.T) {
 				return d
 			}
 			score, lines := picker.ScoreHarvestWith(part, decide, 8)
-			t.Logf("jev=%s split=%s releases=%d %s errors=%d input_tokens=%d", v.label, split, len(part), score, errs.Load(), tokens.Load())
+			t.Logf("jev=%s model=%s split=%s releases=%d %s errors=%d input_tokens=%d", v.label, c.ModelName(), split, len(part), score, errs.Load(), tokens.Load())
 			if split == "tune" && testing.Verbose() && os.Getenv("JEV_SHOW") != "" {
 				for _, l := range lines {
 					if strings.Contains(l, os.Getenv("JEV_SHOW")) {

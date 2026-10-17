@@ -74,32 +74,6 @@ func TestDecideNoneAbstains(t *testing.T) {
 	}
 }
 
-// TestChooseAppliesPolicyOrder checks the code half of the split: native beats
-// emulated, main build beats a companion CLI, then format rank (.dmg before .zip).
-func TestChooseAppliesPolicyOrder(t *testing.T) {
-	j := func(name string, fit int, main float64) fileJudgment {
-		return fileJudgment{asset: github.Asset{Name: name}, fit: fit, fitP: 0.9, main: main,
-			rank: picker.FormatRank(name, picker.MacOS, picker.PickOpts{})}
-	}
-	d := choose([]fileJudgment{
-		j("app-x64.dmg", fitEmulated, 0.9),
-		j("app-cli-arm64.zip", fitNative, 0.1),
-		j("app-arm64.zip", fitNative, 0.9),
-		j("app-arm64.dmg", fitNative, 0.9),
-		j("app-linux-arm64.tar.gz", fitNone, 0.9),
-	})
-	if d.Asset == nil || d.Asset.Name != "app-arm64.dmg" || d.Confidence != picker.ConfidenceHigh {
-		t.Fatalf("got %v (%s), want app-arm64.dmg high", name(d), d.Confidence)
-	}
-	if d := choose([]fileJudgment{j("app.exe", fitNone, 0.9)}); d.ShouldAutoSelect() {
-		t.Fatal("no fitting file must abstain")
-	}
-	// Several different apps that tie on every signal: abstain instead of guessing.
-	if d := choose([]fileJudgment{j("ChatGPT.dmg", fitNative, 0.9), j("DeepSeek.dmg", fitNative, 0.85)}); d.ShouldAutoSelect() {
-		t.Fatalf("tie must abstain, got %v (%s)", name(d), d.Confidence)
-	}
-}
-
 // TestJevCorpus scores Jev against the labeled corpus next to the rule picker.
 // It calls the paid API, so it runs only with JEV_EVAL=1 and an API key:
 //

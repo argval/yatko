@@ -23,3 +23,6 @@ frontend/node_modules/
 graphify-out/
 .vercel
 .env*
+
+# ML training data (regenerate with backend/cmd/harvest)
+ml/data/

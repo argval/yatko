@@ -179,31 +179,6 @@ func visitorState(platform picker.Platform, arch picker.Arch, opts picker.PickOp
 	return v
 }
 
-// installable keeps every file a person could install. It drops only what is
-// never a download target: source, debug, metadata, unknown formats (checksums.txt)
-// and bare versioned archives with no OS/CPU token, which Yatko treats as source.
-// Jev still makes every OS/CPU decision.
-func installable(assets []github.Asset) []github.Asset {
-	var out []github.Asset
-	for _, a := range assets {
-		if a.State != "" && a.State != "uploaded" {
-			continue
-		}
-		f := picker.FactsForAsset(a)
-		if f.Source || f.NonNative || f.Role == "debug" || f.Role == "metadata" {
-			continue
-		}
-		if f.Extension == "" && !picker.NativeBinaryName(f.Canonical) {
-			continue
-		}
-		if f.Kind == picker.KindArchive && len(f.Platforms) == 0 && len(f.Arches) == 0 {
-			continue
-		}
-		out = append(out, a)
-	}
-	return out
-}
-
 // DecideChoice asks one Choice over every file (the first experiment). It
 // matches OS/CPU well but mixes in format preference, which Jev handles poorly;
 // Decide (split.go) is the default. Kept so the eval can compare both.
@@ -211,7 +186,7 @@ func (c *Client) DecideChoice(ctx context.Context, repo string, assets []github.
 	if _, ok := osNames[platform]; !ok {
 		return picker.AssetDecision{Status: "unknown", Confidence: picker.ConfidenceLow, Reasons: []string{"unknown platform"}}, Usage{}, nil
 	}
-	candidates := installable(assets)
+	candidates := picker.Installable(assets)
 	if len(candidates) == 0 {
 		return picker.AssetDecision{Status: "incompatible", Confidence: picker.ConfidenceLow, Reasons: []string{"no installable assets"}}, Usage{}, nil
 	}

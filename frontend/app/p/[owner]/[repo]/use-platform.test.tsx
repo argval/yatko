@@ -69,6 +69,7 @@ beforeEach(() => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true, localStorage: windowRef.localStorage });
   // Avoid a sticky WebGL memo from a prior test leaking into this suite.
   resetDetectArchFromWebGLCache();
+  setPlatformTarget(null);
 });
 
 afterEach(async () => {
@@ -135,14 +136,23 @@ test("structured hints replace reduced UA hardware and share manual overrides", 
   await act(async () => { setPlatformTarget({ platform: "linux", arch: "arm" }); });
   await act(async () => { resolveHints?.({ architecture: "arm", bitness: "64" }); });
   expect(container.textContent).toBe("linux/armlinux/arm");
-  expect(windowRef.localStorage.getItem("yatko:download-target")).toContain('"platform":"linux"');
+  expect(windowRef.localStorage.getItem("yatko:download-target")).toBeNull();
   await act(async () => { setPlatformTarget(null); });
   expect(container.textContent).toBe("windows/arm64windows/arm64");
 });
 
-test("unknown OS remains unknown and invalid stored preferences are ignored", async () => {
+test("a fresh page detects the device instead of restoring a saved manual choice", async () => {
+  windowRef.localStorage.setItem("yatko:download-target", '{"platform":"linux","arch":"arm64"}');
+  function Probe() {
+    const target = usePlatform();
+    return createElement("span", null, JSON.stringify(target));
+  }
+  await render(createElement(Probe));
+  expect(container.textContent).toBe('{"platform":"macos","arch":""}');
+});
+
+test("unknown OS remains unknown", async () => {
   activeUA = "UnknownBrowser/1.0";
-  windowRef.localStorage.setItem("yatko:download-target", '{"platform":"wrong","arch":"amd64"}');
   function Probe() {
     const target = usePlatform();
     return createElement("span", null, JSON.stringify(target));

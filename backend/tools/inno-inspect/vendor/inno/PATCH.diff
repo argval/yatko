@@ -1,0 +1,50 @@
+--- a/src/entry/condition.rs
++++ b/src/entry/condition.rs
+@@ -4,7 +4,7 @@
+ 
+ use crate::{read::ReadBytesExt, version::InnoVersion};
+ 
+-#[derive(Clone, Debug, Default)]
++#[derive(Clone, Debug, Default, Eq, PartialEq)]
+ pub struct Condition {
+     components: Option<String>,
+     tasks: Option<String>,
+--- a/src/entry/file/mod.rs
++++ b/src/entry/file/mod.rs
+@@ -32,6 +32,7 @@
+     download_password: Option<String>,
+     extract_archive_password: Option<String>,
+     verification: Option<FileVerification>,
++    condition: Condition,
+     /// Index into the file location entry list
+     location: u32,
+     attributes: u32,
+@@ -67,7 +68,7 @@
+             file.strong_assembly_name = reader.read_decoded_pascal_string(codepage)?;
+         }
+ 
+-        Condition::read(&mut reader, codepage, version)?;
++        file.condition = Condition::read(&mut reader, codepage, version)?;
+ 
+         if version >= 6.5 {
+             file.excludes = reader.read_decoded_pascal_string(codepage)?;
+@@ -155,6 +156,11 @@
+         Ok(file)
+     }
+ 
++    /// Returns the parsed installation conditions without evaluating scripts.
++    pub fn condition(&self) -> &Condition {
++        &self.condition
++    }
++
+     /// Returns the source file path as a string slice.
+     #[must_use]
+     #[inline]
+@@ -270,6 +276,7 @@
+             download_password: None,
+             extract_archive_password: None,
+             verification: None,
++            condition: Condition::default(),
+             location: 0,
+             attributes: 0,
+             external_size: 0,

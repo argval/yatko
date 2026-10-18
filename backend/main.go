@@ -7,9 +7,11 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/argval/yatko/artifactscan"
 	"github.com/argval/yatko/cache"
 	"github.com/argval/yatko/github"
 	"github.com/argval/yatko/handlers"
+	"github.com/argval/yatko/jev"
 	"github.com/argval/yatko/middleware"
 	"github.com/argval/yatko/ratelimit"
 	"github.com/argval/yatko/search"
@@ -32,6 +34,25 @@ func main() {
 	limiter := ratelimit.New()
 
 	redirectHandler := handlers.NewRedirectHandler(ghClient, redisCache)
+	scanStore, closeScanStore, err := artifactscan.OpenFromEnv(github.DeepInspectorVersion)
+	if err != nil {
+		log.Fatalf("artifact scan configuration: %v", err)
+	}
+	defer closeScanStore()
+	redirectHandler.ScanStore = scanStore
+	// Jev is the primary asset decider whenever a TypeSafe key is set; the rule
+	// picker answers when Jev errors, is slow, or JEV_PRIMARY=0. Shadow mode
+	// (log-only comparison) applies only while Jev is not primary.
+	if jc := jev.NewClientFromEnv(); jc != nil {
+		switch {
+		case os.Getenv("JEV_PRIMARY") != "0":
+			redirectHandler.Primary = &jev.Primary{Client: jc, Cache: redisCache}
+			log.Printf("jev primary decider enabled model=%s", jc.ModelName())
+		case os.Getenv("JEV_SHADOW") == "1":
+			redirectHandler.Shadow = jc.Decide
+			log.Printf("jev shadow mode enabled model=%s", jc.ModelName())
+		}
+	}
 	pageHandler := handlers.NewPageHandler(redirectHandler, ghClient, redisCache)
 	linkHandler := handlers.NewLinkHandler(redirectHandler)
 	releasesHandler := handlers.NewReleasesHandler(ghClient, redisCache)

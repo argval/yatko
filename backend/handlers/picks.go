@@ -72,16 +72,18 @@ func releasePickKey(platform picker.Platform, arch picker.Arch) string {
 
 // buildReleasePicks includes abstention reasons for each common visitor target.
 func buildReleasePicks(assets []github.Asset) map[string]releasePick {
+	return buildPicksWith(assets, func(platform picker.Platform, arch picker.Arch) picker.AssetDecision {
+		return picker.DecideAsset(assets, platform, arch, picker.PickOpts{})
+	})
+}
+
+func buildPicksWith(assets []github.Asset, decide func(picker.Platform, picker.Arch) picker.AssetDecision) map[string]releasePick {
 	if len(assets) == 0 {
 		return nil
 	}
 	out := make(map[string]releasePick, len(releasePickTargets))
 	for _, t := range releasePickTargets {
-		d := picker.DecideAsset(assets, t.platform, t.arch, picker.PickOpts{})
-		out[releasePickKey(t.platform, t.arch)] = releaseDecision(d)
-	}
-	if len(out) == 0 {
-		return nil
+		out[releasePickKey(t.platform, t.arch)] = releaseDecision(decide(t.platform, t.arch))
 	}
 	return out
 }

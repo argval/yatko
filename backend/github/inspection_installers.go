@@ -177,12 +177,18 @@ func inspectDMG(f *remoteFile, m *ArtifactMetadata) error {
 
 const cfbEnd uint32 = 0xfffffffe
 
-// msiCompound reads only bounded CFB allocation tables and named summary streams.
-// Extended DIFAT is unsupported; FAT and miniFAT chains have size and cycle checks.
+// msiCompound reads only CFB allocation pages needed for summary metadata.
+// Lazy FAT, DIFAT and mini-stream reads keep large MSIs inside the request budget.
 type msiCompound struct {
-	f      *remoteFile
-	sector int
-	fat    []uint32
+	f          *remoteFile
+	sector     int
+	fatSectors uint32              // FAT sector count from the header
+	difat      []uint32            // FAT sector ids known so far, in order
+	nextDIFAT  uint32              // next extended DIFAT sector to read
+	difatLeft  uint32              // extended DIFAT sectors not read yet
+	difatSeen  map[uint32]bool     // extended DIFAT cycle guard
+	fatSeen    map[uint32]bool     // duplicate FAT sector guard across all DIFAT pages
+	fat        map[uint32][]uint32 // FAT sector index -> its entries
 }
 
 func (c *msiCompound) readSector(id uint32) ([]byte, error) {
@@ -195,12 +201,56 @@ func (c *msiCompound) readSector(id uint32) ([]byte, error) {
 	return b, err
 }
 
+// next returns the FAT entry for sector id, loading only the FAT sector (and
+// extended DIFAT sectors) that hold it.
+func (c *msiCompound) next(id uint32) (uint32, error) {
+	le := binary.LittleEndian
+	per := uint32(c.sector / 4)
+	k := id / per
+	if k >= c.fatSectors {
+		return 0, malformed("CFB allocation chain")
+	}
+	for uint32(len(c.difat)) <= k {
+		if c.difatLeft == 0 || c.difatSeen[c.nextDIFAT] {
+			return 0, malformed("CFB DIFAT chain")
+		}
+		c.difatSeen[c.nextDIFAT] = true
+		b, err := c.readSector(c.nextDIFAT)
+		if err != nil {
+			return 0, err
+		}
+		for j := uint32(0); j < per-1 && uint32(len(c.difat)) < c.fatSectors; j++ {
+			id := le.Uint32(b[j*4:])
+			if c.fatSeen[id] {
+				return 0, malformed("CFB duplicate FAT")
+			}
+			c.fatSeen[id] = true
+			c.difat = append(c.difat, id)
+		}
+		c.nextDIFAT = le.Uint32(b[(per-1)*4:])
+		c.difatLeft--
+	}
+	entries, ok := c.fat[k]
+	if !ok {
+		b, err := c.readSector(c.difat[k])
+		if err != nil {
+			return 0, err
+		}
+		entries = make([]uint32, per)
+		for j := range entries {
+			entries[j] = le.Uint32(b[j*4:])
+		}
+		c.fat[k] = entries
+	}
+	return entries[id%per], nil
+}
+
 // chain follows a regular allocation chain, including its terminating marker.
 func (c *msiCompound) chain(start uint32, limit int) ([]byte, error) {
 	out := []byte{}
 	seen := map[uint32]bool{}
 	for id := start; id != cfbEnd; {
-		if seen[id] || uint64(id) >= uint64(len(c.fat)) {
+		if seen[id] {
 			return nil, malformed("CFB allocation chain")
 		}
 		if len(out)+c.sector > limit {
@@ -212,9 +262,38 @@ func (c *msiCompound) chain(start uint32, limit int) ([]byte, error) {
 			return nil, err
 		}
 		out = append(out, b...)
-		id = c.fat[id]
+		if id, err = c.next(id); err != nil {
+			return nil, err
+		}
 	}
 	return out, nil
+}
+
+// chainSector returns the index-th sector of a chain without reading the
+// sectors before it, only the FAT entries that link them.
+func (c *msiCompound) chainSector(start uint32, index int) (uint32, error) {
+	if index > inspectMaxInflated/c.sector {
+		return 0, errInspectLimit
+	}
+	id := start
+	seen := map[uint32]bool{start: true}
+	for i := 0; i < index; i++ {
+		if id == cfbEnd {
+			return 0, malformed("CFB chain too short")
+		}
+		var err error
+		if id, err = c.next(id); err != nil {
+			return 0, err
+		}
+		if seen[id] {
+			return 0, malformed("CFB allocation chain")
+		}
+		seen[id] = true
+	}
+	if id == cfbEnd {
+		return 0, malformed("CFB chain too short")
+	}
+	return id, nil
 }
 
 // inspectMSI extracts the SummaryInformation Template property from CFB v3/v4.
@@ -239,24 +318,19 @@ func inspectMSI(f *remoteFile, m *ArtifactMetadata) error {
 	if count == 0 {
 		return malformed("CFB empty FAT")
 	}
-	if count > 109 || le.Uint32(h[72:]) != 0 {
-		return installerUnsupported(m, "CFB extended DIFAT")
+	c := msiCompound{f: f, sector: 1 << shift, fatSectors: count,
+		nextDIFAT: le.Uint32(h[68:]), difatLeft: le.Uint32(h[72:]),
+		difatSeen: map[uint32]bool{}, fatSeen: map[uint32]bool{}, fat: map[uint32][]uint32{}}
+	if int64(count) > f.size/int64(c.sector) {
+		return malformed("CFB FAT count")
 	}
-	c := msiCompound{f: f, sector: 1 << shift}
-	seen := map[uint32]bool{}
-	for i := uint32(0); i < count; i++ {
+	for i := uint32(0); i < min(count, 109); i++ {
 		id := le.Uint32(h[76+i*4:])
-		if seen[id] {
+		if c.fatSeen[id] {
 			return malformed("CFB duplicate FAT")
 		}
-		seen[id] = true
-		b, err := c.readSector(id)
-		if err != nil {
-			return err
-		}
-		for j := 0; j < len(b); j += 4 {
-			c.fat = append(c.fat, le.Uint32(b[j:]))
-		}
+		c.fatSeen[id] = true
+		c.difat = append(c.difat, id)
 	}
 	dir, err := c.chain(le.Uint32(h[48:]), inspectHeadBytes)
 	if err != nil {
@@ -299,48 +373,10 @@ func inspectMSI(f *remoteFile, m *ArtifactMetadata) error {
 	}
 	var summary []byte
 	if size >= 4096 {
-		summary, err = c.chain(le.Uint32(entry[116:]), inspectHeadBytes)
-	} else {
-		miniCount := le.Uint32(h[64:])
-		if miniCount == 0 {
-			return malformed("CFB missing miniFAT")
+		if summary, err = c.chain(le.Uint32(entry[116:]), inspectHeadBytes); err != nil {
+			return err
 		}
-		if uint64(miniCount)*uint64(c.sector) > inspectHeadBytes {
-			return installerUnsupported(m, "CFB miniFAT exceeds inspection limit")
-		}
-		mini, err2 := c.chain(le.Uint32(h[60:]), int(miniCount)*c.sector)
-		if err2 != nil {
-			return err2
-		}
-		if len(mini) != int(miniCount)*c.sector {
-			return malformed("CFB miniFAT length")
-		}
-		rootSize := le.Uint64(dir[120:])
-		if rootSize > inspectMaxInflated {
-			return installerUnsupported(m, "CFB mini stream exceeds inspection limit")
-		}
-		root, err2 := c.chain(le.Uint32(dir[116:]), inspectMaxInflated)
-		if err2 != nil {
-			return err2
-		}
-		if rootSize > uint64(len(root)) {
-			return malformed("CFB mini stream size")
-		}
-		root = root[:rootSize]
-		visited := map[uint32]bool{}
-		for id := le.Uint32(entry[116:]); id != cfbEnd; {
-			if visited[id] || uint64(id)*4+4 > uint64(len(mini)) || uint64(id)*64+64 > uint64(len(root)) {
-				return malformed("CFB mini chain")
-			}
-			if len(summary)+64 > inspectHeadBytes {
-				return errInspectLimit
-			}
-			visited[id] = true
-			summary = append(summary, root[int(id)*64:int(id)*64+64]...)
-			id = le.Uint32(mini[int(id)*4:])
-		}
-	}
-	if err != nil {
+	} else if summary, err = c.miniStream(h, dir, le.Uint32(entry[116:]), int(size)); err != nil {
 		return err
 	}
 	if uint64(len(summary)) < size {
@@ -362,6 +398,51 @@ func inspectMSI(f *remoteFile, m *ArtifactMetadata) error {
 	addTarget(m, ArtifactTarget{Platform: "windows", Arch: installerArch(platform, "msi:")})
 	m.Role = "installer"
 	return nil
+}
+
+// miniStream reads a small stream's 64-byte mini sectors. Each mini sector's
+// miniFAT entry and data are located by index, so neither the miniFAT nor the
+// root mini stream (which holds every small stream) is read in full.
+func (c *msiCompound) miniStream(h, dir []byte, start uint32, size int) ([]byte, error) {
+	le := binary.LittleEndian
+	miniFATStart, miniCount := le.Uint32(h[60:]), le.Uint32(h[64:])
+	if miniCount == 0 {
+		return nil, malformed("CFB missing miniFAT")
+	}
+	rootStart, rootSize := le.Uint32(dir[116:]), le.Uint64(dir[120:])
+	perSector := c.sector / 64
+	var out []byte
+	visited := map[uint32]bool{}
+	for id := start; id != cfbEnd; {
+		if visited[id] || uint64(id)*4+4 > uint64(miniCount)*uint64(c.sector) || uint64(id)*64+64 > rootSize {
+			return nil, malformed("CFB mini chain")
+		}
+		if len(out)+64 > size+64 {
+			return nil, malformed("CFB mini chain length")
+		}
+		visited[id] = true
+		data, err := c.sectorAt(rootStart, int(id)/perSector)
+		if err != nil {
+			return nil, err
+		}
+		off := int(id) % perSector * 64
+		out = append(out, data[off:off+64]...)
+		fat, err := c.sectorAt(miniFATStart, int(id)*4/c.sector)
+		if err != nil {
+			return nil, err
+		}
+		id = le.Uint32(fat[int(id)*4%c.sector:])
+	}
+	return out, nil
+}
+
+// sectorAt reads the index-th sector of a chain.
+func (c *msiCompound) sectorAt(start uint32, index int) ([]byte, error) {
+	id, err := c.chainSector(start, index)
+	if err != nil {
+		return nil, err
+	}
+	return c.readSector(id)
 }
 
 // msiTemplate reads PID_TEMPLATE (7), a VT_LPSTR, from the SummaryInformation set.

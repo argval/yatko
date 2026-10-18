@@ -1,0 +1,34 @@
+[package]
+name = "inno"
+version = "0.7.0"
+edition = "2024"
+rust-version = "1.93"
+description = "Library for reading Inno Setup executables"
+repository = "https://github.com/russellbanks/inno"
+readme = "README.md"
+license = "MIT OR Apache-2.0"
+keywords = ["innosetup", "installer"]
+
+[dependencies]
+bitflags = { version = "2", default-features = false }
+chrono = { version = "0.4", default-features = false, optional = true }
+codepage = { version = "0.1", default-features = false }
+crc32fast = { version = "1.3", default-features = false }
+encoding_rs = { version = "0.8.29", default-features = false, features = ["alloc"] }
+flate2 = "1.0.13"
+itertools = { version = "0.15", default-features = false }
+jiff = { version = "0.2", default-features = false, optional = true }
+lzma-rust2 = { version = "0.22", default-features = false, features = ["std"] }
+nt-time = { version = "0.15", default-features = false, features = ["dos-date-time", "std"] }
+thiserror = { version = "2", default-features = false }
+zerocopy = { version = "0.8.27", default-features = false, features = ["derive", "std"] }
+sha2 = { version = "0.11", optional = true, default-features = false }
+md5 = { package = "md-5", version = "0.11", optional = true, default-features = false }
+sha1 = { version = "0.11", optional = true, default-features = false }
+simd-adler32 = { version = "0.3", optional = true, default-features = false, features = ["std"] }
+
+[features]
+chrono = ["dep:chrono", "nt-time/chrono"]
+extract = ["dep:sha2", "dep:md5", "dep:sha1", "dep:simd-adler32"]
+jiff = ["dep:jiff", "nt-time/jiff"]
+

@@ -45,6 +45,13 @@ func logPrimaryDisagreement(owner, repo string, p assetPick, rules picker.AssetD
 		p.Decision.ShouldAutoSelect(), strings.Join(p.Decision.Reasons, "; "))
 }
 
+func assetName(a *github.Asset) string {
+	if a == nil {
+		return ""
+	}
+	return a.Name
+}
+
 // buildPicks avoids generic primary decisions without the visitor's real context.
 // When Jev is disabled the existing deterministic table remains available.
 func (h *RedirectHandler) buildPicks(_ context.Context, _, _ string, assets []github.Asset) map[string]releasePick {

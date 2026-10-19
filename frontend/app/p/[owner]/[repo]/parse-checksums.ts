@@ -1,6 +1,6 @@
 // SHA256 manifest parsing. Network fetch stays in backend.getChecksums.
 
-import type { Asset } from "./pick-asset";
+import type { Asset } from "./platform-utils";
 
 const SHA256_RE = /^[a-f0-9]{64}$/i;
 const SHA256_NAME_RE = /sha[-_]?256(?:sums?)?/i;

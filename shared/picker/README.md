@@ -15,12 +15,17 @@ unknown CPU, and nothing falls back
 it means Intel 64-bit. Equal candidates abstain instead of using asset order. Decisions carry `selected`, `incompatible`, `unknown`, or `ambiguous`
 status, confidence, reasons, and alternatives.
 
-`/dl` and `/api/link` auto-select only when confidence is not `low`. The page
-uses the same decisions from the `picks` map on `/api/release`, including
-abstention reasons. Clicks go through `/dl` with the displayed filename in
-`?asset=`. The handler resolves that name from the release inventory and
-rechecks compatibility; it cannot silently switch to another file as inspection
-fills the cache. Independent page/link requests can still see different evidence
+**Primary decider:** with `TYPESAFE_API_KEY` set, Jev (`backend/jev`) chooses
+among the release's real files for the visitor's UA, client hints and explicit
+choices; this rule picker answers only when Jev errors, replies malformed or is
+slow. Code guards every Jev pick with the same artifact facts (`ValidateSelection`)
+and Jev never supplies a URL. Without a key, this picker is primary.
+
+`/dl` and `/api/link` auto-select only when confidence is not `low`. In
+rule-only mode the page reads the `picks` map on `/api/release`; with Jev it asks
+`/api/link` with the visitor's context. Clicks go through `/dl` with the displayed
+filename in `?asset=`, which must still be the validated choice for that visitor;
+the handler cannot silently switch to another file as inspection fills the cache. Independent page/link requests can still see different evidence
 while the cache fills. A known visitor CPU requires compatible CPU evidence,
 even for an OS-specific installer. An unspecified visitor CPU remains unspecified.
 
@@ -28,8 +33,8 @@ even for an OS-specific installer. An unspecified visitor CPU remains unspecifie
 tuples (`platform`, `arch`, `libc`), role, evidence, inspection status, and
 conflicts. Missing fields remain unknown. Targets are tuples so metadata for
 Windows/x86 and macOS/ARM cannot become an invented Windows/ARM build.
-All Downloads uses these facts for labels and filters; the TypeScript filename
-classifier only supports older responses. The browser never ranks assets.
+All Downloads uses these facts for labels and filters; an asset without them
+matches no target. The browser never ranks assets.
 
 **Observations:** the GitHub client reads published cargo-dist, Electron, and
 Tauri metadata and bounded file contents. Entries must refer to assets in the
@@ -52,9 +57,9 @@ and updater sidecars stay out of the primary download. Cargo-dist, Electron, and
 (`latest.json`, including `OS-ARCH-BUNDLE` keys) are the supported publisher
 schemas; unknown cargo-dist kinds and custom Tauri keys stay opaque.
 
-This is structured evidence processing, with filename rules as a fallback.
-No language model runs in request handling. README context still uses a fixed
-vocabulary, so unfamiliar headings can be missed.
+This is structured evidence processing; Jev decides from these facts and the
+filename. README context still uses a fixed vocabulary, so unfamiliar headings
+can be missed.
 
 **Alias table:** `catalog.json` — platforms, architectures, libc, variants,
 formats. Overlapping arch aliases keep the longest span (`arm64` beats `arm`;
@@ -62,12 +67,8 @@ formats. Overlapping arch aliases keep the longest span (`arm64` beats `arm`;
 names or exclusive Mac formats. `linux`+`android` names target Android.
 An untagged archive is unknown, not automatically source code. Explicit bounded
 `source`/`src` tokens still identify source archives.
-Edit this file, then copy it to:
-
-- `backend/picker/catalog.json` (`go:embed` for the container image)
-- `frontend/lib/picker-catalog.json` (Vercel frontend root cannot see `shared/`)
-
-Tests fail if the three copies drift.
+Edit this file, then copy it to `backend/picker/catalog.json` (`go:embed` for
+the container image). Tests fail if the copies drift.
 
 **Real-release corpus:** `corpus.json` — snapshots of public GitHub releases with
 labeled picks and independent `targetLabels`. `go test ./picker/ -run
@@ -86,7 +87,7 @@ automatically, and never let an enricher invent a download URL.
 When changing ranking or aliases:
 
 1. Change `catalog.json` and/or Go first; update/add fixtures.
-2. Copy the catalog to the backend and frontend paths above.
+2. Copy the catalog to the backend path above.
 3. Run `go test ./picker/` and `bun test` in `frontend/`.
 
 Optional fixture fields: `prefer` (extension key), `libc` (`musl` | `gnu` |
@@ -95,8 +96,8 @@ Optional fixture fields: `prefer` (extension key), `libc` (`musl` | `gnu` |
 Do not add browser-only ranking shortcuts (keyword fallbacks, softer arch
 filters) — they create silent `/dl` vs button drift.
 
-An LLM or other enricher must stay off the `/dl` path. It may only propose
-new catalog aliases or cached facts, never invent a download URL.
+Jev may choose only among the release's real assets that pass the code guard;
+no model or enricher ever invents a download URL.
 
 README install commands are parsed from Markdown structure and statically
 checked shell syntax. Headings and nearby text constrain OS/CPU targets;

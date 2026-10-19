@@ -1,4 +1,4 @@
-import type { Arch, Asset, Platform } from "./pick-asset";
+import type { Arch, Asset, Platform } from "./platform-utils";
 import type { VisitorContext } from "./visitor-context";
 
 export type LinkPick = {

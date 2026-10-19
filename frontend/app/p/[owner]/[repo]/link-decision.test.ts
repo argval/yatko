@@ -7,7 +7,7 @@ import {
   parseLinkPick,
   pickFromReleaseTable,
 } from "./link-decision";
-import type { Asset } from "./pick-asset";
+import type { Asset } from "./platform-utils";
 import type { VisitorContext } from "./visitor-context";
 
 const assets: Asset[] = [

@@ -128,8 +128,6 @@ test("source and metadata remain visible with their role but do not match the ap
   const source: Asset = { ...inspectedZip, artifact: { ...inspectedZip.artifact!, role: "source" } };
   expect(assetTargetLabel(source)).toBe("Source code");
   expect(assetMatchesTarget(source, { platform: "windows", arch: "arm64" })).toBe(false);
-  const { artifact: _, ...legacy } = inspectedZip;
-  expect(assetMatchesTarget({ ...legacy, name: "tool-windows-arm64.zip" }, { platform: "windows", arch: "arm64" })).toBe(true);
 });
 
 test("install command filtering requires a known matching target", () => {
@@ -176,11 +174,6 @@ test("a known visitor CPU requires evidence of a compatible artifact CPU", () =>
   const partial: Asset = { ...inspectedZip, artifact: { ...inspectedZip.artifact!, targets: [{ platform: "windows" }] } };
   expect(assetMatchesTarget(partial, { platform: "windows", arch: "amd64" })).toBe(false);
   expect(assetMatchesTarget(partial, { platform: "windows", arch: "" })).toBe(true);
-  const { artifact: _, ...legacy } = inspectedZip;
-  expect(assetMatchesTarget({ ...legacy, name: "Setup.exe" }, { platform: "windows", arch: "amd64" })).toBe(false);
-  expect(assetMatchesTarget({ ...legacy, name: "tool-linux-riscv64.tar.gz" }, { platform: "linux", arch: "amd64" })).toBe(false);
-  expect(assetMatchesTarget({ ...legacy, name: "tool-win32-x64.zip" }, { platform: "windows", arch: "arm64" })).toBe(true);
-  expect(assetMatchesTarget({ ...legacy, name: "tool-universal.dmg" }, { platform: "macos", arch: "arm64" })).toBe(true);
 });
 
 test("CPU and libc compatibility must come from the same observed target", () => {
@@ -194,9 +187,8 @@ test("CPU and libc compatibility must come from the same observed target", () =>
   expect(assetMatchesTarget(failed, { platform: "linux", arch: "arm64" })).toBe(false);
 });
 
-test("legacy metadata and debug assets do not enter compatible downloads", () => {
-  const { artifact: _, ...legacy } = inspectedZip;
-  for (const name of ["tool-windows-x64.exe.sha256", "tool-windows-x64-debuginfo.zip", "tool-windows-x64.pdb"]) {
-    expect(assetMatchesTarget({ ...legacy, name }, { platform: "windows", arch: "amd64" })).toBe(false);
-  }
+test("assets without server facts never match a target, whatever their filename", () => {
+  const { artifact: _, ...bare } = inspectedZip;
+  expect(assetMatchesTarget({ ...bare, name: "tool-windows-x64.exe" }, { platform: "windows", arch: "amd64" })).toBe(false);
+  expect(assetTargetLabel({ ...bare, name: "tool-windows-x64.exe" })).toBe("Target unknown");
 });

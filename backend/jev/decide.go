@@ -125,6 +125,14 @@ func describeFile(a github.Asset) fileInput {
 	return in
 }
 
+// observedArtifact reports whether targets come from content or a publisher
+// manifest. After enrichment every asset carries filename-derived targets too
+// (picker.DescribeAsset), which must not override Jev's reading of the name.
+func observedArtifact(m *github.ArtifactMetadata) bool {
+	return m != nil && m.Status == "inspected" && len(m.Targets) > 0 &&
+		slices.ContainsFunc(m.Evidence, func(e github.ArtifactEvidence) bool { return e.Source != "" && e.Source != "filename" })
+}
+
 // fit is code's view of one asset for one visitor: ok is the hard guard,
 // the rest only caps confidence. Unknown facts never count as proof.
 type fit struct {
@@ -266,7 +274,7 @@ func coarseHints(hints map[string]string) map[string]string {
 func (c *Client) Decide(ctx context.Context, repo string, assets []github.Asset, platform picker.Platform, arch picker.Arch, opts picker.PickOpts) (picker.AssetDecision, Usage, error) {
 	p, err := c.prepare(repo, assets, platform, arch, opts)
 	if err != nil || p.immediate != nil {
-		return deref(p.immediate), Usage{Model: c.model, Consistent: true}, err
+		return deref(p.immediate), Usage{Model: c.model}, err
 	}
 	return c.run(ctx, p, platform, arch, opts)
 }
@@ -283,7 +291,7 @@ func (c *Client) run(ctx context.Context, p prepared, platform picker.Platform, 
 	if err != nil {
 		return picker.AssetDecision{}, Usage{}, err
 	}
-	usage := Usage{Model: resp.Model, InputTokens: resp.Usage.InputTokens, Consistent: true}
+	usage := Usage{Model: resp.Model, InputTokens: resp.Usage.InputTokens}
 	d, err := interpret(resp, p, platform, arch, opts)
 	return d, usage, err
 }

@@ -34,6 +34,7 @@ type assetPick struct {
 	PlatformSource picker.ResolutionSource
 	ArchSource     picker.ResolutionSource
 	ClientHints    map[string]string
+	Product        string // repo description; only fetched when Jev decides
 	Decision       picker.AssetDecision
 }
 
@@ -92,7 +93,8 @@ func visitorClientHints(c *gin.Context) map[string]string {
 // opts provides the same visitor evidence to primary and fallback decisions.
 func (p assetPick) opts() picker.PickOpts {
 	return picker.PickOpts{Prefer: p.Prefer, Libc: p.Libc, UserAgent: p.UA,
-		PlatformSource: p.PlatformSource, ArchSource: p.ArchSource, ClientHints: maps.Clone(p.ClientHints)}
+		PlatformSource: p.PlatformSource, ArchSource: p.ArchSource, ClientHints: maps.Clone(p.ClientHints),
+		ProductDescription: p.Product}
 }
 
 // ruleDecision applies conservative ranking to a pinned file or the full release.

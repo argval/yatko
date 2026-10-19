@@ -16,8 +16,9 @@ it means Intel 64-bit. Equal candidates abstain instead of using asset order. De
 status, confidence, reasons, and alternatives.
 
 **Primary decider:** with `TYPESAFE_API_KEY` set, Jev (`backend/jev`) chooses
-among the release's real files for the visitor's UA, client hints and explicit
-choices; this rule picker answers only when Jev errors, replies malformed or is
+among the release's real files for the visitor's UA, client hints, explicit
+choices and the repo description; an explicit `?prefer=` format is enforced in
+code whenever a compatible file has it; this rule picker answers only when Jev errors, replies malformed or is
 slow. Code guards every Jev pick with the same artifact facts (`ValidateSelection`)
 and Jev never supplies a URL. Without a key, this picker is primary.
 

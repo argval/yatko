@@ -23,7 +23,7 @@ import (
 //
 // promptVersion is hashed into Primary's cache key; bump it whenever the
 // questions, state shape or decision policy below change.
-const promptVersion = "direct-v4"
+const promptVersion = "direct-v5"
 
 const (
 	// NoCompatibleOption: no candidate is built for this OS and CPU.
@@ -59,7 +59,7 @@ var directInstructions = map[string]any{
 		"3. The file must run on the visitor's CPU. Prefer a native build for that CPU. A macOS universal build runs on both Intel and Apple Silicon. Use an x86-64 build on an arm64 Mac or arm64 Windows PC only when no native or universal build exists. A 32-bit x86 build never runs on an ARM CPU.",
 		"4. When `visitor.cpu.value` is unknown, do not assume a CPU. Choose a file only when it runs on every common CPU for that operating system, or when the release has builds for only one CPU on that operating system.",
 		"5. `visitor.requested_format` and `visitor.requested_libc` are explicit requests: choose a file with that format or libc when one fits. A static build satisfies a gnu or musl request. A file that does not name its libc has not proven one.",
-		"6. Choose the main program, not a companion tool such as a separate CLI, server, editor extension (.vsix) or plugin, when the release has both.",
+		"6. Choose the main program, not a companion tool such as a separate CLI, server, editor extension (.vsix) or plugin, when the release has both. `product`, when present, is the repository's own description: use it to tell the main program from companions.",
 		"7. Choose the standard build, not a special variant such as baseline, profile, debug, portable, no-web or musl, unless the visitor asked for it. On Linux, glibc (gnu) is the standard build.",
 		"8. Prefer the usual installer for the operating system. macOS: .dmg, then .pkg, then an archive. Windows: a setup .exe, then .msi, then .zip. Linux: .AppImage, then .deb (or .rpm on Fedora, RHEL and CentOS), then a .tar.gz archive. A bare binary comes last. The final extension decides the format: `app.AppImage.tar.gz` is an archive, not an AppImage.",
 		"9. Choose `" + NoCompatibleOption + "` when no file is built for the visitor's operating system and CPU. Choose `" + InsufficientOption + "` only when the CPU is unknown and the builds differ by CPU, or when the release ships several different programs and none is the main one. Files that differ only by format (.deb, .rpm, .AppImage, archive) are never a reason for `" + InsufficientOption + "`: rule 8 decides between them.",
@@ -210,6 +210,17 @@ func (c *Client) prepare(repo string, assets []github.Asset, platform picker.Pla
 	}
 	if len(candidates) == 0 {
 		return prepared{immediate: &picker.AssetDecision{Status: "incompatible", Confidence: picker.ConfidenceLow, Reasons: []string{"jev: no installable asset fits this visitor"}}}, nil
+	}
+	// An explicit ?prefer= format is a filter, not a hint, whenever some
+	// compatible file has it (same FormatRank policy as the rule picker).
+	// ponytail: can narrow to a companion's .deb when only it has the format.
+	if opts.Prefer != "" {
+		preferred := slices.DeleteFunc(slices.Clone(candidates), func(a github.Asset) bool {
+			return picker.FormatRank(a.Name, platform, opts) != -1
+		})
+		if len(preferred) > 0 {
+			candidates = preferred
+		}
 	}
 	if len(candidates) > maxCandidates {
 		return prepared{}, fmt.Errorf("jev: %d candidates exceeds limit %d", len(candidates), maxCandidates)

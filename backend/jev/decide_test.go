@@ -96,8 +96,9 @@ func TestDecideStateCarriesExplicitContext(t *testing.T) {
 	if opts := r.options(t); slices.Contains(opts, "app-setup-x64.exe") {
 		t.Fatalf("windows installer offered to a linux visitor: %v", opts)
 	}
-	if len(r.Questions) != 3 { // choice + runs_0 + runs_1
-		t.Fatalf("questions = %d", len(r.Questions))
+	// prefer=deb filters: the gnu tarball is compatible but not offered.
+	if opts := r.options(t); !slices.Equal(opts, []string{"app_amd64.deb", NoCompatibleOption, InsufficientOption}) || len(r.Questions) != 2 {
+		t.Fatalf("options = %v questions = %d", opts, len(r.Questions))
 	}
 }
 
@@ -308,4 +309,16 @@ func TestPreparedOrderAndKey(t *testing.T) {
 	reupload := slices.Clone(base)
 	reupload[1].ID = 7
 	changed("asset identity", reupload, picker.PickOpts{})
+}
+
+// A requested format nobody ships narrows nothing: every compatible file stays.
+func TestDecidePreferWithoutMatchKeepsAll(t *testing.T) {
+	c, fs := fakeJev(t, picks("app_amd64.deb", 0.95))
+	assets := assetsNamed("app_amd64.deb", "app-linux-x86_64.tar.gz")
+	if _, _, err := c.Decide(context.Background(), "o/app", assets, picker.Linux, picker.AMD64, picker.PickOpts{Prefer: "rpm"}); err != nil {
+		t.Fatal(err)
+	}
+	if opts := fs.lastRequest().options(t); !slices.Contains(opts, "app_amd64.deb") || !slices.Contains(opts, "app-linux-x86_64.tar.gz") {
+		t.Fatalf("options = %v", opts)
+	}
 }

@@ -16,6 +16,10 @@ import (
 func (h *RedirectHandler) pick(c *gin.Context, owner, repo string, assets []github.Asset) assetPick {
 	p := resolveAssetPick(c)
 	if h.Primary != nil {
+		// Cached with the page's repo metadata; a failed fetch leaves it blank.
+		if meta, ok := h.getRepoMeta(c, owner, repo); ok {
+			p.Product = strings.TrimSpace(meta.Description)
+		}
 		if decision, ok := h.Primary.Decide(c.Request.Context(), owner+"/"+repo, assets, p.Platform, p.Arch, p.opts()); ok {
 			p.Decision = decision
 			logPrimaryDisagreement(owner, repo, p, ruleDecision(c, assets, p))

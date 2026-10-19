@@ -79,3 +79,28 @@ func (h *RedirectHandler) getRelease(c *gin.Context, owner, repo, version string
 	h.enrichArtifacts(c.Request.Context(), result.Assets)
 	return &result, nil
 }
+
+// getRepoMeta also reports whether the repo itself was confirmed to exist
+// (the page uses it to disambiguate a "repo not found" 404 from a "no releases yet" 404).
+func (h *RedirectHandler) getRepoMeta(c *gin.Context, owner, repo string) (repoMeta, bool) {
+	key := cache.DescriptionKey(owner, repo)
+	meta, err := cache.FetchCached(c.Request.Context(), h.cache, key, func(ctx context.Context, etag string) (repoMeta, string, bool, error) {
+		data, newETag, notModified, err := h.gh.GetRepo(ctx, owner, repo, etag)
+		if err != nil {
+			return repoMeta{}, "", false, err
+		}
+		if notModified {
+			return repoMeta{}, newETag, true, nil
+		}
+		return repoMeta{
+			Description: data.Description,
+			AvatarURL:   data.Owner.AvatarURL,
+			Stars:       data.Stars,
+		}, newETag, false, nil
+	})
+	if err != nil {
+		log.Printf("repo fetch error for %s/%s: %v", owner, repo, err)
+		return repoMeta{}, false
+	}
+	return meta, true
+}

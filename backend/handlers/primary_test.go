@@ -43,6 +43,8 @@ func primaryRouterWithChoice(t *testing.T, status int, forced string) *gin.Engin
 				return respond(status, `{"error":"down"}`)
 			}
 			return respond(http.StatusOK, fakeJevAnswers(t, r, forced))
+		case r.URL.Path == "/repos/acme/tool":
+			return respond(http.StatusOK, `{"description":"A tool for testing","stargazers_count":1,"owner":{"avatar_url":""}}`)
 		case r.URL.Path == "/repos/acme/tool/releases/latest":
 			return respond(http.StatusOK, visitorReleaseJSON)
 		}
@@ -64,6 +66,7 @@ func fakeJevAnswers(t *testing.T, r *http.Request, forced string) string {
 	t.Helper()
 	var req struct {
 		State struct {
+			Product string `json:"product"`
 			Visitor struct {
 				OS struct {
 					Value string `json:"value"`
@@ -77,6 +80,9 @@ func fakeJevAnswers(t *testing.T, r *http.Request, forced string) string {
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		t.Fatal(err)
+	}
+	if req.State.Product != "A tool for testing" {
+		t.Errorf("product = %q, want the repo description", req.State.Product)
 	}
 	choice := forced
 	if choice == "" {

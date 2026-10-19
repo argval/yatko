@@ -4,6 +4,7 @@ import { platformLabels, formatSize, type Arch, type Platform, type Asset } from
 import { CopyButton } from "./copy-button";
 import { downloadDecisionMessage, type LinkPick } from "./link-decision";
 import { downloadCta } from "./download-cta";
+import type { VisitorContext } from "./visitor-context";
 
 export function DownloadButton({
   owner,
@@ -14,6 +15,7 @@ export function DownloadButton({
   hasAssets,
   tagName,
   decision,
+  visitorContext,
 }: {
   owner: string;
   repo: string;
@@ -23,6 +25,7 @@ export function DownloadButton({
   hasAssets: boolean;
   tagName: string;
   decision?: LinkPick | null;
+  visitorContext?: VisitorContext;
 }) {
   const { href, label, external } = downloadCta({
     platform,
@@ -32,6 +35,7 @@ export function DownloadButton({
     hasAssets,
     owner,
     repo,
+    visitorContext,
   });
 
   return (

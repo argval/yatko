@@ -63,7 +63,7 @@ func TestDecideRejectsFailedOrConflictedEvidence(t *testing.T) {
 		c := &Client{model: Model}
 		name := "app-windows-x64.exe"
 		c.attrCache.put(cacheKey(Model, "acme/app", []string{name}), []FileAttrs{{Name: name, OS: map[string]float64{osWindows: 1}, CPU: map[string]float64{cpuAMD64: 1}, Main: 1}})
-		d, _, err := c.Decide(context.Background(), "acme/app", []github.Asset{{Name: name, Artifact: &metadata}}, picker.Windows, picker.AMD64, picker.PickOpts{})
+		d, _, err := c.DecideAttributes(context.Background(), "acme/app", []github.Asset{{Name: name, Artifact: &metadata}}, picker.Windows, picker.AMD64, picker.PickOpts{})
 		if err != nil || d.Asset != nil {
 			t.Fatalf("unsafe evidence selected: %+v %v", d, err)
 		}

@@ -104,7 +104,7 @@ describe("usePlatform", () => {
     await render(createElement(Probe));
 
     expect(renders).toBeLessThan(10);
-    expect(last).toEqual({ platform: "macos", arch: "" });
+    expect(last).toMatchObject({ platform: "macos", arch: "", context: { platformSource: "browser", archSource: "browser" } });
     expect(container.textContent).toBe("macos");
   });
 
@@ -117,7 +117,7 @@ describe("usePlatform", () => {
     }
     await render(createElement(Probe));
 
-    expect(last).toEqual({ platform: "windows", arch: "amd64" });
+    expect(last).toMatchObject({ platform: "windows", arch: "amd64", context: { platformSource: "browser", archSource: "browser" } });
   });
 });
 
@@ -128,17 +128,24 @@ test("structured hints replace reduced UA hardware and share manual overrides", 
     platform: "Windows",
     getHighEntropyValues: () => new Promise((resolve) => { resolveHints = resolve; }),
   } });
+  let last: ReturnType<typeof usePlatform>;
   function Probe() {
     const target = usePlatform();
+    last = target;
     return createElement("span", null, `${target?.platform}/${target?.arch}`);
   }
   await render(createElement("div", null, createElement(Probe), createElement(Probe)));
   await act(async () => { setPlatformTarget({ platform: "linux", arch: "arm" }); });
   await act(async () => { resolveHints?.({ architecture: "arm", bitness: "64" }); });
   expect(container.textContent).toBe("linux/armlinux/arm");
+  expect(last?.context).toMatchObject({ platformSource: "manual", archSource: "manual" });
   expect(windowRef.localStorage.getItem("yatko:download-target")).toBeNull();
   await act(async () => { setPlatformTarget(null); });
   expect(container.textContent).toBe("windows/arm64windows/arm64");
+  expect(last?.context).toMatchObject({
+    platformSource: "client-hints", archSource: "client-hints",
+    clientHints: { platform: "Windows", architecture: "arm", bitness: "64" },
+  });
 });
 
 test("a fresh page detects the device instead of restoring a saved manual choice", async () => {
@@ -148,7 +155,7 @@ test("a fresh page detects the device instead of restoring a saved manual choice
     return createElement("span", null, JSON.stringify(target));
   }
   await render(createElement(Probe));
-  expect(container.textContent).toBe('{"platform":"macos","arch":""}');
+  expect(JSON.parse(container.textContent ?? "{}")).toMatchObject({ platform: "macos", arch: "", context: { platformSource: "browser" } });
 });
 
 test("unknown OS remains unknown", async () => {
@@ -158,5 +165,5 @@ test("unknown OS remains unknown", async () => {
     return createElement("span", null, JSON.stringify(target));
   }
   await render(createElement(Probe));
-  expect(container.textContent).toBe('{"platform":"","arch":""}');
+  expect(JSON.parse(container.textContent ?? "{}")).toMatchObject({ platform: "", arch: "" });
 });

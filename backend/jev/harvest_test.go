@@ -2,6 +2,7 @@ package jev
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -23,6 +24,7 @@ import (
 // eval after a code-only change is free and returns the exact same answers.
 type cachingTransport struct {
 	dir          string
+	replayOnly   bool
 	hits, misses atomic.Int64
 }
 
@@ -38,6 +40,11 @@ func (c *cachingTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(bytes.NewReader(data)), Header: http.Header{}, Request: req}, nil
 	}
 	c.misses.Add(1)
+	if c.replayOnly {
+		// A plain status, not a transport error, so post does not retry it.
+		return &http.Response{StatusCode: http.StatusServiceUnavailable, Header: http.Header{}, Request: req,
+			Body: io.NopCloser(strings.NewReader("replay cache miss and no TYPESAFE_API_KEY"))}, nil
+	}
 	req.Body = io.NopCloser(bytes.NewReader(body))
 	res, err := http.DefaultTransport.RoundTrip(req)
 	if err != nil || res.StatusCode != http.StatusOK {
@@ -56,18 +63,24 @@ func (c *cachingTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 }
 
 // evalClient returns a Jev client whose responses are cached under the user
-// cache dir, or skips the test when the paid eval is not requested.
+// cache dir, or skips the test when the eval is not requested. Without
+// TYPESAFE_API_KEY it replays only: a cache miss fails instead of paying.
 func evalClient(t *testing.T) (*Client, *cachingTransport) {
 	t.Helper()
+	if os.Getenv("JEV_EVAL") != "1" {
+		t.Skip("set JEV_EVAL=1 (and TYPESAFE_API_KEY for uncached calls) to run the Jev eval")
+	}
 	c := NewClientFromEnv()
-	if os.Getenv("JEV_EVAL") != "1" || c == nil {
-		t.Skip("set JEV_EVAL=1 and TYPESAFE_API_KEY to run the paid Jev eval")
+	replayOnly := c == nil
+	if replayOnly {
+		model := cmp.Or(os.Getenv("JEV_MODEL"), Model)
+		c = &Client{endpoint: defaultEndpoint, model: model}
 	}
 	base, err := os.UserCacheDir()
 	if err != nil {
 		t.Fatal(err)
 	}
-	ct := &cachingTransport{dir: filepath.Join(base, "yatko-jev-eval")}
+	ct := &cachingTransport{dir: filepath.Join(base, "yatko-jev-eval"), replayOnly: replayOnly}
 	if err := os.MkdirAll(ct.dir, 0o700); err != nil {
 		t.Fatal(err)
 	}
@@ -101,16 +114,16 @@ func TestJevHarvest(t *testing.T) {
 				part = append(part, r)
 			}
 		}
-		// Only Decide runs here: DecideFit and DecideChoice ask once per
-		// visitor, so the no-run cases would be new paid calls; compare them on
-		// the corpus only. Cold = filenames only; warm = with inspection results.
+		// Only DecideAttributes runs here: Decide, DecideFit and DecideChoice ask
+		// once per visitor, so the no-run cases would be new paid calls; compare
+		// them on the corpus only. Cold = filenames only; warm = with inspection results.
 		for _, warm := range []bool{false, true} {
 			mode := map[bool]string{false: "cold", true: "warm"}[warm]
 			var tokens, errs atomic.Int64
 			decide := func(repo string, assets []github.Asset, platform picker.Platform, arch picker.Arch, opts picker.PickOpts) picker.AssetDecision {
 				ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 				defer cancel()
-				d, usage, err := c.Decide(ctx, repo, assets, platform, arch, opts)
+				d, usage, err := c.DecideAttributes(ctx, repo, assets, platform, arch, opts)
 				tokens.Add(int64(usage.InputTokens))
 				if err != nil {
 					errs.Add(1)

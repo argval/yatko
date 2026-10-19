@@ -112,32 +112,39 @@ func TestChooseAppliesPolicyOrder(t *testing.T) {
 	}
 }
 
-// TestJevCorpus scores Jev against the labeled corpus next to the rule picker.
-// It calls the paid API, so it runs only with JEV_EVAL=1 and an API key:
+// TestJevCorpus scores Decide (direct choice) and the DecideAttributes
+// baseline against the labeled corpus next to the rule picker. It calls the
+// paid API unless every request is already in the replay cache:
 //
 //	set -a; source ../.env; set +a; JEV_EVAL=1 go test ./jev -run TestJevCorpus -v -timeout 15m
+//	JEV_EVAL=1 go test ./jev -run TestJevCorpus -v   # no key: replay only, misses are errors
+//
+// Decide fails the test on any wrong-platform, wrong-CPU or non-known-miss
+// false auto-select, and on any service error; other misses are logged for tuning.
 func TestJevCorpus(t *testing.T) {
 	c, _ := evalClient(t)
 	releases, err := picker.LoadCorpusFile(sharedPath("corpus.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
-
 	type decideFunc func(context.Context, string, []github.Asset, picker.Platform, picker.Arch, picker.PickOpts) (picker.AssetDecision, Usage, error)
 	for _, variant := range []struct {
 		label  string
 		decide decideFunc
-	}{{"attrs", c.Decide}, {"fit", c.DecideFit}, {"choice", c.DecideChoice}} {
-		t.Run(variant.label, func(t *testing.T) { evalCorpus(t, c.ModelName(), releases, variant.decide) })
+		strict bool
+	}{{"direct", c.Decide, true}, {"attrs", c.DecideAttributes, false}} {
+		t.Run(variant.label, func(t *testing.T) { evalCorpus(t, c.ModelName(), releases, variant.decide, variant.strict) })
 	}
 }
 
-func evalCorpus(t *testing.T, model string, releases []picker.CorpusRelease, jevDecide func(context.Context, string, []github.Asset, picker.Platform, picker.Arch, picker.PickOpts) (picker.AssetDecision, Usage, error)) {
+func evalCorpus(t *testing.T, model string, releases []picker.CorpusRelease, jevDecide func(context.Context, string, []github.Asset, picker.Platform, picker.Arch, picker.PickOpts) (picker.AssetDecision, Usage, error), strict bool) {
 	var tokens, calls, inconsistent, failed int
 	var disagree []string
 	decide := func(repo string, assets []github.Asset, platform picker.Platform, arch picker.Arch, opts picker.PickOpts) picker.AssetDecision {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
+		// Corpus cases are explicit visitor labels, like ?platform=&arch=.
+		opts.PlatformSource, opts.ArchSource = picker.SourceQuery, picker.SourceQuery
 		d, usage, err := jevDecide(ctx, repo, assets, platform, arch, opts)
 		calls++
 		tokens += usage.InputTokens
@@ -162,11 +169,19 @@ func evalCorpus(t *testing.T, model string, releases []picker.CorpusRelease, jev
 		model, score.Total, score.Top1, score.Abstain, score.FalseAbstain, score.FalseAuto, score.WrongPlatform, score.WrongArch, score.KnownMiss, score.KnownMissResolved)
 	t.Logf("jev calls=%d errors=%d order_inconsistent=%d input_tokens=%d avg_latency=%s",
 		calls, failed, inconsistent, tokens, time.Duration(score.DecideNanos/int64(max(score.Total, 1))))
+	falseAuto := 0
 	for _, m := range mismatches {
 		t.Log("mismatch: " + m)
+		if strings.Contains(m, "want abstain") { // ScoreCorpusWith omits known misses from mismatches
+			falseAuto++
+		}
 	}
 	for _, d := range disagree {
 		t.Log("vs rules: " + d)
+	}
+	if strict && (score.WrongPlatform > 0 || score.WrongArch > 0 || falseAuto > 0 || failed > 0) {
+		t.Errorf("unsafe: wrong_platform=%d wrong_arch=%d false_auto=%d (excluding known misses) errors=%d",
+			score.WrongPlatform, score.WrongArch, falseAuto, failed)
 	}
 }
 

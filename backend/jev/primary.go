@@ -1,6 +1,7 @@
 package jev
 
 import (
+	"cmp"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -31,10 +32,10 @@ const (
 )
 
 // Primary makes Jev the main asset decider. Decide returns a cached decision at
-// once, or waits briefly for a fresh one; ok is false when the caller should
-// use the rule picker (timeout, error, breaker open). Decisions are cached in
-// the existing Redis cache, so every visitor of the same release and visitor
-// type gets the same answer.
+// once, or waits briefly for a fresh one; ok is false only when the caller
+// should use the rule picker (service error, timeout, breaker open, full
+// in-flight pool). "No compatible file" and "not enough information" are
+// answers, so they return ok. Decisions are cached in the shared Redis cache.
 type Primary struct {
 	Client *Client
 	Cache  *cache.Cache
@@ -45,7 +46,7 @@ type Primary struct {
 	openUntil atomic.Int64 // unix nanos
 }
 
-// record is the cached form of a decision: the asset is looked up by name in
+// record is the cached form of a decision: assets are looked up by name in
 // the live release, so a stale record can never invent a download URL.
 type record struct {
 	Status       string            `json:"status"`
@@ -67,11 +68,11 @@ func toRecord(d picker.AssetDecision) record {
 }
 
 // decision rebuilds an AssetDecision against the current assets; ok is false
-// when a named asset is no longer present.
-func (r record) decision(assets []github.Asset) (picker.AssetDecision, bool) {
+// when the named asset is gone or no longer passes ValidateSelection.
+func (r record) decision(assets []github.Asset, platform picker.Platform, arch picker.Arch, opts picker.PickOpts) (picker.AssetDecision, bool) {
 	find := func(name string) *github.Asset {
 		for i := range assets {
-			if assets[i].Name == name {
+			if assets[i].Name == name && ValidateSelection(assets[i], platform, arch, opts) {
 				return &assets[i]
 			}
 		}
@@ -92,30 +93,39 @@ func (r record) decision(assets []github.Asset) (picker.AssetDecision, bool) {
 	return d, true
 }
 
-// key identifies a decision: the model, the release's files and their observed
-// evidence, and everything about the visitor that can change the answer.
-func (p *Primary) key(repo string, assets []github.Asset, platform picker.Platform, arch picker.Arch, opts picker.PickOpts) string {
+// assetIdentity is what makes a release file "the same file" for the cache;
+// download counts are left out because they change on every download.
+type assetIdentity struct {
+	ID              int64                    `json:"id"`
+	Name            string                   `json:"name"`
+	Label           string                   `json:"label"`
+	State           string                   `json:"state"`
+	Digest          string                   `json:"digest"`
+	UpdatedAt       string                   `json:"updated_at"`
+	URL             string                   `json:"url"`
+	Size            int64                    `json:"size"`
+	ArchivePlatform string                   `json:"archive_platform"`
+	Artifact        *github.ArtifactMetadata `json:"artifact"`
+}
+
+// key hashes everything that can change the answer: prompt and policy
+// version, the exact request Jev sees (model, visitor, candidates in canonical
+// order) and the identity and evidence of every release file, including the
+// ones code filtered out before the request.
+func key(p prepared, assets []github.Asset) string {
 	h := sha256.New()
-	write := func(parts ...string) {
-		h.Write([]byte(strings.Join(parts, "\x1f") + "\x1e"))
+	body, _ := json.Marshal(p.req)
+	h.Write([]byte(promptVersion + "\x1e"))
+	h.Write(body)
+	ids := make([]assetIdentity, len(assets))
+	for i, a := range assets {
+		ids[i] = assetIdentity{a.ID, a.Name, a.Label, a.State, a.Digest, a.UpdatedAt, a.BrowserDownloadURL, a.Size, a.ArchivePlatform, a.Artifact}
 	}
-	write(p.Client.ModelName(), repo, string(platform), string(arch), string(opts.Libc), opts.Prefer)
-	if platform == picker.Linux {
-		write(picker.ResolveLinuxPackagePrefer(opts.UserAgent)) // deb vs rpm is the only UA effect
-	}
-	names := make([]string, 0, len(assets))
-	byName := map[string]github.Asset{}
-	for _, a := range assets {
-		names = append(names, a.Name)
-		byName[a.Name] = a
-	}
-	slices.Sort(names)
-	for _, n := range names {
-		a := byName[n]
-		evidence, _ := json.Marshal(a.Artifact)
-		write(n, a.State, string(evidence))
-	}
-	return "jev:decision:v1:" + hex.EncodeToString(h.Sum(nil))
+	slices.SortFunc(ids, func(x, y assetIdentity) int { return cmp.Or(strings.Compare(x.Name, y.Name), cmp.Compare(x.ID, y.ID)) })
+	idBody, _ := json.Marshal(ids)
+	h.Write([]byte("\x1e"))
+	h.Write(idBody)
+	return "jev:decision:v2:" + hex.EncodeToString(h.Sum(nil))
 }
 
 func (p *Primary) wait() time.Duration {
@@ -125,13 +135,33 @@ func (p *Primary) wait() time.Duration {
 	return defaultWait
 }
 
-// Decide asks for Jev's decision for one visitor type.
-func (p *Primary) Decide(ctx context.Context, repo string, assets []github.Asset, platform picker.Platform, arch picker.Arch, opts picker.PickOpts) (picker.AssetDecision, bool) {
-	key := p.key(repo, assets, platform, arch, opts)
-	if r, hit := cache.GetCached[record](ctx, p.Cache, key); hit {
-		return r.decision(assets)
+// acquire reserves an in-flight slot; CAS keeps the bound exact under races.
+func (p *Primary) acquire() bool {
+	for {
+		n := p.inFlight.Load()
+		if n >= maxInFlight {
+			return false
+		}
+		if p.inFlight.CompareAndSwap(n, n+1) {
+			return true
+		}
 	}
-	if time.Now().UnixNano() < p.openUntil.Load() || p.inFlight.Load() >= maxInFlight {
+}
+
+// Decide asks for Jev's decision for one visitor context.
+func (p *Primary) Decide(ctx context.Context, repo string, assets []github.Asset, platform picker.Platform, arch picker.Arch, opts picker.PickOpts) (picker.AssetDecision, bool) {
+	prep, err := p.Client.prepare(repo, assets, platform, arch, opts)
+	if err != nil {
+		return picker.AssetDecision{}, false
+	}
+	if prep.immediate != nil {
+		return *prep.immediate, true
+	}
+	key := key(prep, assets)
+	if r, hit := cache.GetCached[record](ctx, p.Cache, key); hit {
+		return r.decision(assets, platform, arch, opts)
+	}
+	if time.Now().UnixNano() < p.openUntil.Load() || !p.acquire() {
 		return picker.AssetDecision{}, false
 	}
 	type result struct {
@@ -139,14 +169,13 @@ func (p *Primary) Decide(ctx context.Context, repo string, assets []github.Asset
 		err error
 	}
 	done := make(chan result, 1)
-	p.inFlight.Add(1)
 	go func() {
 		defer p.inFlight.Add(-1)
 		// Detached from the request: a slow call still warms the cache.
 		fctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), fetchTimeout)
 		defer cancel()
 		r, err := cache.FetchCachedWithTTL(fctx, p.Cache, key, decisionTTL, func(ctx context.Context, _ string) (record, string, bool, error) {
-			d, _, err := p.Client.Decide(ctx, repo, assets, platform, arch, opts)
+			d, _, err := p.Client.run(ctx, prep, platform, arch, opts)
 			if err != nil {
 				return record{}, "", false, err
 			}
@@ -169,7 +198,7 @@ func (p *Primary) Decide(ctx context.Context, repo string, assets []github.Asset
 		if res.err != nil {
 			return picker.AssetDecision{}, false
 		}
-		return res.r.decision(assets)
+		return res.r.decision(assets, platform, arch, opts)
 	case <-timer.C:
 	case <-ctx.Done():
 	}

@@ -64,7 +64,7 @@ type fileJudgment struct {
 
 // DecideFit was the second experiment: Jev judges each file's fit for this
 // visitor (a Score) and whether it is the standard main build (a Noul); code
-// applies the format policy. Decide (attrs.go) replaced it; kept for the eval.
+// applies the format policy. DecideAttributes (attrs.go) replaced it; kept for the eval.
 func (c *Client) DecideFit(ctx context.Context, repo string, assets []github.Asset, platform picker.Platform, arch picker.Arch, opts picker.PickOpts) (picker.AssetDecision, Usage, error) {
 	if _, ok := osNames[platform]; !ok {
 		return picker.AssetDecision{Status: "unknown", Confidence: picker.ConfidenceLow, Reasons: []string{"unknown platform"}}, Usage{}, nil
@@ -101,7 +101,10 @@ func (c *Client) DecideFit(ctx context.Context, repo string, assets []github.Ass
 			return picker.AssetDecision{}, Usage{}, fmt.Errorf("jev: response missing answers for file %d", i)
 		}
 		level, p := topLevel(fit.Probabilities)
-		judged[i] = fileJudgment{asset: a, fit: level, fitP: p, main: main.Noul, rank: picker.FormatRank(a.Name, platform, opts)}
+		if main.Noul == nil {
+			return picker.AssetDecision{}, Usage{}, fmt.Errorf("jev: response missing noul for file %d", i)
+		}
+		judged[i] = fileJudgment{asset: a, fit: level, fitP: p, main: *main.Noul, rank: picker.FormatRank(a.Name, platform, opts)}
 	}
 	usage := Usage{Model: resp.Model, InputTokens: resp.Usage.InputTokens, Consistent: true}
 	return choose(judged, nil), usage, nil

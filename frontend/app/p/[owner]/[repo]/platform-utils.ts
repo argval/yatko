@@ -59,6 +59,7 @@ export type BrowserHints = {
   platform?: string;
   architecture?: string;
   bitness?: string;
+  platformVersion?: string;
   getHighEntropyValues?: (hints: string[]) => Promise<BrowserHints>;
 };
 

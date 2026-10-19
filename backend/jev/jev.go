@@ -1,6 +1,7 @@
 // Package jev asks TypeSafe's Jev model (a System One decision model) to choose
 // the release asset for a visitor. Code removes files that can never be
-// installed; Jev ranks the real files that remain. It never invents a URL.
+// installed or are proven incompatible; Jev chooses among the real files that
+// remain (decide.go). It never invents a URL.
 // Docs: https://docs.typesafe.ai/primitives/choice.md
 package jev
 
@@ -74,7 +75,7 @@ type Usage struct {
 	Model       string
 	InputTokens int
 	// Consistent is false when DecideChoice's forward and reversed option
-	// orders chose different files. Decide judges each file alone, so it is always true.
+	// orders chose different files; the other deciders ask once, so it is always true.
 	Consistent bool
 }
 
@@ -124,10 +125,11 @@ type request struct {
 }
 
 type answer struct {
+	Type          string             `json:"type"`
 	Choice        string             `json:"choice"`
 	Probabilities map[string]float64 `json:"probabilities"`
 	Confidence    float64            `json:"confidence"`
-	Noul          float64            `json:"noul"`
+	Noul          *float64           `json:"noul"` // nil when absent, so a missing answer is not "no"
 }
 
 type response struct {
@@ -218,8 +220,8 @@ func installable(assets []github.Asset, bareArchives bool) []github.Asset {
 }
 
 // DecideChoice asks one Choice over every file (the first experiment). It
-// matches OS/CPU well but mixes in format preference, which Jev handles poorly;
-// Decide (split.go) is the default. Kept so the eval can compare both.
+// matches OS/CPU well but mixes in format preference, which Jev handles poorly.
+// Decide (decide.go) is the default; this is kept only as an eval baseline.
 func (c *Client) DecideChoice(ctx context.Context, repo string, assets []github.Asset, platform picker.Platform, arch picker.Arch, opts picker.PickOpts) (picker.AssetDecision, Usage, error) {
 	if _, ok := osNames[platform]; !ok {
 		return picker.AssetDecision{Status: "unknown", Confidence: picker.ConfidenceLow, Reasons: []string{"unknown platform"}}, Usage{}, nil

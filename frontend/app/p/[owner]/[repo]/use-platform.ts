@@ -1,9 +1,10 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
-import { archFromHints, browserHints, detectArch, detectPlatform, detectPlatformFromUA, type Arch, type Platform } from "./platform-utils";
+import { archFromHints, browserHints, detectArch, detectPlatform, detectPlatformFromUA, type Arch, type Platform, type BrowserHints } from "./platform-utils";
+import type { VisitorContext } from "./visitor-context";
 
-export type DetectedPlatform = { platform: Platform | ""; arch: Arch };
+export type DetectedPlatform = { platform: Platform | ""; arch: Arch; context?: VisitorContext; pending?: boolean };
 const listeners = new Set<() => void>();
 let automatic: DetectedPlatform | null = null;
 let override: DetectedPlatform | null = null;
@@ -12,25 +13,57 @@ let generation = 0;
 
 function publish() {
   const next = override ?? automatic;
-  if (snapshot?.platform === next?.platform && snapshot?.arch === next?.arch) return;
+  if (snapshot?.platform === next?.platform && snapshot?.arch === next?.arch && snapshot?.pending === next?.pending &&
+      JSON.stringify(snapshot?.context) === JSON.stringify(next?.context)) return;
   snapshot = next;
   listeners.forEach((listener) => listener());
+}
+
+/** Keep device observations separate from manual target choices. */
+function detectTarget(hints = browserHints(), pending = !!hints?.getHighEntropyValues): DetectedPlatform {
+  const platform = detectPlatformFromUA(hints?.platform ?? "");
+  const arch = archFromHints(hints);
+  return {
+    platform: platform || detectPlatform(),
+    arch: arch || detectArch(),
+    pending,
+    context: {
+      platformSource: platform ? "client-hints" : "browser",
+      archSource: arch ? "client-hints" : "browser",
+      clientHints: {
+        platform: hints?.platform,
+        architecture: hints?.architecture,
+        bitness: hints?.bitness,
+        platformVersion: hints?.platformVersion,
+      },
+    },
+  };
 }
 
 function subscribe(listener: () => void) {
   listeners.add(listener);
   if (listeners.size === 1) {
     const currentGeneration = ++generation;
-    automatic = { platform: detectPlatform(), arch: detectArch() };
+    automatic = detectTarget();
     publish();
     const hints = browserHints();
     // The low-entropy UA is only a fallback while structured hardware hints load.
     if (hints?.getHighEntropyValues) {
-      void hints.getHighEntropyValues(["architecture", "bitness", "platform"]).then((values) => {
-        if (generation !== currentGeneration) return;
-        automatic = { platform: detectPlatformFromUA(values.platform ?? "") || detectPlatform(), arch: archFromHints(values) || detectArch() };
+      // Give hints a short head start instead of paying for two immediate decisions.
+      const timer = setTimeout(() => {
+        if (generation !== currentGeneration || !automatic?.pending) return;
+        automatic = { ...automatic, pending: false };
         publish();
-      }).catch(() => { /* Permission or browser policy can deny client hints. */ });
+      }, 250);
+      void hints.getHighEntropyValues(["architecture", "bitness", "platform", "platformVersion"]).then((values: BrowserHints) => {
+        if (generation !== currentGeneration) return;
+        automatic = detectTarget({ ...hints, ...values }, false);
+        publish();
+      }).catch(() => {
+        if (generation !== currentGeneration || !automatic) return;
+        automatic = { ...automatic, pending: false };
+        publish();
+      }).finally(() => clearTimeout(timer));
     }
   }
   return () => {
@@ -46,7 +79,7 @@ function subscribe(listener: () => void) {
 
 function clientSnapshot(): DetectedPlatform | null {
   if (snapshot === null && typeof navigator !== "undefined") {
-    automatic = { platform: detectPlatform(), arch: detectArch() };
+    automatic = detectTarget();
     snapshot = automatic;
   }
   return snapshot;
@@ -59,6 +92,10 @@ export function usePlatform(): DetectedPlatform | null {
 
 /** Manual choices last until refresh; null restores automatic detection immediately. */
 export function setPlatformTarget(target: DetectedPlatform | null): void {
-  override = target;
+  override = target ? {
+    ...target,
+    pending: false,
+    context: { platformSource: "manual", archSource: "manual", clientHints: automatic?.context?.clientHints },
+  } : null;
   publish();
 }

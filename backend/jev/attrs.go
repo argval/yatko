@@ -146,10 +146,10 @@ func (c *Client) describe(ctx context.Context, repo string, names []string) ([]F
 	return attrs, usage, nil
 }
 
-// Decide asks Jev what each file is (Describe), then matches the visitor in
-// code: P(native) = P(OS) × P(CPU runs natively). The "CPU not stated" policy
-// and the format preference are Yatko's rules, so they live here, not in a prompt.
-func (c *Client) Decide(ctx context.Context, repo string, assets []github.Asset, platform picker.Platform, arch picker.Arch, opts picker.PickOpts) (picker.AssetDecision, Usage, error) {
+// DecideAttributes is the evaluation baseline for Decide (decide.go): Jev says
+// what each file is (Describe) and code matches the visitor, with
+// P(native) = P(OS) × P(CPU runs natively) and Yatko's format policy.
+func (c *Client) DecideAttributes(ctx context.Context, repo string, assets []github.Asset, platform picker.Platform, arch picker.Arch, opts picker.PickOpts) (picker.AssetDecision, Usage, error) {
 	if _, ok := platformOS[platform]; !ok {
 		return picker.AssetDecision{Status: "unknown", Confidence: picker.ConfidenceLow, Reasons: []string{"unknown platform"}}, Usage{}, nil
 	}

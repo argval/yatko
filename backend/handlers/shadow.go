@@ -64,7 +64,7 @@ func (h *RedirectHandler) startShadow(c *gin.Context, owner, repo string, releas
 		ctx, cancel := context.WithTimeout(context.Background(), shadowTimeout)
 		defer cancel()
 		start := time.Now()
-		opts := picker.PickOpts{Prefer: p.Prefer, Libc: p.Libc, UserAgent: p.UA}
+		opts := p.opts()
 		d, usage, err := h.Shadow(ctx, owner+"/"+repo, release.Assets, p.Platform, p.Arch, opts)
 		if err != nil {
 			log.Printf("jev_shadow_error owner=%s repo=%s err=%q", owner, repo, err.Error())

@@ -161,11 +161,15 @@ const (
 	LibcStatic Libc = "static"
 )
 
-// PickOpts controls optional format and libc preferences for asset selection.
+// PickOpts carries visitor evidence and optional download preferences.
 type PickOpts struct {
-	Prefer    string // normalized extension key without leading dot (e.g. "deb")
-	Libc      Libc
-	UserAgent string // optional; Linux deb/rpm tiebreak when Prefer is empty
+	Prefer             string // normalized extension key without leading dot (e.g. "deb")
+	Libc               Libc
+	UserAgent          string // optional; Linux deb/rpm tiebreak when Prefer is empty
+	PlatformSource     ResolutionSource
+	ArchSource         ResolutionSource
+	ClientHints        map[string]string
+	ProductDescription string
 }
 
 // linuxExtensionsForUA returns Linux extension priority. Fedora/RHEL/CentOS UAs

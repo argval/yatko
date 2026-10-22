@@ -45,14 +45,20 @@ func (h *RedirectHandler) scanArtifacts(parent context.Context, assets []github.
 
 // completeScanTargets requires observed OS and CPU facts rather than filename-filled targets.
 func completeScanTargets(metadata github.ArtifactMetadata) bool {
-	return len(metadata.Targets) > 0 && !slices.ContainsFunc(metadata.Targets, func(target github.ArtifactTarget) bool {
+	return !metadata.TargetsPartial && len(metadata.Targets) > 0 && !slices.ContainsFunc(metadata.Targets, func(target github.ArtifactTarget) bool {
 		return target.Platform == "" || target.Arch == ""
 	})
 }
 
 // authoritativeScanMetadata includes proof of an unusable file even without executable targets.
 func authoritativeScanMetadata(metadata github.ArtifactMetadata) bool {
-	if metadata.Status == "failed" || completeScanTargets(metadata) {
+	if metadata.Status == "failed" {
+		return true
+	}
+	if metadata.TargetsPartial {
+		return false
+	}
+	if completeScanTargets(metadata) {
 		return true
 	}
 	return metadata.Status == "inspected" && (metadata.Role == "source" || metadata.Role == "metadata" || metadata.Role == "debug")
@@ -64,6 +70,11 @@ func appendScanEvidence(asset *github.Asset, metadata github.ArtifactMetadata) {
 	if asset.Artifact != nil {
 		observed = *asset.Artifact
 		observed.Evidence = slices.Clone(observed.Evidence)
+	}
+	if metadata.TargetsPartial {
+		merged := github.MergeObservations(observed, metadata)
+		asset.Artifact = &merged
+		return
 	}
 	for _, evidence := range metadata.Evidence {
 		if !slices.Contains(observed.Evidence, evidence) {

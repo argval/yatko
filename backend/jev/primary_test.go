@@ -22,25 +22,26 @@ func nativeMac(t *testing.T, r wireRequest) fakeReply {
 	return fakeReply{choice: "app-x64.dmg", p: 0.95}
 }
 
+// The decision cache answers repeat contexts, including reordered assets,
+// without a new Choice (the Describe cache alone cannot skip a Choice).
 func TestPrimaryCachesDecisionPerContext(t *testing.T) {
-	c, fs := fakeJev(t, nativeMac)
+	c, fs := fakeJev(t, picks("tool-linux-amd64.tar.gz", 0.95))
 	p := &Primary{Client: c, Cache: cache.New()}
 	for i := 0; i < 3; i++ {
-		d, ok := p.Decide(context.Background(), "o/app", macAssets, picker.MacOS, picker.ARM64, picker.PickOpts{})
-		if !ok || name(d) != "app-arm64.dmg" || !d.ShouldAutoSelect() {
+		d, ok := p.Decide(context.Background(), "o/tool", linuxPair, picker.Linux, picker.AMD64, picker.PickOpts{})
+		if !ok || name(d) != "tool-linux-amd64.tar.gz" || !d.ShouldAutoSelect() {
 			t.Fatalf("run %d: ok=%v decision=%+v", i, ok, d)
 		}
 	}
-	if n := fs.calls.Load(); n != 1 {
-		t.Fatalf("API calls = %d, want 1 (later requests are cache hits)", n)
+	reversed := []github.Asset{linuxPair[1], linuxPair[0]}
+	if _, ok := p.Decide(context.Background(), "o/tool", reversed, picker.Linux, picker.AMD64, picker.PickOpts{}); !ok {
+		t.Fatal("reordered assets: not ok")
 	}
-	if d, ok := p.Decide(context.Background(), "o/app", macAssets, picker.MacOS, picker.AMD64, picker.PickOpts{}); !ok || name(d) != "app-x64.dmg" {
-		t.Fatalf("amd64: ok=%v %+v", ok, d)
+	if fs.choices.Load() != 1 || fs.describes.Load() != 1 {
+		t.Fatalf("choices=%d describes=%d, want 1 each (later requests are cache hits)", fs.choices.Load(), fs.describes.Load())
 	}
-	// Same files in another order are the same decision.
-	reversed := []github.Asset{macAssets[1], macAssets[0]}
-	if _, ok := p.Decide(context.Background(), "o/app", reversed, picker.MacOS, picker.ARM64, picker.PickOpts{}); !ok || fs.calls.Load() != 2 {
-		t.Fatalf("reordered assets missed the cache: calls=%d", fs.calls.Load())
+	if d, ok := p.Decide(context.Background(), "o/tool", linuxPair, picker.Linux, picker.AMD64, picker.PickOpts{Prefer: "appimage"}); !ok || name(d) != "tool-linux-amd64.AppImage" {
+		t.Fatalf("another context: ok=%v %+v", ok, d)
 	}
 }
 
@@ -67,8 +68,8 @@ func TestPrimarySlowCallFallsBackThenWarms(t *testing.T) {
 	}
 	time.Sleep(900 * time.Millisecond)
 	d, ok := p.Decide(context.Background(), "o/slow", macAssets, picker.MacOS, picker.ARM64, picker.PickOpts{})
-	if !ok || name(d) != "app-arm64.dmg" || fs.calls.Load() != 1 {
-		t.Fatalf("warmed: ok=%v calls=%d %+v", ok, fs.calls.Load(), d)
+	if !ok || name(d) != "app-arm64.dmg" || fs.calls() != 1 {
+		t.Fatalf("warmed: ok=%v calls=%d %+v", ok, fs.calls(), d)
 	}
 }
 
@@ -80,15 +81,15 @@ func TestPrimaryErrorsFallBackAndTripBreaker(t *testing.T) {
 			t.Fatal("API error must fall back to the rules")
 		}
 	}
-	before := fs.calls.Load()
-	if _, ok := p.Decide(context.Background(), "o/err-after", macAssets, picker.MacOS, picker.ARM64, picker.PickOpts{}); ok || fs.calls.Load() != before {
-		t.Fatalf("open breaker still called the API: ok=%v calls %d -> %d", ok, before, fs.calls.Load())
+	before := fs.calls()
+	if _, ok := p.Decide(context.Background(), "o/err-after", macAssets, picker.MacOS, picker.ARM64, picker.PickOpts{}); ok || fs.calls() != before {
+		t.Fatalf("open breaker still called the API: ok=%v calls %d -> %d", ok, before, fs.calls())
 	}
 }
 
 func TestPrimaryMalformedFallsBack(t *testing.T) {
 	c, _ := fakeJev(t, func(*testing.T, wireRequest) fakeReply {
-		return fakeReply{choice: "app-arm64.dmg", p: 0.9, tamper: func(a map[string]any) { delete(a, "runs_0") }}
+		return fakeReply{tamper: func(a map[string]any) { delete(a, "os_0") }}
 	})
 	p := &Primary{Client: c, Cache: cache.New()}
 	if _, ok := p.Decide(context.Background(), "o/bad", macAssets, picker.MacOS, picker.ARM64, picker.PickOpts{}); ok {
@@ -101,8 +102,8 @@ func TestPrimaryInFlightBound(t *testing.T) {
 	c, fs := fakeJev(t, nativeMac)
 	p := &Primary{Client: c, Cache: cache.New()}
 	p.inFlight.Store(maxInFlight)
-	if _, ok := p.Decide(context.Background(), "o/busy", macAssets, picker.MacOS, picker.ARM64, picker.PickOpts{}); ok || fs.calls.Load() != 0 {
-		t.Fatalf("ok=%v calls=%d", ok, fs.calls.Load())
+	if _, ok := p.Decide(context.Background(), "o/busy", macAssets, picker.MacOS, picker.ARM64, picker.PickOpts{}); ok || fs.calls() != 0 {
+		t.Fatalf("ok=%v calls=%d", ok, fs.calls())
 	}
 }
 

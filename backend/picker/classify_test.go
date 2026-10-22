@@ -83,14 +83,14 @@ func TestClassify_LongestArchAliasWins(t *testing.T) {
 
 func TestIncompatiblePlatform_AndroidLinuxHost(t *testing.T) {
 	android := Classify("bun-linux-aarch64-android.zip")
-	if incompatiblePlatform(android, Android) {
+	if IncompatiblePlatform(android, Android) {
 		t.Fatal("linux+android zip should be eligible for android")
 	}
-	if !incompatiblePlatform(android, Linux) {
+	if !IncompatiblePlatform(android, Linux) {
 		t.Fatal("linux+android zip should be excluded for linux")
 	}
 	plain := Classify("bun-linux-aarch64.zip")
-	if incompatiblePlatform(plain, Linux) {
+	if IncompatiblePlatform(plain, Linux) {
 		t.Fatal("plain linux zip should be eligible for linux")
 	}
 }

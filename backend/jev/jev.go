@@ -1,7 +1,8 @@
 // Package jev asks TypeSafe's Jev model (a System One decision model) to choose
 // the release asset for a visitor. Code removes files that can never be
-// installed or are proven incompatible; Jev chooses among the real files that
-// remain (decide.go). It never invents a URL.
+// installed or are proven incompatible; Jev describes each file once per
+// release (describe.go), code decides which files run for this visitor, and a
+// Jev Choice picks among those (decide.go). It never invents a URL.
 // Docs: https://docs.typesafe.ai/primitives/choice.md
 package jev
 
@@ -30,10 +31,11 @@ const (
 
 // Client calls the TypeSafe System One endpoint.
 type Client struct {
-	apiKey   string
-	endpoint string
-	model    string
-	http     *http.Client
+	apiKey    string
+	endpoint  string
+	model     string
+	http      *http.Client
+	attrCache attrCache
 }
 
 // ModelName is the versioned model this client sends.

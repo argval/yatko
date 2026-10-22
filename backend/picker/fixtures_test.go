@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/argval/yatko/github"
@@ -99,6 +100,12 @@ func TestDecideAsset_SharedFixtures(t *testing.T) {
 			assets := make([]github.Asset, len(tc.Assets))
 			for i, name := range tc.Assets {
 				assets[i] = github.Asset{Name: name}
+				// Format-ranking fixtures assume the launcher check has already passed.
+				if strings.HasSuffix(strings.ToLower(name), ".appimage") {
+					if f := Classify(name); len(f.Arches) == 1 {
+						assets[i].Artifact = &github.ArtifactMetadata{Status: "inspected", LauncherArch: string(f.Arches[0])}
+					}
+				}
 			}
 			got := autoSelected(
 				assets,

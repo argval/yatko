@@ -18,11 +18,13 @@ import (
 // HarvestAsset is one release asset plus what Yatko's artifact inspector
 // proved from its contents (ELF/PE/Mach-O headers, archive listings).
 type HarvestAsset struct {
-	Repo    string                  `json:"repo"`
-	Tag     string                  `json:"tag"`
-	Name    string                  `json:"name"`
-	Status  string                  `json:"status"`
-	Targets []github.ArtifactTarget `json:"targets"`
+	Repo           string                  `json:"repo"`
+	Tag            string                  `json:"tag"`
+	Name           string                  `json:"name"`
+	Status         string                  `json:"status"`
+	Targets        []github.ArtifactTarget `json:"targets"`
+	TargetsPartial bool                    `json:"targets_partial"`
+	LauncherArch   string                  `json:"launcher_arch,omitempty"`
 	// Manifest holds publisher manifest facts (harvest_manifests.json), if any.
 	Manifest *github.ArtifactMetadata `json:"-"`
 	// Deep holds full-file inspection facts (harvest_deep.json), if any.
@@ -36,6 +38,9 @@ func deepAuthoritative(m github.ArtifactMetadata) bool {
 		return true
 	}
 	if m.Status != "inspected" {
+		return false
+	}
+	if m.TargetsPartial {
 		return false
 	}
 	if m.Role == "source" || m.Role == "metadata" || m.Role == "debug" {
@@ -52,18 +57,25 @@ var contentEvidence = []github.ArtifactEvidence{{Source: "content-inspection", F
 // /dl does (github.MergeObservations). An authoritative full-file result
 // replaces the shallow content read. ok is false when no evidence exists.
 func (a HarvestAsset) Observed() (m github.ArtifactMetadata, ok bool) {
+	if a.Deep != nil && a.Deep.TargetsPartial {
+		base := a
+		base.Deep = nil
+		observed, _ := base.Observed()
+		return github.MergeObservations(observed, *a.Deep), true
+	}
 	content := a.Status == "inspected" || a.Status == "failed"
+	shallow := github.ArtifactMetadata{Status: a.Status, Targets: a.Targets, Evidence: contentEvidence, TargetsPartial: a.TargetsPartial, LauncherArch: a.LauncherArch}
 	switch {
 	case a.Deep != nil && deepAuthoritative(*a.Deep) && a.Manifest != nil:
 		return github.MergeObservations(*a.Manifest, *a.Deep), true
 	case a.Deep != nil && deepAuthoritative(*a.Deep):
 		return *a.Deep, true
 	case a.Manifest != nil && content:
-		return github.MergeObservations(*a.Manifest, github.ArtifactMetadata{Status: a.Status, Targets: a.Targets, Evidence: contentEvidence}), true
+		return github.MergeObservations(*a.Manifest, shallow), true
 	case a.Manifest != nil:
 		return *a.Manifest, true
 	case content:
-		return github.ArtifactMetadata{Status: a.Status, Targets: a.Targets, Evidence: contentEvidence}, true
+		return shallow, true
 	}
 	return m, false
 }
@@ -137,6 +149,16 @@ func LoadHarvest(path string) ([]HarvestRelease, error) {
 		if err := json.Unmarshal(sc.Bytes(), &a); err != nil {
 			return nil, err
 		}
+		var coverage struct {
+			TargetsPartial *bool `json:"targets_partial"`
+		}
+		if err := json.Unmarshal(sc.Bytes(), &coverage); err != nil {
+			return nil, err
+		}
+		// Legacy snapshots did not record whether bounded archive reads stopped early.
+		if coverage.TargetsPartial == nil && sampledArchive(a.Name) {
+			a.TargetsPartial = true
+		}
 		key := a.Repo + "@" + a.Tag
 		if m, ok := manifests[key][a.Name]; ok {
 			a.Manifest = &m
@@ -190,20 +212,21 @@ const ArchUnproven Arch = "unproven"
 // so they match what a visitor can actually run:
 //   - An empty platform is an ELF/Mach-O slice whose header names no OS. It
 //     takes the OS of the file's other slices (universal zips), else an OS the
-//     filename names, else Linux (Linux binaries use the default ELF OS ABI).
+//     filename names, else stays unknown. A default ELF ABI proves no OS.
 //   - On Windows, a 32-bit x86 label on a file whose name names no CPU or
 //     another CPU is usually the setup stub, and an x64 label on an arm64(ec)
 //     name is a hybrid binary: the CPU is unproven. This applies only to
 //     shallow reads; payload (full-file) evidence reads the app itself.
-//   - An empty CPU (the inspector does not read .dmg contents) takes the one
-//     CPU the filename names, else stays empty, which callers treat as unproven.
+//   - An empty CPU in a complete observation takes the one CPU the filename
+//     names, else stays empty, which callers treat as unproven.
 //     Installer EXEs keep an unknown payload CPU unproven even with a named CPU.
-func CorrectedTargets(name string, targets []github.ArtifactTarget, payload bool) []github.ArtifactTarget {
+func CorrectedTargets(name string, observed github.ArtifactMetadata, payload bool) []github.ArtifactTarget {
+	targets := observed.Targets
 	facts := FactsForAsset(github.Asset{Name: name})
-	defaultOS := string(Linux)
+	defaultOS := string(facts.FormatPlatform)
 	switch {
-	case slices.Contains(facts.Platforms, MacOS):
-		defaultOS = string(MacOS)
+	case len(facts.Platforms) == 1:
+		defaultOS = string(facts.Platforms[0])
 	default:
 		for _, os := range []string{"dragonfly", "solaris", "illumos", "sunos", "aix", "plan9", "haiku"} {
 			if hasBoundedKeyword(facts.Canonical, os) {
@@ -222,7 +245,7 @@ func CorrectedTargets(name string, targets []github.ArtifactTarget, payload bool
 			t.Platform = defaultOS
 		}
 		t.Arch = normalizeInspectedArch(t.Arch)
-		if t.Arch == "" && len(facts.Arches) == 1 && !strings.HasSuffix(facts.Canonical, ".exe") {
+		if t.Arch == "" && !observed.TargetsPartial && len(facts.Arches) == 1 && !strings.HasSuffix(facts.Canonical, ".exe") {
 			t.Arch = string(facts.Arches[0])
 		}
 		if !payload && Platform(t.Platform) == Windows && t.Arch != "" && !slices.Contains(facts.Arches, Arch(t.Arch)) &&
@@ -250,11 +273,18 @@ func normalizeInspectedArch(a string) string {
 }
 
 // fit is how an inspected asset runs for a visitor: 0 no, 1 emulated,
-// 2 native, or fitUnproven when the OS matches but the CPU is not proven.
+// 2 native, or fitUnproven when the OS or CPU is not proven.
 func fit(a HarvestAsset, platform Platform, arch Arch) (fitLevel int, otherOS bool) {
 	otherOS = true
 	unproven := false
-	for _, t := range CorrectedTargets(a.Name, a.labelTargets(), a.FromPayload()) {
+	observed, _ := a.Observed()
+	observed.Targets = a.labelTargets()
+	for _, t := range CorrectedTargets(a.Name, observed, a.FromPayload()) {
+		if t.Platform == "" || strings.HasPrefix(t.Platform, "tauri-target:") {
+			unproven = true
+			otherOS = false
+			continue
+		}
 		if Platform(t.Platform) != platform {
 			continue
 		}
@@ -275,7 +305,23 @@ func fit(a HarvestAsset, platform Platform, arch Arch) (fitLevel int, otherOS bo
 	if fitLevel == 0 && unproven {
 		return fitUnproven, false
 	}
+	if fitLevel == 0 && observed.TargetsPartial {
+		facts := Classify(a.Name)
+		if !otherOS || !(IncompatiblePlatform(facts, platform) || facts.FormatPlatform != "" && facts.FormatPlatform != platform) {
+			return fitUnproven, false
+		}
+	}
 	return fitLevel, otherOS
+}
+
+func sampledArchive(name string) bool {
+	n := strings.ToLower(name)
+	for _, suffix := range []string{".zip", ".7z", ".tar", ".tar.gz", ".tgz", ".tar.xz", ".txz", ".tar.bz2", ".tbz2", ".tbz", ".tar.zst", ".tzst"} {
+		if strings.HasSuffix(n, suffix) {
+			return true
+		}
+	}
+	return false
 }
 
 const fitUnproven = -1
@@ -388,7 +434,7 @@ func scoreHarvestCase(rel HarvestRelease, platform Platform, arch Arch, decide D
 	switch {
 	case f == fitUnproven:
 		s.Unverified = 1
-		return s, fmt.Sprintf("%s: picked %s (OS proven, CPU not)", tag, d.Asset.Name)
+		return s, fmt.Sprintf("%s: picked %s (OS or CPU not proven)", tag, d.Asset.Name)
 	case otherOS:
 		s.WrongPlatform = 1
 		return s, fmt.Sprintf("%s: WRONG OS %s", tag, d.Asset.Name)

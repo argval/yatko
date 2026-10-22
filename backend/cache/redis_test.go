@@ -19,6 +19,31 @@ func newTestCache(t *testing.T, softTTL time.Duration) *Cache {
 	return &Cache{client: client, softTTL: softTTL, hardTTL: HardTTL, l1: newL1(l1MaxEntries)}
 }
 
+func TestStoreCachedReplacesFreshValueAndRenewsTTL(t *testing.T) {
+	c := newTestCache(t, time.Hour)
+	ctx := context.Background()
+	if err := StoreCached(ctx, c, "offer", "old"); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.client.Expire(ctx, "offer", time.Minute).Err(); err != nil {
+		t.Fatal(err)
+	}
+	if err := StoreCached(ctx, c, "offer", "new"); err != nil {
+		t.Fatal(err)
+	}
+	for _, redisRead := range []bool{false, true} {
+		if redisRead {
+			c.l1.delete("offer")
+		}
+		if value, ok := GetCached[string](ctx, c, "offer"); !ok || value != "new" {
+			t.Fatalf("redisRead=%v: value=%q ok=%v", redisRead, value, ok)
+		}
+	}
+	if ttl := c.client.TTL(ctx, "offer").Val(); ttl < HardTTL-time.Second {
+		t.Fatalf("TTL was not renewed: %s", ttl)
+	}
+}
+
 func TestFetchCached_PopulatesOnMiss(t *testing.T) {
 	c := newTestCache(t, time.Minute)
 	ctx := context.Background()

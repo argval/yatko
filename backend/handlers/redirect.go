@@ -43,7 +43,7 @@ func (h *RedirectHandler) handle(c *gin.Context, owner, repo, version string) {
 		return
 	}
 
-	p := h.pick(c, owner, repo, release.Assets)
+	p := h.pick(c, owner, repo, release)
 	if !p.Decision.ShouldAutoSelect() {
 		respondDownloadMiss(c, owner, repo, release, p)
 		return
@@ -85,22 +85,23 @@ func (h *RedirectHandler) getRelease(c *gin.Context, owner, repo, version string
 func (h *RedirectHandler) getRepoMeta(c *gin.Context, owner, repo string) (repoMeta, bool) {
 	key := cache.DescriptionKey(owner, repo)
 	meta, err := cache.FetchCached(c.Request.Context(), h.cache, key, func(ctx context.Context, etag string) (repoMeta, string, bool, error) {
-		data, newETag, notModified, err := h.gh.GetRepo(ctx, owner, repo, etag)
-		if err != nil {
-			return repoMeta{}, "", false, err
-		}
-		if notModified {
-			return repoMeta{}, newETag, true, nil
-		}
-		return repoMeta{
-			Description: data.Description,
-			AvatarURL:   data.Owner.AvatarURL,
-			Stars:       data.Stars,
-		}, newETag, false, nil
+		return h.fetchRepoMeta(ctx, owner, repo, etag)
 	})
 	if err != nil {
 		log.Printf("repo fetch error for %s/%s: %v", owner, repo, err)
 		return repoMeta{}, false
 	}
 	return meta, true
+}
+
+func (h *RedirectHandler) fetchRepoMeta(ctx context.Context, owner, repo, etag string) (repoMeta, string, bool, error) {
+	data, newETag, notModified, err := h.gh.GetRepo(ctx, owner, repo, etag)
+	if err != nil || notModified {
+		return repoMeta{}, newETag, notModified, err
+	}
+	return repoMeta{
+		Description: data.Description,
+		AvatarURL:   data.Owner.AvatarURL,
+		Stars:       data.Stars,
+	}, newETag, false, nil
 }

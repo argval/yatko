@@ -60,6 +60,9 @@ func New() *Cache {
 		return &Cache{softTTL: softTTL, hardTTL: HardTTL, l1: newL1(l1MaxEntries)}
 	}
 	opt.TLSConfig = &tls.Config{MinVersion: tls.VersionTLS12}
+	// Bound socket I/O, TLS handshakes and retries by the caller's deadline.
+	opt.ContextTimeoutEnabled = true
+	opt.Dialer = (&tls.Dialer{Config: opt.TLSConfig}).DialContext
 
 	return &Cache{
 		client:  redis.NewClient(opt),
@@ -185,6 +188,11 @@ func GetCached[T any](ctx context.Context, c *Cache, key string) (T, bool) {
 		return zero, false
 	}
 	return existing.Value, true
+}
+
+// StoreCached replaces a value in L1 and Redis and renews its hard TTL.
+func StoreCached[T any](ctx context.Context, c *Cache, key string, value T) error {
+	return setEntry(ctx, c, key, entry[T]{Value: value, CachedAt: time.Now()})
 }
 
 // revalidateInBackground refreshes a stale entry without blocking the caller.

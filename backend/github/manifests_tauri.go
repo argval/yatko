@@ -34,10 +34,8 @@ func parseTauriUpdate(source string, data []byte, inv inventory) (map[string]Art
 		if !ok {
 			continue
 		}
-		// Custom target names are opaque. Only the documented default keys carry
-		// OS/CPU meaning; unknown keys must not become wildcard targets.
-		target := tauriTarget(key)
-		m := ArtifactMetadata{Role: "application", Status: "inspected", Targets: []ArtifactTarget{target}, Evidence: []ArtifactEvidence{
+		// Unknown custom keys must not become wildcard targets.
+		m := ArtifactMetadata{Role: "application", Status: "inspected", Targets: tauriTargets(key), Evidence: []ArtifactEvidence{
 			{Source: source, Field: "tauri.version", Value: doc.Version},
 			{Source: source, Field: "platforms.target", Value: key},
 			{Source: source, Field: "platforms.url", Value: entry.URL},
@@ -47,21 +45,24 @@ func parseTauriUpdate(source string, data []byte, inv inventory) (map[string]Art
 	return out, nil
 }
 
-// tauriTarget preserves unsupported/custom target strings as explicit constraints.
+// tauriTargets preserves unsupported/custom target strings as explicit constraints.
 // Tauri v2 also emits OS-ARCH-BUNDLE keys (darwin-aarch64-app, windows-x86_64-nsis).
-func tauriTarget(key string) ArtifactTarget {
+func tauriTargets(key string) []ArtifactTarget {
 	base := key
 	if i := strings.LastIndexByte(key, '-'); i > 0 && slices.Contains([]string{"app", "appimage", "deb", "rpm", "msi", "nsis"}, key[i+1:]) {
 		base = key[:i]
 	}
 	os, arch, ok := strings.Cut(base, "-")
 	if !ok {
-		return ArtifactTarget{Platform: "tauri-target:" + key}
+		return []ArtifactTarget{{Platform: "tauri-target:" + key}}
+	}
+	if os == "darwin" && arch == "universal" {
+		return []ArtifactTarget{{Platform: "macos", Arch: "amd64"}, {Platform: "macos", Arch: "arm64"}}
 	}
 	platforms := map[string]string{"darwin": "macos", "windows": "windows", "linux": "linux"}
 	cpus := map[string]string{"x86_64": "amd64", "aarch64": "arm64", "i686": "386", "armv7": "arm"}
 	if platforms[os] == "" || cpus[arch] == "" {
-		return ArtifactTarget{Platform: "tauri-target:" + key}
+		return []ArtifactTarget{{Platform: "tauri-target:" + key}}
 	}
-	return ArtifactTarget{Platform: platforms[os], Arch: cpus[arch]}
+	return []ArtifactTarget{{Platform: platforms[os], Arch: cpus[arch]}}
 }

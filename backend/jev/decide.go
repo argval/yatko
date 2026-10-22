@@ -15,60 +15,70 @@ import (
 	"github.com/argval/yatko/picker"
 )
 
-// Wire schema of the direct decision, one request per visitor context:
-//   - "choice": Choice whose options are the guarded candidates' real asset
-//     names (sorted), each described by its fileInput, plus NoCompatibleOption
-//     and InsufficientOption.
-//   - "runs_<i>": Noul per candidate i (same sorted order): does it run here?
+// The hybrid decision, per visitor context:
+//  1. Code guards the release (ValidateSelection) and Describe asks Jev, once
+//     per release, what each file is: OS, CPU and role (describe.go).
+//  2. Code turns those answers, overridden by inspected targets, into a fit
+//     tier per file (native, emulated, maybe) and keeps the files that run.
+//  3. When several files run, one Choice asks Jev which of them this visitor
+//     should download (format, main program, variant, explicit requests).
 //
 // promptVersion is hashed into Primary's cache key; bump it whenever the
 // questions, state shape or decision policy below change.
-const promptVersion = "direct-v5"
+const promptVersion = "hybrid-v6"
 
 const (
-	// NoCompatibleOption: no candidate is built for this OS and CPU.
+	// NoCompatibleOption names "no file fits" in logs and tests; code decides
+	// it from fit tiers, so it is never a Choice option.
 	NoCompatibleOption = NoneOption
-	// InsufficientOption: a file may fit, but the facts cannot tell which.
+	// InsufficientOption: several files run, but the facts cannot tell which one.
 	InsufficientOption = "not enough information"
-	// maxCandidates bounds one request: one Noul per file plus the Choice
-	// criteria must fit Jev's per-request context. Above it Decide errors and
-	// the rule picker answers.
+	// maxCandidates bounds one decision. Above it Decide errors and the rule
+	// picker answers.
 	maxCandidates = 100
 )
 
 // Thresholds that turn Jev's answers into confidence.
-// ponytail: hand-set; retune on the paid corpus eval and primary disagreement logs.
+// ponytail: hand-set; retune on the harvest tune split and jev_primary_diff logs.
 const (
-	// chosenMedium/chosenHigh: Choice probability of the chosen file.
+	// chosenMedium/chosenHigh: Choice probability of the chosen file (1 when
+	// only one file runs and no Choice is asked).
 	chosenMedium = 0.5
 	chosenHigh   = 0.8
-	// runsMedium/runsHigh: the chosen file's own "runs here" Noul. Choice
-	// concentration alone is not safety, so both must pass.
-	runsMedium = 0.7
-	runsHigh   = 0.9
-	// alternativeRuns lists a runner-up only when Jev thinks it may run.
-	alternativeRuns = 0.5
+	// fitMedium/fitHigh: probability the chosen file runs at its fit tier.
+	fitMedium = 0.5
+	fitHigh   = 0.8
+	// clearLead requires a file to lead abstention by this factor. A split
+	// preference vote below chosenMedium can still count as medium when the
+	// chosen file leads every other option by the same factor.
+	clearLead = 1.5
 )
 
-var directInstructions = map[string]any{
-	"question": "Which file from this release of `repository` should the `visitor` download to install and run the program on their computer?",
+// Fit tiers, low to high. fitMaybe may run but is never auto-selected
+// (an unmarked Mac build on an Intel Mac could be arm64-only).
+const (
+	fitNone = iota
+	fitMaybe
+	fitEmulated
+	fitNative
+)
+
+var tierNames = []string{"none", "maybe", "emulated", "native"}
+
+var choiceInstructions = map[string]any{
+	"question": "Every option is a file from this release of `repository` that runs on the `visitor`'s computer. Which one should the visitor download to install and use the program?",
 	"rules": []string{
 		"Apply these rules in order. An earlier rule always wins over a later rule.",
 		"1. `visitor.operating_system` and `visitor.cpu` were resolved by code, and `source` says how. Source `query` means the visitor chose the value explicitly: it overrides `visitor.user_agent` and `visitor.client_hints`. Use the user agent and client hints only for details code did not resolve, such as the Linux distribution.",
-		"2. The file must be built for the visitor's operating system. A file whose `targets` name only another operating system never fits.",
-		"3. The file must run on the visitor's CPU. Prefer a native build for that CPU. A macOS universal build runs on both Intel and Apple Silicon. Use an x86-64 build on an arm64 Mac or arm64 Windows PC only when no native or universal build exists. A 32-bit x86 build never runs on an ARM CPU.",
-		"4. When `visitor.cpu.value` is unknown, do not assume a CPU. Choose a file only when it runs on every common CPU for that operating system, or when the release has builds for only one CPU on that operating system.",
-		"5. `visitor.requested_format` and `visitor.requested_libc` are explicit requests: choose a file with that format or libc when one fits. A static build satisfies a gnu or musl request. A file that does not name its libc has not proven one.",
-		"6. Choose the main program, not a companion tool such as a separate CLI, server, editor extension (.vsix) or plugin, when the release has both. `product`, when present, is the repository's own description: use it to tell the main program from companions.",
-		"7. Choose the standard build, not a special variant such as baseline, profile, debug, portable, no-web or musl, unless the visitor asked for it. On Linux, glibc (gnu) is the standard build.",
-		"8. Prefer the usual installer for the operating system. macOS: .dmg, then .pkg, then an archive. Windows: a setup .exe, then .msi, then .zip. Linux: .AppImage, then .deb (or .rpm on Fedora, RHEL and CentOS), then a .tar.gz archive. A bare binary comes last. The final extension decides the format: `app.AppImage.tar.gz` is an archive, not an AppImage.",
-		"9. Choose `" + NoCompatibleOption + "` when no file is built for the visitor's operating system and CPU. Choose `" + InsufficientOption + "` only when the CPU is unknown and the builds differ by CPU, or when the release ships several different programs and none is the main one. Files that differ only by format (.deb, .rpm, .AppImage, archive) are never a reason for `" + InsufficientOption + "`: rule 8 decides between them.",
+		"2. Each option's `runs` says how code found it runs on the visitor's computer. A file that runs `through emulation` still runs: Windows on ARM and Apple Silicon Macs run x86-64 builds. Prefer a native build over an emulated one, and a macOS universal build over a single-CPU Mac build.",
+		"3. When `visitor.cpu.value` is unknown, do not assume a CPU. Choose a file only when it runs on every common CPU for that operating system, or when the options have builds for only one CPU.",
+		"4. `visitor.requested_format` and `visitor.requested_libc` are explicit requests: choose a file with that format or libc. A static build satisfies a gnu or musl request.",
+		"5. Choose the main program, not a companion tool such as a separate CLI, server, editor extension (.vsix) or plugin. `product`, when present, is the repository's own description: use it to tell the main program from companions.",
+		"6. Choose the standard build, not a special variant such as baseline, profile, debug, portable, no-web or musl, unless the visitor asked for it. On Linux, glibc (gnu) is the standard build.",
+		"7. Prefer the usual installer for the operating system. macOS: .dmg, then .pkg, then an archive. Windows: a setup .exe, then .msi, then .zip. Linux: .AppImage, then .deb (or .rpm on Fedora, RHEL and CentOS), then a .tar.gz archive. A bare binary comes last. The final extension decides the format: `app.AppImage.tar.gz` is an archive, not an AppImage.",
+		"8. Choose `" + InsufficientOption + "` only when the CPU is unknown and the options differ by CPU, or when the options are several different programs and none is the main one. Options that differ only by format are never a reason for `" + InsufficientOption + "`: rule 7 decides between them.",
 	},
 }
-
-const runsQuestion = "Can the `visitor` install and run `file` on their computer as it is? Answer no when `file` is for another operating system, " +
-	"for a CPU their computer cannot run even through emulation, for a libc other than `visitor.requested_libc`, or is not a program " +
-	"(source code, checksums, signatures, documentation). When `visitor.cpu.value` is unknown, answer yes only when `file` runs on every common CPU for that operating system."
 
 // resolved is one code-resolved visitor fact and how it was chosen.
 type resolved struct {
@@ -100,6 +110,7 @@ type fileInput struct {
 	Format       string        `json:"format,omitempty"`
 	Role         string        `json:"role,omitempty"`
 	Variants     []string      `json:"variants,omitempty"`
+	Runs         string        `json:"runs,omitempty"` // code's fit verdict, Choice options only
 	Targets      []targetInput `json:"targets,omitempty"`
 	TargetSource string        `json:"target_source"`
 	Evidence     []string      `json:"evidence,omitempty"`
@@ -107,7 +118,7 @@ type fileInput struct {
 
 func describeFile(a github.Asset) fileInput {
 	f := picker.FactsForAsset(a)
-	in := fileInput{Name: a.Name, Label: a.Label, SizeBytes: a.Size, Format: f.Extension, Variants: f.Variants, TargetSource: "filename"}
+	in := fileInput{Name: a.Name, Label: a.Label, SizeBytes: a.Size, Format: cmp.Or(f.Extension, "bare binary"), Variants: f.Variants, TargetSource: "filename"}
 	if f.Role != "unknown" {
 		in.Role = f.Role
 	}
@@ -125,14 +136,6 @@ func describeFile(a github.Asset) fileInput {
 	return in
 }
 
-// observedArtifact reports whether targets come from content or a publisher
-// manifest. After enrichment every asset carries filename-derived targets too
-// (picker.DescribeAsset), which must not override Jev's reading of the name.
-func observedArtifact(m *github.ArtifactMetadata) bool {
-	return m != nil && m.Status == "inspected" && len(m.Targets) > 0 &&
-		slices.ContainsFunc(m.Evidence, func(e github.ArtifactEvidence) bool { return e.Source != "" && e.Source != "filename" })
-}
-
 // fit is code's view of one asset for one visitor: ok is the hard guard,
 // the rest only caps confidence. Unknown facts never count as proof.
 type fit struct {
@@ -148,7 +151,10 @@ func assess(a github.Asset, platform picker.Platform, arch picker.Arch, opts pic
 		return fit{}
 	}
 	f := picker.FactsForAsset(a)
-	if f.Source || f.NonNative || f.Role == "debug" || f.Role == "metadata" || len(f.Conflicts) > 0 ||
+	// Filename-vs-contents disagreement is not a veto: the observed targets in
+	// f.Targets already replace the filename's (tigerbeetle-universal-macos.zip).
+	conflicts := slices.DeleteFunc(slices.Clone(f.Conflicts), func(c string) bool { return c == picker.ConflictFilenameTargets })
+	if f.Source || f.NonNative || f.Role == "debug" || f.Role == "metadata" || len(conflicts) > 0 ||
 		(a.Artifact != nil && a.Artifact.Status == "failed") {
 		return fit{}
 	}
@@ -157,6 +163,10 @@ func assess(a github.Asset, platform picker.Platform, arch picker.Arch, opts pic
 		return fit{}
 	}
 	if len(f.Targets) == 0 {
+		if platform != picker.Unknown && (picker.IncompatiblePlatform(f, platform) ||
+			f.FormatPlatform != "" && f.FormatPlatform != platform) {
+			return fit{}
+		}
 		return fit{ok: true, libcProven: opts.Libc == picker.LibcAny}
 	}
 	r := fit{libcProven: opts.Libc == picker.LibcAny, emulated: arch != picker.UnknownArch}
@@ -187,29 +197,52 @@ func assess(a github.Asset, platform picker.Platform, arch picker.Arch, opts pic
 // uploaded program with no conflicting evidence and no observed OS, CPU or
 // explicit-libc incompatibility. Unknown facts pass; they only lower confidence.
 func ValidateSelection(asset github.Asset, platform picker.Platform, arch picker.Arch, opts picker.PickOpts) bool {
-	return assess(asset, platform, arch, opts).ok
+	return assess(asset, platform, arch, opts).ok && !picker.NeedsVerification(picker.FactsForAsset(asset), platform, arch, opts.Libc)
 }
 
-// prepared is one ready-to-send decision: the guarded candidates in canonical
-// (name) order and the request built from them, or an answer needing no call.
+// prepared is one decision's visitor-side inputs: the guarded candidates and
+// every describable release file, both in canonical (name) order, plus the
+// visitor state, or an answer needing no call.
 type prepared struct {
-	req        request
-	candidates []github.Asset
-	immediate  *picker.AssetDecision
+	repo        string
+	state       map[string]any
+	candidates  []github.Asset
+	describable []github.Asset
+	immediate   *picker.AssetDecision
 }
 
 func (c *Client) prepare(repo string, assets []github.Asset, platform picker.Platform, arch picker.Arch, opts picker.PickOpts) (prepared, error) {
 	if _, ok := osNames[platform]; !ok {
 		return prepared{immediate: &picker.AssetDecision{Status: "unknown", Confidence: picker.ConfidenceLow, Reasons: []string{"jev: operating system unknown"}}}, nil
 	}
-	var candidates []github.Asset
+	var candidates, describable []github.Asset
+	unverified := false
 	for _, a := range assets {
+		// Describe sees every real program, whatever the visitor, so its
+		// answers are cached once per release.
+		if assess(a, picker.Unknown, picker.UnknownArch, picker.PickOpts{}).ok {
+			describable = append(describable, a)
+		}
 		if ValidateSelection(a, platform, arch, opts) {
 			candidates = append(candidates, a)
+		} else if picker.NeedsVerification(picker.FactsForAsset(a), platform, arch, opts.Libc) {
+			unverified = true
 		}
 	}
 	if len(candidates) == 0 {
+		if unverified {
+			return prepared{immediate: &picker.AssetDecision{Status: "unknown", Confidence: picker.ConfidenceLow, Reasons: []string{"jev: compatible executable headers have not been verified"}}}, nil
+		}
 		return prepared{immediate: &picker.AssetDecision{Status: "incompatible", Confidence: picker.ConfidenceLow, Reasons: []string{"jev: no installable asset fits this visitor"}}}, nil
+	}
+	// A proven runtime requirement outranks packaging preference.
+	if opts.Libc != picker.LibcAny && opts.Libc != picker.LibcGNU {
+		proven := slices.DeleteFunc(slices.Clone(candidates), func(a github.Asset) bool {
+			return !assess(a, platform, arch, opts).libcProven
+		})
+		if len(proven) > 0 {
+			candidates = proven
+		}
 	}
 	// An explicit ?prefer= format is a filter, not a hint, whenever some
 	// compatible file has it (same FormatRank policy as the rule picker).
@@ -225,8 +258,15 @@ func (c *Client) prepare(repo string, assets []github.Asset, platform picker.Pla
 	if len(candidates) > maxCandidates {
 		return prepared{}, fmt.Errorf("jev: %d candidates exceeds limit %d", len(candidates), maxCandidates)
 	}
-	// Sorted so the request, and so the cache key, do not depend on GitHub's order.
-	slices.SortFunc(candidates, func(x, y github.Asset) int { return strings.Compare(x.Name, y.Name) })
+	for _, a := range candidates {
+		if a.Name == InsufficientOption {
+			return prepared{}, fmt.Errorf("jev: asset name %q collides with an outcome option", a.Name)
+		}
+	}
+	// Sorted so requests, and so cache keys, do not depend on GitHub's order.
+	byName := func(x, y github.Asset) int { return strings.Compare(x.Name, y.Name) }
+	slices.SortFunc(candidates, byName)
+	slices.SortFunc(describable, byName)
 
 	visitor := visitorInput{
 		UserAgent:   uaVersion.ReplaceAllString(opts.UserAgent, ""),
@@ -244,24 +284,7 @@ func (c *Client) prepare(repo string, assets []github.Asset, platform picker.Pla
 	if opts.ProductDescription != "" {
 		state["product"] = opts.ProductDescription
 	}
-	names := make([]string, len(candidates))
-	criteria := make(orderedCriteria, 0, len(candidates)+2)
-	questions := make(map[string]question, len(candidates)+1)
-	for i, a := range candidates {
-		if a.Name == NoCompatibleOption || a.Name == InsufficientOption {
-			return prepared{}, fmt.Errorf("jev: asset name %q collides with an outcome option", a.Name)
-		}
-		names[i] = a.Name
-		in := describeFile(a)
-		criteria = append(criteria, option{name: a.Name, desc: in})
-		questions[fmt.Sprintf("runs_%d", i)] = question{Type: "noul", Instructions: map[string]any{"file": in, "question": runsQuestion}}
-	}
-	state["release_files"] = names
-	criteria = append(criteria,
-		option{name: NoCompatibleOption, desc: "No file is built for the visitor's operating system and CPU."},
-		option{name: InsufficientOption, desc: "Some file may fit, but the visitor or file facts cannot tell which one."})
-	questions["choice"] = question{Type: "choice", Instructions: directInstructions, Criteria: criteria}
-	return prepared{candidates: candidates, req: request{Model: c.model, State: state, Questions: questions}}, nil
+	return prepared{repo: repo, state: state, candidates: candidates, describable: describable}, nil
 }
 
 // uaVersion matches browser/engine versions ("Chrome/141.0", "rv:130.0"). They
@@ -279,8 +302,8 @@ func coarseHints(hints map[string]string) map[string]string {
 	return hints
 }
 
-// Decide asks Jev to choose directly among the release's real files for one
-// visitor context. No-match and "not enough information" are successful
+// Decide picks the release file for one visitor context (see the steps at the
+// top of this file). No-match and "not enough information" are successful
 // abstentions; err is set only for service failures and malformed answers.
 func (c *Client) Decide(ctx context.Context, repo string, assets []github.Asset, platform picker.Platform, arch picker.Arch, opts picker.PickOpts) (picker.AssetDecision, Usage, error) {
 	p, err := c.prepare(repo, assets, platform, arch, opts)
@@ -297,63 +320,144 @@ func deref(d *picker.AssetDecision) picker.AssetDecision {
 	return *d
 }
 
+// judged is code's fit verdict for one candidate, built from Jev's attributes.
+type judged struct {
+	asset     github.Asset
+	tier      int
+	fitP      float64 // probability it runs at that tier
+	main      float64 // probability it is the main program's standard build
+	universal bool
+}
+
+// judge turns one file's attributes into a fit tier for this visitor.
+// Proven OS/CPU (filename tokens, inspected targets) override Jev's guesses,
+// and an OS that only Jev inferred must clear inferredOSThreshold to count.
+func judge(attrs FileAttrs, a github.Asset, platform picker.Platform, arch picker.Arch, opts picker.PickOpts) judged {
+	observed := false
+	// What code proves from the filename or contents replaces Jev's guess
+	// (Jev read bun-linux-aarch64-android.zip as Linux).
+	if f := assess(a, platform, arch, opts); f.osProven {
+		attrs.OS = map[string]float64{platformOS[platform]: 1}
+		if f.archProven {
+			for key, cpu := range cpuArch {
+				if cpu == arch {
+					attrs.CPU = map[string]float64{key: 1}
+				}
+			}
+		}
+		observed = true
+	}
+	switch {
+	case observedArtifact(a.Artifact):
+		payload := slices.ContainsFunc(a.Artifact.Evidence, func(e github.ArtifactEvidence) bool { return e.Source == "deep-inspection" })
+		attrs = withObservedTargets(attrs, picker.CorrectedTargets(a.Name, *a.Artifact, payload))
+	case appBundle(a.Name):
+		// Code knows this one: Jev reads Tauri's Name_x64.app.tar.gz as Linux.
+		attrs.OS, observed = map[string]float64{osMac: 1}, true
+	}
+	native, emulated, maybe := runProbability(attrs, platform, arch)
+	if f := picker.FactsForAsset(github.Asset{Name: a.Name}); !observed && len(f.Platforms) == 0 && f.FormatPlatform == "" &&
+		attrs.OS[platformOS[platform]] < inferredOSThreshold {
+		native, emulated, maybe = 0, 0, native+emulated+maybe
+	}
+	j := judged{asset: a, main: attrs.Main, universal: platform == picker.MacOS && attrs.CPU[cpuUniversal] >= 0.5}
+	switch {
+	case native >= 0.5:
+		j.tier, j.fitP = fitNative, native
+	case native+emulated >= 0.5:
+		j.tier, j.fitP = fitEmulated, native+emulated
+	case native+emulated+maybe >= 0.5:
+		j.tier, j.fitP = fitMaybe, native+emulated+maybe
+	default:
+		j.tier, j.fitP = fitNone, native+emulated+maybe
+	}
+	return j
+}
+
+// runnable keeps the best fit tier, then the main builds and Mac universal
+// builds when any exist: the policy steps code can decide on its own.
+func runnable(all []judged) []judged {
+	tier := fitNone
+	for _, j := range all {
+		tier = max(tier, j.tier)
+	}
+	if tier == fitNone {
+		return nil
+	}
+	pool := slices.DeleteFunc(slices.Clone(all), func(j judged) bool { return j.tier != tier })
+	for _, keep := range []func(judged) bool{
+		func(j judged) bool { return j.main >= 0.5 },
+		func(j judged) bool { return j.universal },
+	} {
+		if kept := slices.DeleteFunc(slices.Clone(pool), func(j judged) bool { return !keep(j) }); len(kept) > 0 {
+			pool = kept
+		}
+	}
+	return pool
+}
+
+func (j judged) String() string {
+	return fmt.Sprintf("%q fit=%s p=%.2f main=%.2f", j.asset.Name, tierNames[j.tier], j.fitP, j.main)
+}
+
 func (c *Client) run(ctx context.Context, p prepared, platform picker.Platform, arch picker.Arch, opts picker.PickOpts) (picker.AssetDecision, Usage, error) {
-	resp, err := c.post(ctx, p.req)
+	product, _ := p.state["product"].(string)
+	attrs, usage, err := c.Describe(ctx, p.repo, product, p.describable)
 	if err != nil {
 		return picker.AssetDecision{}, Usage{}, err
 	}
-	usage := Usage{Model: resp.Model, InputTokens: resp.Usage.InputTokens}
-	d, err := interpret(resp, p, platform, arch, opts)
-	return d, usage, err
-}
-
-// interpret validates the response shape and applies the code-side gates.
-func interpret(resp *response, p prepared, platform picker.Platform, arch picker.Arch, opts picker.PickOpts) (picker.AssetDecision, error) {
-	ch, ok := resp.Answers["choice"]
-	if !ok || ch.Type != "choice" {
-		return picker.AssetDecision{}, errors.New("jev: malformed response: missing choice answer")
+	byName := make(map[string]FileAttrs, len(attrs))
+	for _, a := range attrs {
+		byName[a.Name] = a
 	}
-	options := make([]string, 0, len(p.candidates)+2)
+	all := make([]judged, 0, len(p.candidates))
 	for _, a := range p.candidates {
-		options = append(options, a.Name)
-	}
-	options = append(options, NoCompatibleOption, InsufficientOption)
-	if err := validChoice(ch, options); err != nil {
-		return picker.AssetDecision{}, err
-	}
-	runs := make([]float64, len(p.candidates))
-	for i := range p.candidates {
-		a, ok := resp.Answers[fmt.Sprintf("runs_%d", i)]
-		if !ok || a.Type != "noul" || a.Noul == nil || !unit(*a.Noul) {
-			return picker.AssetDecision{}, fmt.Errorf("jev: malformed response: bad runs_%d answer", i)
+		at, ok := byName[a.Name]
+		if !ok {
+			return picker.AssetDecision{}, Usage{}, fmt.Errorf("jev: no attributes for candidate %q", a.Name)
 		}
-		runs[i] = *a.Noul
+		all = append(all, judge(at, a, platform, arch, opts))
+	}
+	pool := runnable(all)
+	if len(pool) == 0 {
+		return picker.AssetDecision{Status: "incompatible", Confidence: picker.ConfidenceLow,
+			Reasons: []string{"jev: no file runs on this operating system and CPU"}}, usage, nil
 	}
 
-	chosen := -1
-	var alts []picker.RankedAsset
-	for i, a := range p.candidates {
-		if a.Name == ch.Choice {
-			chosen = i
-		} else if runs[i] >= alternativeRuns {
-			alts = append(alts, picker.RankedAsset{Asset: a, Reasons: []string{fmt.Sprintf("jev p=%.2f runs=%.2f", ch.Probabilities[a.Name], runs[i])}})
+	chosen, pChosen := pool[0], 1.0
+	reasons := []string{"jev: only runnable file " + chosen.String()}
+	var probs map[string]float64
+	if len(pool) > 1 {
+		ch, chUsage, err := c.choose(ctx, p, pool)
+		if err != nil {
+			return picker.AssetDecision{}, Usage{}, err
 		}
-	}
-	slices.SortStableFunc(alts, func(x, y picker.RankedAsset) int {
-		return cmp.Compare(ch.Probabilities[y.Asset.Name], ch.Probabilities[x.Asset.Name])
-	})
-	reasons := []string{fmt.Sprintf("jev chose %q p=%.2f confidence=%.2f", ch.Choice, ch.Probabilities[ch.Choice], ch.Confidence)}
-	switch ch.Choice {
-	case NoCompatibleOption:
-		return picker.AssetDecision{Status: "incompatible", Confidence: picker.ConfidenceLow, Reasons: reasons, Alternatives: alts}, nil
-	case InsufficientOption:
-		return picker.AssetDecision{Status: "unknown", Confidence: picker.ConfidenceLow, Reasons: reasons, Alternatives: alts}, nil
+		usage.InputTokens += chUsage.InputTokens
+		probs = ch.Probabilities
+		reasons = []string{fmt.Sprintf("jev chose %q p=%.2f confidence=%.2f among %d runnable", ch.Choice, ch.Probabilities[ch.Choice], ch.Confidence, len(pool))}
+		if ch.Choice == InsufficientOption {
+			return picker.AssetDecision{Status: "unknown", Confidence: picker.ConfidenceLow, Reasons: reasons, Alternatives: alternatives(all, "", probs)}, usage, nil
+		}
+		runnerUp := ch.Probabilities[InsufficientOption]
+		for _, j := range pool {
+			if j.asset.Name == ch.Choice {
+				chosen, pChosen = j, ch.Probabilities[ch.Choice]
+			} else {
+				runnerUp = max(runnerUp, ch.Probabilities[j.asset.Name])
+			}
+		}
+		if pChosen < clearLead*ch.Probabilities[InsufficientOption] {
+			pChosen = 0
+			reasons = append(reasons, "not enough information is too close to the chosen file")
+		} else if pChosen < chosenMedium && pChosen >= clearLead*runnerUp {
+			pChosen = chosenMedium
+			reasons = append(reasons, fmt.Sprintf("split vote, clear lead over runner-up p=%.2f", runnerUp))
+		}
+		reasons = append(reasons, chosen.String())
 	}
 
-	asset := p.candidates[chosen]
-	pChosen, pRuns := ch.Probabilities[asset.Name], runs[chosen]
-	reasons[0] += fmt.Sprintf(" runs=%.2f", pRuns)
-	conf := gate(assess(asset, platform, arch, opts), pChosen, pRuns, arch, opts, &reasons)
+	asset := chosen.asset
+	conf := gate(assess(asset, platform, arch, opts), pChosen, chosen.fitP, chosen.tier, arch, opts, &reasons)
 	status := "selected"
 	if conf == picker.ConfidenceLow {
 		status = "unknown"
@@ -363,24 +467,69 @@ func interpret(resp *response, p prepared, platform picker.Platform, arch picker
 		Asset:        &asset,
 		Confidence:   conf,
 		Reasons:      reasons,
-		Alternatives: alts,
+		Alternatives: alternatives(all, asset.Name, probs),
 		Facts:        picker.FactsForAsset(asset),
-	}, nil
+	}, usage, nil
+}
+
+// choose asks one Choice among the runnable files, each described by its
+// fileInput, plus InsufficientOption, and validates the answer.
+func (c *Client) choose(ctx context.Context, p prepared, pool []judged) (answer, Usage, error) {
+	criteria := make(orderedCriteria, 0, len(pool)+1)
+	options := make([]string, 0, len(pool)+1)
+	for _, j := range pool {
+		in := describeFile(j.asset)
+		in.Runs = map[int]string{fitNative: "natively", fitEmulated: "through emulation", fitMaybe: "possibly"}[j.tier]
+		criteria = append(criteria, option{name: j.asset.Name, desc: in})
+		options = append(options, j.asset.Name)
+	}
+	criteria = append(criteria, option{name: InsufficientOption, desc: "Several files may fit, but the visitor or file facts cannot tell which one."})
+	options = append(options, InsufficientOption)
+	resp, err := c.post(ctx, request{Model: c.model, State: p.state,
+		Questions: map[string]question{"choice": {Type: "choice", Instructions: choiceInstructions, Criteria: criteria}}})
+	if err != nil {
+		return answer{}, Usage{}, err
+	}
+	ch, ok := resp.Answers["choice"]
+	if !ok || ch.Type != "choice" {
+		return answer{}, Usage{}, errors.New("jev: malformed response: missing choice answer")
+	}
+	if err := validChoice(ch, options); err != nil {
+		return answer{}, Usage{}, err
+	}
+	return ch, Usage{Model: resp.Model, InputTokens: resp.Usage.InputTokens}, nil
+}
+
+// alternatives lists the other files that may run, most preferred first.
+func alternatives(all []judged, chosen string, probs map[string]float64) []picker.RankedAsset {
+	var alts []judged
+	for _, j := range all {
+		if j.asset.Name != chosen && j.tier > fitNone {
+			alts = append(alts, j)
+		}
+	}
+	slices.SortStableFunc(alts, func(x, y judged) int {
+		return cmp.Or(cmp.Compare(probs[y.asset.Name], probs[x.asset.Name]), cmp.Compare(y.tier, x.tier), cmp.Compare(y.fitP, x.fitP))
+	})
+	out := make([]picker.RankedAsset, len(alts))
+	for i, j := range alts {
+		out[i] = picker.RankedAsset{Asset: j.asset, Reasons: []string{j.String()}}
+	}
+	return out
 }
 
 // gate maps Jev's probabilities to confidence, then caps it where code knows
-// the evidence is weaker than the model's certainty. The "runs" Noul only
-// gates picks whose OS or CPU code cannot prove: on proven files it is noisier
-// than the targets themselves (eval: correct native picks scored 0.5-0.7).
-func gate(f fit, pChosen, pRuns float64, arch picker.Arch, opts picker.PickOpts, reasons *[]string) picker.Confidence {
+// the evidence is weaker than the model's certainty. When code proves the OS
+// and CPU from the filename or contents, that proof replaces Jev's fit.
+func gate(f fit, pChosen, pFit float64, tier int, arch picker.Arch, opts picker.PickOpts, reasons *[]string) picker.Confidence {
 	if f.osProven && (f.archProven || f.emulated) {
-		pRuns = 1
+		pFit = 1
 	}
 	conf := picker.ConfidenceLow
 	switch {
-	case pChosen >= chosenHigh && pRuns >= runsHigh:
+	case pChosen >= chosenHigh && pFit >= fitHigh:
 		conf = picker.ConfidenceHigh
-	case pChosen >= chosenMedium && pRuns >= runsMedium:
+	case pChosen >= chosenMedium && pFit >= fitMedium:
 		conf = picker.ConfidenceMedium
 	}
 	limit := func(ceiling picker.Confidence, why string) {
@@ -389,9 +538,11 @@ func gate(f fit, pChosen, pRuns float64, arch picker.Arch, opts picker.PickOpts,
 			*reasons = append(*reasons, why)
 		}
 	}
-	if !f.osProven && pRuns < runsHigh {
-		// The OS is Jev's inference from context (an unmarked .zip): demand a confident "runs".
-		limit(picker.ConfidenceLow, "operating system not proven by the filename or contents")
+	switch tier {
+	case fitMaybe:
+		limit(picker.ConfidenceLow, "may not run on this CPU")
+	case fitEmulated:
+		limit(picker.ConfidenceMedium, "runs under emulation")
 	}
 	if !f.osProven {
 		limit(picker.ConfidenceMedium, "operating system inferred by jev")
@@ -421,6 +572,9 @@ func gate(f fit, pChosen, pRuns float64, arch picker.Arch, opts picker.PickOpts,
 // returned, and the choice is the most probable option. Probabilities arrive
 // rounded to 2 decimals, so a near-tie choice (0.45 vs 0.46) is still valid.
 func validChoice(a answer, options []string) error {
+	if a.Type != "choice" || !unit(a.Confidence) {
+		return errors.New("jev: malformed response: invalid choice type or confidence")
+	}
 	if len(a.Probabilities) != len(options) {
 		return fmt.Errorf("jev: malformed response: %d probabilities for %d options", len(a.Probabilities), len(options))
 	}

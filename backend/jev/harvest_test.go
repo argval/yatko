@@ -6,6 +6,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -131,6 +132,9 @@ func TestJevHarvest(t *testing.T) {
 			}
 			score, lines := picker.ScoreHarvestWith(part, decide, 8, warm)
 			t.Logf("jev=direct %s model=%s split=%s releases=%d %s errors=%d input_tokens=%d", mode, c.ModelName(), split, len(part), score, errs.Load(), tokens.Load())
+			if err := harvestSafetyError(score, errs.Load()); err != nil {
+				t.Errorf("%s split=%s: %v", mode, split, err)
+			}
 			if split == "tune" && testing.Verbose() && os.Getenv("JEV_SHOW") != "" {
 				for _, l := range lines {
 					if strings.Contains(l, os.Getenv("JEV_SHOW")) {
@@ -140,7 +144,36 @@ func TestJevHarvest(t *testing.T) {
 			}
 		}
 	}
-	t.Logf("cache hits=%d misses=%d (misses are paid calls)", ct.hits.Load(), ct.misses.Load())
+	t.Logf("cache hits=%d misses=%d replay_only=%v", ct.hits.Load(), ct.misses.Load(), ct.replayOnly)
+}
+
+func harvestSafetyError(s picker.HarvestScore, errors int64) error {
+	if s.WrongPlatform > 0 || s.WrongArch > 0 || s.NoRunWrong > 0 || errors > 0 {
+		return fmt.Errorf("unsafe: wrong_os=%d wrong_cpu=%d norun_wrong=%d errors=%d", s.WrongPlatform, s.WrongArch, s.NoRunWrong, errors)
+	}
+	return nil
+}
+
+func TestHarvestSafetyError(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		score  picker.HarvestScore
+		errors int64
+		unsafe bool
+	}{
+		{"safe", picker.HarvestScore{}, 0, false},
+		{"unscored uncertainty", picker.HarvestScore{Unverified: 1, FalseAbstain: 1, EmulatedNative: 1}, 0, false},
+		{"wrong OS", picker.HarvestScore{WrongPlatform: 1}, 0, true},
+		{"wrong CPU", picker.HarvestScore{WrongArch: 1}, 0, true},
+		{"wrong when nothing runs", picker.HarvestScore{NoRunWrong: 1}, 0, true},
+		{"service error or missing replay", picker.HarvestScore{}, 1, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if err := harvestSafetyError(tc.score, tc.errors); (err != nil) != tc.unsafe {
+				t.Fatalf("error=%v, want unsafe=%v", err, tc.unsafe)
+			}
+		})
+	}
 }
 
 // harvestPath skips the test when the harvest snapshot is absent. The data is

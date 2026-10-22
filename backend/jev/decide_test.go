@@ -3,6 +3,7 @@ package jev
 import (
 	"context"
 	"encoding/json"
+	"math"
 	"net/http"
 	"slices"
 	"strings"
@@ -16,63 +17,102 @@ func assetsNamed(names ...string) []github.Asset {
 	out := make([]github.Asset, len(names))
 	for i, n := range names {
 		out[i] = github.Asset{Name: n, State: "uploaded", BrowserDownloadURL: "https://github.com/o/r/releases/download/v1/" + n}
+		if strings.HasSuffix(strings.ToLower(n), ".appimage") {
+			f := picker.Classify(n)
+			if len(f.Arches) == 1 {
+				out[i].Artifact = &github.ArtifactMetadata{Status: "inspected", LauncherArch: string(f.Arches[0])}
+			}
+		}
 	}
 	return out
 }
 
-// Jev's direct choice wins over the rule picker's format ranking when the
-// model judges a CLI's tarball the right file, and the asset is the caller's own.
-func TestDecideDirectChoiceDiffersFromRanking(t *testing.T) {
-	assets := assetsNamed("tool-linux-amd64.AppImage", "tool-linux-amd64.tar.gz")
-	rules := picker.DecideAsset(assets, picker.Linux, picker.AMD64, picker.PickOpts{})
+var linuxPair = assetsNamed("tool-linux-amd64.AppImage", "tool-linux-amd64.tar.gz")
+
+// When several files run, Jev's Choice among them wins over the rule picker's
+// format ranking, and the asset is the caller's own.
+func TestDecideChoiceAmongRunnable(t *testing.T) {
+	rules := picker.DecideAsset(linuxPair, picker.Linux, picker.AMD64, picker.PickOpts{})
 	if name(rules) != "tool-linux-amd64.AppImage" {
 		t.Fatalf("precondition: rules picked %s", name(rules))
 	}
-	c, _ := fakeJev(t, picks("tool-linux-amd64.tar.gz", 0.9))
-	d, _, err := c.Decide(context.Background(), "o/tool", assets, picker.Linux, picker.AMD64, picker.PickOpts{})
+	c, fs := fakeJev(t, picks("tool-linux-amd64.tar.gz", 0.9))
+	d, _, err := c.Decide(context.Background(), "o/tool", linuxPair, picker.Linux, picker.AMD64, picker.PickOpts{})
 	if err != nil || name(d) != "tool-linux-amd64.tar.gz" || d.Confidence != picker.ConfidenceHigh || d.Status != "selected" {
 		t.Fatalf("got %s %s %s err=%v reasons=%v", name(d), d.Status, d.Confidence, err, d.Reasons)
 	}
-	if d.Asset.BrowserDownloadURL != assets[1].BrowserDownloadURL {
+	if d.Asset.BrowserDownloadURL != linuxPair[1].BrowserDownloadURL {
 		t.Fatalf("asset URL %q is not the release's", d.Asset.BrowserDownloadURL)
 	}
 	if len(d.Alternatives) != 1 || d.Alternatives[0].Asset.Name != "tool-linux-amd64.AppImage" {
 		t.Fatalf("alternatives = %+v", d.Alternatives)
 	}
+	if !slices.Equal(fs.lastRequest().options(t), []string{"tool-linux-amd64.AppImage", "tool-linux-amd64.tar.gz", InsufficientOption}) {
+		t.Fatalf("options = %v", fs.lastRequest().options(t))
+	}
 }
 
-// No match and "not enough information" are answers, not errors.
-func TestDecideAbstentions(t *testing.T) {
-	assets := assetsNamed("app-arm64.dmg", "app-x64.dmg")
-	for choice, status := range map[string]string{NoCompatibleOption: "incompatible", InsufficientOption: "unknown"} {
-		c, _ := fakeJev(t, picks(choice, 0.9))
-		d, _, err := c.Decide(context.Background(), "o/app", assets, picker.MacOS, picker.UnknownArch, picker.PickOpts{})
-		if err != nil || d.Asset != nil || d.Status != status || d.ShouldAutoSelect() {
-			t.Fatalf("%s: %+v err=%v", choice, d, err)
-		}
-		if len(d.Alternatives) != 2 {
-			t.Fatalf("%s: abstention should list runnable alternatives, got %d", choice, len(d.Alternatives))
-		}
+// One runnable file needs no Choice; Describe is cached per release, so a
+// second visitor context makes no Describe call either.
+func TestDecideSingleRunnableSkipsChoice(t *testing.T) {
+	c, fs := fakeJev(t, picks("", 0.9))
+	mac := assetsNamed("app-arm64.dmg", "app-x64.dmg")
+	d, _, err := c.Decide(context.Background(), "o/app", mac, picker.MacOS, picker.ARM64, picker.PickOpts{})
+	if err != nil || name(d) != "app-arm64.dmg" || d.Confidence != picker.ConfidenceHigh {
+		t.Fatalf("arm64: %s %s err=%v", name(d), d.Confidence, err)
 	}
-	// Code answers without a call when nothing can run or the OS is unknown.
-	c, fs := fakeJev(t, picks(NoCompatibleOption, 1))
-	if d, _, err := c.Decide(context.Background(), "o/app", assets, picker.Windows, picker.AMD64, picker.PickOpts{}); err != nil || d.Status != "incompatible" {
+	if d, _, _ := c.Decide(context.Background(), "o/app", mac, picker.MacOS, picker.AMD64, picker.PickOpts{}); name(d) != "app-x64.dmg" {
+		t.Fatalf("amd64: %s", name(d))
+	}
+	if fs.choices.Load() != 0 || fs.describes.Load() != 1 {
+		t.Fatalf("describes=%d choices=%d, want 1 and 0", fs.describes.Load(), fs.choices.Load())
+	}
+}
+
+// Windows on ARM runs x64 builds: with no native build, code selects the
+// emulated one (the direct picker answered "none of these files" here).
+func TestDecideEmulationWhenNoNativeBuild(t *testing.T) {
+	c, _ := fakeJev(t, picks("", 0.9))
+	d, _, err := c.Decide(context.Background(), "o/app", assetsNamed("app-windows-x64-setup.exe"), picker.Windows, picker.ARM64, picker.PickOpts{})
+	if err != nil || name(d) != "app-windows-x64-setup.exe" || d.Confidence != picker.ConfidenceMedium || !d.ShouldAutoSelect() {
+		t.Fatalf("got %s %s err=%v reasons=%v", name(d), d.Confidence, err, d.Reasons)
+	}
+}
+
+// "Not enough information" and "nothing runs" are answers, not errors.
+func TestDecideAbstentions(t *testing.T) {
+	c, _ := fakeJev(t, picks(InsufficientOption, 0.9))
+	d, _, err := c.Decide(context.Background(), "o/tool", linuxPair, picker.Linux, picker.AMD64, picker.PickOpts{})
+	if err != nil || d.Asset != nil || d.Status != "unknown" || d.ShouldAutoSelect() || len(d.Alternatives) != 2 {
+		t.Fatalf("insufficient: %+v err=%v", d, err)
+	}
+	// Jev says the unmarked zip is a macOS build: nothing runs on Windows.
+	c, fs := fakeJev(t, func(*testing.T, wireRequest) fakeReply {
+		return fakeReply{attrs: func(string) (string, string, float64) { return osMac, cpuARM64, 0.9 }}
+	})
+	if d, _, err := c.Decide(context.Background(), "o/app", assetsNamed("app.zip"), picker.Windows, picker.AMD64, picker.PickOpts{}); err != nil || d.Status != "incompatible" {
+		t.Fatalf("nothing runs: %+v %v", d, err)
+	}
+	// Code answers without a call when the guard leaves nothing or the OS is unknown.
+	before := fs.calls()
+	mac := assetsNamed("app-arm64.dmg", "app-x64.dmg")
+	if d, _, err := c.Decide(context.Background(), "o/app", mac, picker.Windows, picker.AMD64, picker.PickOpts{}); err != nil || d.Status != "incompatible" {
 		t.Fatalf("windows: %+v %v", d, err)
 	}
-	if d, _, err := c.Decide(context.Background(), "o/app", assets, picker.Unknown, picker.UnknownArch, picker.PickOpts{}); err != nil || d.Status != "unknown" {
+	if d, _, err := c.Decide(context.Background(), "o/app", mac, picker.Unknown, picker.UnknownArch, picker.PickOpts{}); err != nil || d.Status != "unknown" {
 		t.Fatalf("unknown OS: %+v %v", d, err)
 	}
-	if fs.calls.Load() != 0 {
-		t.Fatalf("calls = %d, want 0", fs.calls.Load())
+	if fs.calls() != before {
+		t.Fatalf("calls = %d, want %d", fs.calls(), before)
 	}
 }
 
-// The request carries the raw UA, resolved OS/CPU with provenance and the
+// The Choice carries the raw UA, resolved OS/CPU with provenance and the
 // explicit requests; files proven for another OS are never offered.
 func TestDecideStateCarriesExplicitContext(t *testing.T) {
 	c, fs := fakeJev(t, containing(".deb", 0.9))
 	opts := picker.PickOpts{
-		Prefer: "deb", Libc: picker.LibcGNU, UserAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+		Libc: picker.LibcGNU, UserAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
 		PlatformSource: "query", ArchSource: "ua", ClientHints: map[string]string{"platform": "Windows"},
 	}
 	assets := assetsNamed("app-setup-x64.exe", "app_amd64.deb", "app-linux-x86_64-gnu.tar.gz")
@@ -86,19 +126,44 @@ func TestDecideStateCarriesExplicitContext(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := visitorInput{UserAgent: "Mozilla (Windows NT 10.0; Win64; x64)", OS: resolved{"Linux", "query"}, CPU: resolved{cpuNames[picker.AMD64], "ua"},
-		ClientHints: opts.ClientHints, RequestedFormat: ".deb", RequestedLibc: "gnu"}
+		ClientHints: opts.ClientHints, RequestedLibc: "gnu"}
 	if got, _ := json.Marshal(v); string(got) != string(mustJSON(want)) {
 		t.Fatalf("visitor state\n got %s\nwant %s", got, mustJSON(want))
 	}
 	if _, ok := r.State["product"]; ok {
 		t.Fatal("empty product description must not be sent")
 	}
-	if opts := r.options(t); slices.Contains(opts, "app-setup-x64.exe") {
-		t.Fatalf("windows installer offered to a linux visitor: %v", opts)
+	if opts := r.options(t); !slices.Equal(opts, []string{"app-linux-x86_64-gnu.tar.gz", "app_amd64.deb", InsufficientOption}) {
+		t.Fatalf("options = %v", opts)
 	}
-	// prefer=deb filters: the gnu tarball is compatible but not offered.
-	if opts := r.options(t); !slices.Equal(opts, []string{"app_amd64.deb", NoCompatibleOption, InsufficientOption}) || len(r.Questions) != 2 {
-		t.Fatalf("options = %v questions = %d", opts, len(r.Questions))
+}
+
+// prefer=deb filters before Jev: the compatible tarball is never offered.
+func TestDecidePreferFilters(t *testing.T) {
+	c, fs := fakeJev(t, picks("", 0.9))
+	assets := assetsNamed("app_amd64.deb", "app-linux-x86_64.tar.gz")
+	d, _, err := c.Decide(context.Background(), "o/app", assets, picker.Linux, picker.AMD64, picker.PickOpts{Prefer: "deb"})
+	if err != nil || name(d) != "app_amd64.deb" || fs.choices.Load() != 0 || len(d.Alternatives) != 0 {
+		t.Fatalf("got %s alts=%d choices=%d err=%v", name(d), len(d.Alternatives), fs.choices.Load(), err)
+	}
+}
+
+func TestDecideLibcRequirementBeforeFormat(t *testing.T) {
+	for _, libc := range []picker.Libc{picker.LibcMusl, picker.LibcStatic} {
+		t.Run(string(libc), func(t *testing.T) {
+			wanted := "tool-linux-amd64-" + string(libc) + ".tar.gz"
+			c, _ := fakeJev(t, picks(wanted, 0.95))
+			d, _, err := c.Decide(context.Background(), "o/tool", assetsNamed("tool_amd64.deb", wanted), picker.Linux, picker.AMD64, picker.PickOpts{Prefer: "deb", Libc: libc})
+			if err != nil || !d.ShouldAutoSelect() || name(d) != wanted {
+				t.Fatalf("requested libc lost to unproven format: %+v err=%v", d, err)
+			}
+		})
+	}
+	wanted := "tool-linux-amd64-musl.deb"
+	c, _ := fakeJev(t, picks(wanted, 0.95))
+	d, _, err := c.Decide(context.Background(), "o/tool", assetsNamed(wanted, "tool-linux-amd64-musl.tar.gz"), picker.Linux, picker.AMD64, picker.PickOpts{Prefer: "deb", Libc: picker.LibcMusl})
+	if err != nil || !d.ShouldAutoSelect() || name(d) != wanted {
+		t.Fatalf("compatible preferred format lost: %+v err=%v", d, err)
 	}
 }
 
@@ -108,7 +173,7 @@ func mustJSON(v any) []byte { b, _ := json.Marshal(v); return b }
 func TestDecideUnknownCPUStaysUnknown(t *testing.T) {
 	c, fs := fakeJev(t, picks("app-x64.dmg", 0.99))
 	d, _, err := c.Decide(context.Background(), "o/app", assetsNamed("app-arm64.dmg", "app-x64.dmg"), picker.MacOS, picker.UnknownArch, picker.PickOpts{})
-	if err != nil || d.Confidence != picker.ConfidenceMedium {
+	if err != nil || name(d) != "app-x64.dmg" || d.Confidence != picker.ConfidenceMedium {
 		t.Fatalf("got %s %s err=%v", name(d), d.Confidence, err)
 	}
 	if !strings.Contains(string(fs.lastRequest().State["visitor"]), `"cpu":{"value":"unknown"}`) {
@@ -116,47 +181,51 @@ func TestDecideUnknownCPUStaysUnknown(t *testing.T) {
 	}
 }
 
-// Confidence needs a concentrated Choice; the file's own "runs" Noul gates
-// only files whose OS or CPU the targets do not prove.
-func TestDecideGatesOnRunsNoul(t *testing.T) {
-	assets := assetsNamed("app-windows-x64.zip", "app-x64.zip", "app-linux-x64.tar.gz")
+// Confidence needs a concentrated Choice, and an OS only Jev inferred caps it.
+func TestDecideConfidence(t *testing.T) {
 	for _, c := range []struct {
-		file    string
-		p, runs float64
-		want    picker.Confidence
+		assets []github.Asset
+		p      float64
+		want   picker.Confidence
 	}{
-		{"app-windows-x64.zip", 0.95, 0.4, picker.ConfidenceHigh}, // proven: runs ignored
-		{"app-windows-x64.zip", 0.45, 0.95, picker.ConfidenceLow},
-		{"app-x64.zip", 0.95, 0.95, picker.ConfidenceMedium}, // OS inferred: capped
-		{"app-x64.zip", 0.95, 0.8, picker.ConfidenceLow},
+		{linuxPair, 0.95, picker.ConfidenceHigh},
+		{linuxPair, 0.45, picker.ConfidenceMedium}, // split vote, clear lead (0.45 vs 0.275)
 	} {
-		client, _ := fakeJev(t, func(*testing.T, wireRequest) fakeReply {
-			return fakeReply{choice: c.file, p: c.p, runs: func(string) float64 { return c.runs }}
-		})
-		d, _, err := client.Decide(context.Background(), "o/app", assets, picker.Windows, picker.AMD64, picker.PickOpts{})
-		if err != nil || name(d) != c.file || d.Confidence != c.want || (d.Status == "selected") != (c.want != picker.ConfidenceLow) {
-			t.Errorf("%s p=%.2f runs=%.2f: %s %s %s err=%v", c.file, c.p, c.runs, name(d), d.Status, d.Confidence, err)
+		client, _ := fakeJev(t, picks(c.assets[0].Name, c.p))
+		d, _, err := client.Decide(context.Background(), "o/tool", c.assets, picker.Linux, picker.AMD64, picker.PickOpts{})
+		if err != nil || d.Confidence != c.want || (d.Status == "selected") != (c.want != picker.ConfidenceLow) {
+			t.Errorf("p=%.2f: %s %s %s err=%v", c.p, name(d), d.Status, d.Confidence, err)
 		}
+	}
+	// An unmarked zip Jev places on Windows with certainty: medium, not high.
+	client, _ := fakeJev(t, func(*testing.T, wireRequest) fakeReply {
+		return fakeReply{attrs: func(string) (string, string, float64) { return osWindows, cpuAMD64, 0.95 }}
+	})
+	d, _, err := client.Decide(context.Background(), "o/app", assetsNamed("app.zip"), picker.Windows, picker.AMD64, picker.PickOpts{})
+	if err != nil || name(d) != "app.zip" || d.Confidence != picker.ConfidenceMedium {
+		t.Fatalf("inferred OS: %s %s err=%v reasons=%v", name(d), d.Confidence, err, d.Reasons)
 	}
 }
 
-// An explicit libc request is never met by a file that does not prove its libc.
+// An explicit musl request is never met by a file that does not prove its libc.
 func TestDecideUnprovenLibcAbstains(t *testing.T) {
-	c, fs := fakeJev(t, picks("tool-linux-amd64.tar.gz", 0.95))
+	c, _ := fakeJev(t, picks("", 0.95))
 	assets := assetsNamed("tool-linux-amd64.tar.gz", "tool-linux-amd64-gnu.tar.gz")
 	d, _, err := c.Decide(context.Background(), "o/tool", assets, picker.Linux, picker.AMD64, picker.PickOpts{Libc: picker.LibcMusl})
 	if err != nil || name(d) != "tool-linux-amd64.tar.gz" || d.ShouldAutoSelect() {
 		t.Fatalf("got %s %s err=%v", name(d), d.Confidence, err)
 	}
-	if slices.Contains(fs.lastRequest().options(t), "tool-linux-amd64-gnu.tar.gz") {
-		t.Fatal("gnu build offered for a musl request")
+	for _, a := range d.Alternatives {
+		if a.Asset.Name == "tool-linux-amd64-gnu.tar.gz" {
+			t.Fatal("gnu build offered for a musl request")
+		}
 	}
 }
 
 // An unmarked Linux build is glibc by convention: a gnu request may still
 // auto-select it, capped at medium.
 func TestDecideUnmarkedBuildMeetsGNURequest(t *testing.T) {
-	c, _ := fakeJev(t, picks("tool-linux-amd64.tar.gz", 0.95))
+	c, _ := fakeJev(t, picks("", 0.95))
 	assets := assetsNamed("tool-linux-amd64.tar.gz", "tool-linux-amd64-musl.tar.gz")
 	d, _, err := c.Decide(context.Background(), "o/tool", assets, picker.Linux, picker.AMD64, picker.PickOpts{Libc: picker.LibcGNU})
 	if err != nil || name(d) != "tool-linux-amd64.tar.gz" || d.Confidence != picker.ConfidenceMedium || !d.ShouldAutoSelect() {
@@ -165,28 +234,25 @@ func TestDecideUnmarkedBuildMeetsGNURequest(t *testing.T) {
 }
 
 func TestDecideRejectsMalformedResponses(t *testing.T) {
-	assets := assetsNamed("app-arm64.dmg", "app-x64.dmg")
 	for label, tamper := range map[string]func(map[string]any){
-		"missing runs":   func(a map[string]any) { delete(a, "runs_1") },
-		"noul as choice": func(a map[string]any) { a["runs_0"] = map[string]any{"type": "choice", "choice": "x"} },
-		"noul above 1":   func(a map[string]any) { a["runs_0"] = map[string]any{"type": "noul", "noul": 1.5} },
-		"missing choice": func(a map[string]any) { delete(a, "choice") },
+		"missing describe answer": func(a map[string]any) { delete(a, "os_0") },
+		"missing choice":          func(a map[string]any) { delete(a, "choice") },
 		"invented asset": func(a map[string]any) {
-			a["choice"] = map[string]any{"type": "choice", "choice": "evil.dmg", "probabilities": map[string]float64{"evil.dmg": 1}}
+			a["choice"] = map[string]any{"type": "choice", "choice": "evil.AppImage", "probabilities": map[string]float64{"evil.AppImage": 1}}
 		},
 		"bad sum": func(a map[string]any) {
-			a["choice"] = map[string]any{"type": "choice", "choice": "app-arm64.dmg", "probabilities": map[string]float64{
-				"app-arm64.dmg": 0.9, "app-x64.dmg": 0.9, NoCompatibleOption: 0, InsufficientOption: 0}}
+			a["choice"] = map[string]any{"type": "choice", "choice": linuxPair[0].Name, "probabilities": map[string]float64{
+				linuxPair[0].Name: 0.9, linuxPair[1].Name: 0.9, InsufficientOption: 0}}
 		},
 		"choice not argmax": func(a map[string]any) {
-			a["choice"] = map[string]any{"type": "choice", "choice": "app-arm64.dmg", "probabilities": map[string]float64{
-				"app-arm64.dmg": 0.2, "app-x64.dmg": 0.8, NoCompatibleOption: 0, InsufficientOption: 0}}
+			a["choice"] = map[string]any{"type": "choice", "choice": linuxPair[0].Name, "probabilities": map[string]float64{
+				linuxPair[0].Name: 0.2, linuxPair[1].Name: 0.8, InsufficientOption: 0}}
 		},
 	} {
-		c, _ := fakeJev(t, func(*testing.T, wireRequest) fakeReply {
-			return fakeReply{choice: "app-arm64.dmg", p: 0.9, tamper: tamper}
+		c, _ := fakeJev(t, func(_ *testing.T, r wireRequest) fakeReply {
+			return fakeReply{p: 0.9, tamper: tamper}
 		})
-		if d, _, err := c.Decide(context.Background(), "o/app", assets, picker.MacOS, picker.ARM64, picker.PickOpts{}); err == nil {
+		if d, _, err := c.Decide(context.Background(), "o/tool", linuxPair, picker.Linux, picker.AMD64, picker.PickOpts{}); err == nil {
 			t.Errorf("%s: accepted %+v", label, d)
 		}
 	}
@@ -195,15 +261,16 @@ func TestDecideRejectsMalformedResponses(t *testing.T) {
 // A rounded near-tie (seen live: 0.45 chosen vs 0.46) is an answer, not an
 // error, but too split to auto-download.
 func TestDecideAcceptsRoundedNearTie(t *testing.T) {
-	assets := assetsNamed("app-arm64.dmg", "app-x64.dmg")
 	c, _ := fakeJev(t, func(*testing.T, wireRequest) fakeReply {
-		return fakeReply{choice: "app-arm64.dmg", p: 0.9, tamper: func(a map[string]any) {
-			a["choice"] = map[string]any{"type": "choice", "choice": "app-arm64.dmg", "probabilities": map[string]float64{
-				"app-arm64.dmg": 0.45, "app-x64.dmg": 0.46, NoCompatibleOption: 0.09, InsufficientOption: 0}}
+		return fakeReply{tamper: func(a map[string]any) {
+			if _, ok := a["choice"]; ok {
+				a["choice"] = map[string]any{"type": "choice", "choice": linuxPair[0].Name, "probabilities": map[string]float64{
+					linuxPair[0].Name: 0.45, linuxPair[1].Name: 0.46, InsufficientOption: 0.09}}
+			}
 		}}
 	})
-	d, _, err := c.Decide(context.Background(), "o/app", assets, picker.MacOS, picker.ARM64, picker.PickOpts{})
-	if err != nil || name(d) != "app-arm64.dmg" || d.ShouldAutoSelect() {
+	d, _, err := c.Decide(context.Background(), "o/tool", linuxPair, picker.Linux, picker.AMD64, picker.PickOpts{})
+	if err != nil || name(d) != linuxPair[0].Name || d.ShouldAutoSelect() {
 		t.Fatalf("near tie: %s %s %s err=%v", name(d), d.Status, d.Confidence, err)
 	}
 }
@@ -267,7 +334,7 @@ func TestPreparedOrderAndKey(t *testing.T) {
 		for _, a := range p.candidates {
 			names = append(names, a.Name)
 		}
-		return key(p, assets), names
+		return key(p, "jev-test", assets), names
 	}
 	k0, names := k(base, picker.PickOpts{})
 	if !slices.Equal(names, []string{"a-linux-amd64.tar.gz", "b-linux-amd64.tar.gz"}) {
@@ -320,5 +387,79 @@ func TestDecidePreferWithoutMatchKeepsAll(t *testing.T) {
 	}
 	if opts := fs.lastRequest().options(t); !slices.Contains(opts, "app_amd64.deb") || !slices.Contains(opts, "app-linux-x86_64.tar.gz") {
 		t.Fatalf("options = %v", opts)
+	}
+}
+
+// A split vote among files that all run still auto-selects when the pick
+// clearly leads the runner-up; a near tie does not.
+func TestDecideSplitVoteNeedsClearLead(t *testing.T) {
+	three := assetsNamed("tool-linux-amd64.AppImage", "tool-linux-amd64.deb", "tool-linux-amd64.tar.gz")
+	for _, c := range []struct {
+		probs map[string]float64
+		want  bool
+	}{
+		{map[string]float64{three[0].Name: 0.44, three[1].Name: 0.2, three[2].Name: 0.2, InsufficientOption: 0.16}, true},
+		{map[string]float64{three[0].Name: 0.44, three[1].Name: 0.40, three[2].Name: 0.1, InsufficientOption: 0.06}, false},
+		{map[string]float64{three[0].Name: 0.41, three[1].Name: 0.20, three[2].Name: 0, InsufficientOption: 0.39}, false},
+		{map[string]float64{three[0].Name: 0.51, three[1].Name: 0.10, three[2].Name: 0, InsufficientOption: 0.39}, false},
+		{map[string]float64{three[0].Name: 0.61, three[1].Name: 0, three[2].Name: 0, InsufficientOption: 0.39}, true},
+	} {
+		client, _ := fakeJev(t, func(*testing.T, wireRequest) fakeReply {
+			return fakeReply{tamper: func(a map[string]any) {
+				if _, ok := a["choice"]; ok {
+					a["choice"] = map[string]any{"type": "choice", "choice": three[0].Name, "probabilities": c.probs}
+				}
+			}}
+		})
+		d, _, err := client.Decide(context.Background(), "o/tool", three, picker.Linux, picker.AMD64, picker.PickOpts{})
+		if err != nil || d.ShouldAutoSelect() != c.want || (c.want && d.Confidence != picker.ConfidenceMedium) {
+			t.Errorf("probs %v: %s %s err=%v", c.probs, d.Status, d.Confidence, err)
+		}
+	}
+}
+
+// Content that proves a CPU must not turn an unstated OS into Linux.
+func TestDecideObservedUnknownOSDoesNotInventLinux(t *testing.T) {
+	for _, probability := range []float64{0, 0.6} {
+		c, _ := fakeJev(t, func(*testing.T, wireRequest) fakeReply {
+			return fakeReply{tamper: func(answers map[string]any) {
+				if _, ok := answers["os_0"]; !ok {
+					return
+				}
+				probs := map[string]float64{}
+				for _, option := range osCriteria {
+					probs[option.name] = 0
+				}
+				probs[osLinux], probs[osBSD] = probability, 1-probability
+				choice := osBSD
+				if probability > 0.5 {
+					choice = osLinux
+				}
+				answers["os_0"] = map[string]any{"type": "choice", "choice": choice, "probabilities": probs}
+			}}
+		})
+		assets := assetsNamed("tool-1.0.tar.gz")
+		assets[0].Artifact = &github.ArtifactMetadata{Status: "inspected", Role: "application",
+			Targets: []github.ArtifactTarget{{Arch: "amd64"}}, Evidence: []github.ArtifactEvidence{{Source: "content-inspection"}}}
+		d, _, err := c.Decide(context.Background(), "o/tool", assets, picker.Linux, picker.AMD64, picker.PickOpts{})
+		if err != nil || d.ShouldAutoSelect() {
+			t.Fatalf("Linux probability %.1f: auto=%v err=%v reasons=%v", probability, d.ShouldAutoSelect(), err, d.Reasons)
+		}
+	}
+}
+
+func TestValidChoiceRejectsNonFiniteValues(t *testing.T) {
+	for _, value := range []float64{math.NaN(), math.Inf(1), math.Inf(-1)} {
+		for _, field := range []string{"probability", "confidence"} {
+			a := answer{Type: "choice", Choice: "yes", Probabilities: map[string]float64{"yes": 1, "no": 0}, Confidence: 1}
+			if field == "probability" {
+				a.Probabilities["yes"] = value
+			} else {
+				a.Confidence = value
+			}
+			if err := validChoice(a, []string{"yes", "no"}); err == nil {
+				t.Errorf("accepted %s=%v", field, value)
+			}
+		}
 	}
 }

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/argval/yatko/github"
@@ -20,6 +21,7 @@ type CorpusRelease struct {
 	Assets       []string                           `json:"assets"`
 	Expect       []CorpusExpectation                `json:"expect"`
 	TargetLabels map[string][]github.ArtifactTarget `json:"targetLabels"`
+	Observed     map[string]github.ArtifactMetadata `json:"-"`
 }
 
 // CorpusExpectation is a human-labeled pick for one visitor platform/arch.
@@ -72,6 +74,18 @@ func LoadCorpusFile(path string) ([]CorpusRelease, error) {
 	if len(file.Releases) == 0 {
 		return nil, fmt.Errorf("corpus has no releases")
 	}
+	var observed map[string]map[string]github.ArtifactMetadata
+	if data, err := os.ReadFile(filepath.Join(filepath.Dir(path), "corpus_observations.json")); err == nil {
+		if err := json.Unmarshal(data, &observed); err != nil {
+			return nil, err
+		}
+	} else if !os.IsNotExist(err) {
+		return nil, err
+	}
+	for i := range file.Releases {
+		r := &file.Releases[i]
+		r.Observed = observed[r.Repo+"@"+r.Tag]
+	}
 	return file.Releases, nil
 }
 
@@ -85,6 +99,11 @@ func assetsFromNames(names []string) []github.Asset {
 
 func scoreExpectation(rel CorpusRelease, exp CorpusExpectation, decide Decider) (gotName string, auto, wrongPlatform, wrongArch, unlabeled bool, elapsed time.Duration) {
 	assets := assetsFromNames(rel.Assets)
+	for i := range assets {
+		if m, ok := rel.Observed[assets[i].Name]; ok {
+			assets[i].Artifact = &m
+		}
+	}
 	platform := Platform(exp.Platform)
 	arch := Arch(exp.Arch)
 	start := time.Now()

@@ -12,6 +12,8 @@ export type ArtifactMetadata = {
   evidence: { source: string; field: string; value: string }[];
   status: "unknown" | "inspected" | "unsupported" | "failed";
   conflicts?: string[];
+  targets_partial?: boolean;
+  launcher_arch?: string;
 };
 
 export type Asset = {
@@ -196,18 +198,20 @@ function runsEmulated(platform: Platform | "", visitor: Arch, asset: string): bo
 export function assetMatchesTarget(asset: Asset, target: { platform: Platform | ""; arch: Arch; libc?: Libc }): boolean {
   const artifact = asset.artifact;
   if (!target.platform || !artifact) return false;
+  if (/\.appimage$/i.test(asset.name) && (!artifact.launcher_arch ||
+    (target.arch && artifact.launcher_arch !== target.arch && !runsEmulated(target.platform, target.arch, artifact.launcher_arch)))) return false;
   return artifact.status !== "failed" &&
     !["source", "debug", "metadata"].includes(artifact.role) &&
     !artifact.conflicts?.length &&
     artifact.targets.some((entry) => entry.platform === target.platform &&
-      (!target.arch || entry.arch === target.arch || entry.arch === "universal" ||
+      (artifact.targets_partial || !target.arch || entry.arch === target.arch || entry.arch === "universal" ||
         (!!entry.arch && runsEmulated(target.platform, target.arch, entry.arch))) &&
       (!target.libc || !entry.libc || entry.libc === target.libc || entry.libc === "static"));
 }
 
 export function assetTargetLabel(asset: Asset): string {
   if (!asset.artifact) return "Target unknown";
-  const { targets, role, conflicts, status } = asset.artifact;
+  const { targets, role, conflicts, status, targets_partial } = asset.artifact;
   if (conflicts?.length) return "Conflicting target evidence";
   if (role === "source") return "Source code";
   if (role === "debug") return "Debug files";
@@ -216,7 +220,7 @@ export function assetTargetLabel(asset: Asset): string {
   return targets.map(({ platform, arch }) => {
     const label = Object.hasOwn(platformLabels, platform) ? platformLabels[platform as Platform] : platform || "OS unknown";
     return [label, arch || "CPU unknown"].join(" · ");
-  }).join(" / ");
+  }).join(" / ") + (targets_partial ? " · additional targets unverified" : "");
 }
 
 /** Commands with explicit targets must match both the selected OS and CPU. */

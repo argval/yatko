@@ -4,22 +4,28 @@ import (
 	"context"
 	"log"
 	"strings"
+	"time"
 
+	"github.com/argval/yatko/cache"
 	"github.com/argval/yatko/github"
 	"github.com/argval/yatko/jev"
 	"github.com/argval/yatko/picker"
 	"github.com/gin-gonic/gin"
 )
 
+const optionalRepoMetaBudget = 100 * time.Millisecond
+
 // pick asks Jev for the full release; only service failure invokes rule ranking.
-// A pinned filename must remain Jev's validated choice for the same visitor.
-func (h *RedirectHandler) pick(c *gin.Context, owner, repo string, assets []github.Asset) assetPick {
+// A previously offered pin is revalidated before asking for a new preference.
+func (h *RedirectHandler) pick(c *gin.Context, owner, repo string, release *github.Release) assetPick {
+	assets := release.Assets
 	p := resolveAssetPick(c)
 	if h.Primary != nil {
-		// Cached with the page's repo metadata; a failed fetch leaves it blank.
-		if meta, ok := h.getRepoMeta(c, owner, repo); ok {
-			p.Product = strings.TrimSpace(meta.Description)
+		if decision, ok := h.offeredDownload(c, owner, repo, release, p); ok {
+			p.Decision = decision
+			return p
 		}
+		p.Product = h.optionalProductDescription(c.Request.Context(), owner, repo)
 		if decision, ok := h.Primary.Decide(c.Request.Context(), owner+"/"+repo, assets, p.Platform, p.Arch, p.opts()); ok {
 			p.Decision = decision
 			logPrimaryDisagreement(owner, repo, p, ruleDecision(c, assets, p))
@@ -34,6 +40,23 @@ func (h *RedirectHandler) pick(c *gin.Context, owner, repo string, assets []gith
 	}
 	p.Decision = ruleDecision(c, assets, p)
 	return p
+}
+
+// Optional context cannot share a short-lived cache fill with the page's required lookup.
+func (h *RedirectHandler) optionalProductDescription(parent context.Context, owner, repo string) string {
+	ctx, cancel := context.WithTimeout(parent, optionalRepoMetaBudget)
+	defer cancel()
+	key := cache.DescriptionKey(owner, repo)
+	meta, ok := cache.GetCached[repoMeta](ctx, h.cache, key)
+	if !ok {
+		var err error
+		meta, _, _, err = h.fetchRepoMeta(ctx, owner, repo, "")
+		if err != nil {
+			return ""
+		}
+		_ = cache.StoreCached(ctx, h.cache, key, meta)
+	}
+	return strings.TrimSpace(meta.Description)
 }
 
 // logPrimaryDisagreement records where Jev and the rules differ, with Jev's

@@ -287,7 +287,9 @@ func (r *deepEntryReader) ReadAt(p []byte, off int64) (int, error) {
 	return r.ReadAt(p, off)
 }
 
-func (a *deepArchive) inspectExecutables(name string) (ArtifactMetadata, bool, error) {
+func (a *deepArchive) inspectExecutables(name string) (metadata ArtifactMetadata, found bool, err error) {
+	partial := false
+	defer func() { metadata.TargetsPartial = metadata.TargetsPartial || partial }()
 	var candidates []deepEntry
 	for _, e := range a.entries {
 		if e.directory || (e.size >= 0 && e.size < 64) || e.size > deepMaxDownload {
@@ -320,6 +322,7 @@ func (a *deepArchive) inspectExecutables(name string) (ArtifactMetadata, bool, e
 	resultDepth := -1
 	for i, e := range candidates {
 		if i >= 64 {
+			partial = true
 			break
 		}
 		depth := strings.Count(e.path, "/")

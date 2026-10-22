@@ -85,7 +85,7 @@ func completeScan(t *testing.T, store *artifactscan.Store, asset github.Asset, m
 
 func shallowScan(t *testing.T, c *cache.Cache, asset github.Asset, metadata github.ArtifactMetadata) {
 	t.Helper()
-	key := fmt.Sprintf("artifact-content:v3:%x", sha256.Sum256([]byte(artifactIdentity(asset))))
+	key := fmt.Sprintf("artifact-content:v4:%x", sha256.Sum256([]byte(artifactIdentity(asset))))
 	_, err := cache.FetchCached(context.Background(), c, key, func(context.Context, string) (github.ArtifactMetadata, string, bool, error) {
 		return metadata, "", false, nil
 	})

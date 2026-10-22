@@ -109,12 +109,16 @@ type assetIdentity struct {
 }
 
 // key hashes everything that can change the answer: prompt and policy
-// version, the exact request Jev sees (model, visitor, candidates in canonical
-// order) and the identity and evidence of every release file, including the
+// version, the model, the visitor state Jev sees, the candidates in canonical
+// order and the identity and evidence of every release file, including the
 // ones code filtered out before the request.
-func key(p prepared, assets []github.Asset) string {
+func key(p prepared, model string, assets []github.Asset) string {
 	h := sha256.New()
-	body, _ := json.Marshal(p.req)
+	names := make([]string, len(p.candidates))
+	for i, a := range p.candidates {
+		names[i] = a.Name
+	}
+	body, _ := json.Marshal(map[string]any{"model": model, "state": p.state, "candidates": names})
 	h.Write([]byte(promptVersion + "\x1e"))
 	h.Write(body)
 	ids := make([]assetIdentity, len(assets))
@@ -125,7 +129,7 @@ func key(p prepared, assets []github.Asset) string {
 	idBody, _ := json.Marshal(ids)
 	h.Write([]byte("\x1e"))
 	h.Write(idBody)
-	return "jev:decision:v2:" + hex.EncodeToString(h.Sum(nil))
+	return "jev:decision:v3:" + hex.EncodeToString(h.Sum(nil))
 }
 
 func (p *Primary) wait() time.Duration {
@@ -157,7 +161,7 @@ func (p *Primary) Decide(ctx context.Context, repo string, assets []github.Asset
 	if prep.immediate != nil {
 		return *prep.immediate, true
 	}
-	key := key(prep, assets)
+	key := key(prep, p.Client.model, assets)
 	if r, hit := cache.GetCached[record](ctx, p.Cache, key); hit {
 		return r.decision(assets, platform, arch, opts)
 	}

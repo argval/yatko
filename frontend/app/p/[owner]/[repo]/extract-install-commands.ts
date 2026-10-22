@@ -6,7 +6,7 @@ import { parseFragment, type DefaultTreeAdapterTypes } from "parse5";
 import { fromMarkdown } from "mdast-util-from-markdown";
 import { gfmFromMarkdown } from "mdast-util-gfm";
 import { gfm } from "micromark-extension-gfm";
-import type { Arch } from "./pick-asset";
+import type { Arch } from "./platform-utils";
 import { commandStart, isInstallScriptOneLiner, lexPipeline } from "./install-shell-syntax";
 
 export { isInstallScriptOneLiner, isUnsafeInstallCommand } from "./install-shell-syntax";

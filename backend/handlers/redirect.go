@@ -6,14 +6,20 @@ import (
 	"net/http"
 	"slices"
 
+	"github.com/argval/yatko/artifactscan"
 	"github.com/argval/yatko/cache"
 	"github.com/argval/yatko/github"
+	"github.com/argval/yatko/jev"
 	"github.com/gin-gonic/gin"
 )
 
 type RedirectHandler struct {
 	gh    *github.Client
 	cache *cache.Cache
+	// ScanStore adds durable full-file evidence; nil keeps inspection disabled.
+	ScanStore *artifactscan.Store
+	// Primary makes Jev the main decider, with the rule picker as fallback; nil keeps the rules.
+	Primary *jev.Primary
 }
 
 func NewRedirectHandler(gh *github.Client, c *cache.Cache) *RedirectHandler {
@@ -37,7 +43,7 @@ func (h *RedirectHandler) handle(c *gin.Context, owner, repo, version string) {
 		return
 	}
 
-	p := pickReleaseAsset(c, release.Assets)
+	p := h.pick(c, owner, repo, release)
 	if !p.Decision.ShouldAutoSelect() {
 		respondDownloadMiss(c, owner, repo, release, p)
 		return
@@ -72,4 +78,30 @@ func (h *RedirectHandler) getRelease(c *gin.Context, owner, repo, version string
 	result.Assets = slices.Clone(release.Assets)
 	h.enrichArtifacts(c.Request.Context(), result.Assets)
 	return &result, nil
+}
+
+// getRepoMeta also reports whether the repo itself was confirmed to exist
+// (the page uses it to disambiguate a "repo not found" 404 from a "no releases yet" 404).
+func (h *RedirectHandler) getRepoMeta(c *gin.Context, owner, repo string) (repoMeta, bool) {
+	key := cache.DescriptionKey(owner, repo)
+	meta, err := cache.FetchCached(c.Request.Context(), h.cache, key, func(ctx context.Context, etag string) (repoMeta, string, bool, error) {
+		return h.fetchRepoMeta(ctx, owner, repo, etag)
+	})
+	if err != nil {
+		log.Printf("repo fetch error for %s/%s: %v", owner, repo, err)
+		return repoMeta{}, false
+	}
+	return meta, true
+}
+
+func (h *RedirectHandler) fetchRepoMeta(ctx context.Context, owner, repo, etag string) (repoMeta, string, bool, error) {
+	data, newETag, notModified, err := h.gh.GetRepo(ctx, owner, repo, etag)
+	if err != nil || notModified {
+		return repoMeta{}, newETag, notModified, err
+	}
+	return repoMeta{
+		Description: data.Description,
+		AvatarURL:   data.Owner.AvatarURL,
+		Stars:       data.Stars,
+	}, newETag, false, nil
 }

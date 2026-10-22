@@ -57,7 +57,7 @@ func TestDecideAssetOSEvidenceBeatsArchOnlyName(t *testing.T) {
 		{Name: "Obsidian-1.14.4.apk", Artifact: &github.ArtifactMetadata{ // live inspection result
 			Targets: []github.ArtifactTarget{{Platform: "android", Arch: "arm64"}}, Role: "installer", Status: "inspected"}},
 		{Name: "obsidian-1.14.4-arm64.tar.gz"},
-		{Name: "Obsidian-1.14.4-arm64.AppImage"},
+		{Name: "Obsidian-1.14.4-arm64.AppImage", Artifact: &github.ArtifactMetadata{Status: "inspected", LauncherArch: "arm64"}},
 	}
 	for _, tc := range []struct {
 		platform Platform
@@ -105,6 +105,77 @@ func TestDecideAssetPrefersAppOverCompanionCLI(t *testing.T) {
 	}
 }
 
+func TestDecideAssetPrefersInsomniaDesktopOverInso(t *testing.T) {
+	assets := []github.Asset{
+		{Name: "Insomnia.Core-13.1.0.exe", Artifact: &github.ArtifactMetadata{
+			Targets: []github.ArtifactTarget{{Platform: "windows", Arch: "386"}}, Role: "application", Status: "inspected",
+		}},
+		{Name: "inso-windows-x64-13.1.0.zip"},
+	}
+	d := DecideAsset(assets, Windows, AMD64, PickOpts{})
+	if !d.ShouldAutoSelect() || d.Asset.Name != "Insomnia.Core-13.1.0.exe" {
+		t.Fatalf("desktop pick: %+v", d)
+	}
+	if d := DecideAsset(assets[1:], Windows, AMD64, PickOpts{}); !d.ShouldAutoSelect() || d.Asset.Name != assets[1].Name {
+		t.Fatalf("CLI-only release should remain available: %+v", d)
+	}
+}
+
+func TestDecideAssetPrefersSetupOverPortable(t *testing.T) {
+	assets := []github.Asset{
+		{Name: "App-Setup.exe", Artifact: &github.ArtifactMetadata{
+			Targets: []github.ArtifactTarget{{Platform: "windows", Arch: "386"}}, Role: "application", Status: "inspected",
+		}},
+		{Name: "App-windows-x64-Portable.exe"},
+	}
+	d := DecideAsset(assets, Windows, AMD64, PickOpts{})
+	if !d.ShouldAutoSelect() || d.Asset.Name != assets[0].Name {
+		t.Fatalf("setup pick: %+v", d)
+	}
+	if d := DecideAsset(assets[1:], Windows, AMD64, PickOpts{}); !d.ShouldAutoSelect() {
+		t.Fatalf("portable-only release should remain available: %+v", d)
+	}
+	unknownSetup := github.Asset{Name: "App-Setup.exe"}
+	if d := DecideAsset([]github.Asset{unknownSetup, assets[1]}, Windows, AMD64, PickOpts{}); !d.ShouldAutoSelect() || d.Asset.Name != assets[1].Name {
+		t.Fatalf("unknown setup CPU must not hide a compatible portable build: %+v", d)
+	}
+}
+
+func TestDecideAssetSetupRespectsFormatPreference(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		prefer   string
+		setup    string
+		portable string
+		want     string
+	}{
+		{"default setup", "", "App-Setup-x64.exe", "App-windows-x64-Portable.zip", "App-Setup-x64.exe"},
+		{"explicit zip", "zip", "App-Setup-x64.exe", "App-windows-x64-Portable.zip", "App-windows-x64-Portable.zip"},
+		{"normalized zip", " .ZIP ", "App-Setup-x64.exe", "App-windows-x64-Portable.zip", "App-windows-x64-Portable.zip"},
+		{"unavailable format", "7z", "App-Setup-x86.exe", "App-windows-x64-Portable.zip", "App-Setup-x86.exe"},
+		{"invalid preference", "invalid", "App-Setup-x86.exe", "App-windows-x64-Portable.zip", "App-Setup-x86.exe"},
+		{"same format keeps setup", "exe", "App-Setup-x86.exe", "App-windows-x64-Portable.exe", "App-Setup-x86.exe"},
+		{"incompatible zip", "zip", "App-Setup-x64.exe", "App-windows-arm64-Portable.zip", "App-Setup-x64.exe"},
+		{"native setup beats emulated zip", "zip", "App-Setup-x64.exe", "App-windows-x86-Portable.zip", "App-Setup-x64.exe"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			assets := []github.Asset{{Name: tc.setup}, {Name: tc.portable}}
+			d := DecideAsset(assets, Windows, AMD64, PickOpts{Prefer: tc.prefer})
+			if !d.ShouldAutoSelect() || d.Asset.Name != tc.want {
+				t.Fatalf("prefer=%q: got %+v, want %s", tc.prefer, d, tc.want)
+			}
+		})
+	}
+	assets := []github.Asset{
+		{Name: "App-Setup-x64.exe"},
+		{Name: "App-windows-x64-Portable.exe"},
+		{Name: "App-windows-x64.zip"},
+	}
+	if d := DecideAsset(assets, Windows, AMD64, PickOpts{Prefer: "zip"}); !d.ShouldAutoSelect() || d.Asset.Name != assets[2].Name {
+		t.Fatalf("setup filtering must keep a requested archive without a Portable token: %+v", d)
+	}
+}
+
 // CPU fallback policy: native (or universal on Mac) first, then the closest
 // emulated build — Windows ARM64: x64 then x86; Windows x64: x86; Apple
 // Silicon: Intel via Rosetta. Nothing runs "upward" (x86 never gets x64).
@@ -125,7 +196,7 @@ func TestDecideAssetCPUFallbackOrder(t *testing.T) {
 		{MacOS, ARM64, []string{"app-mac-x64.dmg", "app-mac-arm64.dmg", "app-mac-universal.dmg"}, "app-mac-universal.dmg"},
 		{MacOS, ARM64, []string{"app-mac-x64.dmg", "app-mac-arm64.dmg"}, "app-mac-arm64.dmg"},
 		{MacOS, ARM64, []string{"app-mac-x64.dmg"}, "app-mac-x64.dmg"},
-		{MacOS, ARM64, []string{"app-mac-x64.dmg", "App.dmg"}, "app-mac-x64.dmg"}, // Known Rosetta support beats an unknown CPU.
+		{MacOS, ARM64, []string{"app-mac-x64.dmg", "App.dmg"}, "App.dmg"}, // Untagged DMGs default to universal.
 		{MacOS, AMD64, []string{"app-mac-x64.dmg", "app-mac-universal.dmg"}, "app-mac-universal.dmg"},
 		{MacOS, AMD64, []string{"app-mac-arm64.dmg"}, ""},
 		{MacOS, UnknownArch, []string{"app-mac-x64.dmg", "app-mac-arm64.dmg", "app-mac-universal.dmg"}, "app-mac-universal.dmg"},

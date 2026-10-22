@@ -105,19 +105,19 @@ func TestArtifactIdentityInvalidatesReplacedAssets(t *testing.T) {
 func TestObservationContradictionsPreventAutomaticSelection(t *testing.T) {
 	a := github.ArtifactMetadata{Role: "installer", Status: "inspected", Targets: []github.ArtifactTarget{{Platform: "windows", Arch: "arm64"}}}
 	b := github.ArtifactMetadata{Role: "application", Status: "inspected", Targets: []github.ArtifactTarget{{Platform: "windows", Arch: "amd64"}}}
-	if m := mergeObservations(a, b); len(m.Conflicts) == 0 {
+	if m := github.MergeObservations(a, b); len(m.Conflicts) == 0 {
 		t.Fatalf("CPU contradiction discarded: %+v", m)
 	}
 	b.Targets[0].Arch = "arm64"
 	b.Role = "metadata"
-	if m := mergeObservations(a, b); len(m.Conflicts) == 0 {
+	if m := github.MergeObservations(a, b); len(m.Conflicts) == 0 {
 		t.Fatalf("non-runnable role discarded: %+v", m)
 	}
 }
 
 func TestFailedContentInspectionBlocksPublisherPick(t *testing.T) {
 	publisher := github.ArtifactMetadata{Role: "application", Status: "inspected", Targets: []github.ArtifactTarget{{Platform: "android", Arch: "arm64"}}}
-	observed := mergeObservations(publisher, github.ArtifactMetadata{Role: "unknown", Status: "failed"})
+	observed := github.MergeObservations(publisher, github.ArtifactMetadata{Role: "unknown", Status: "failed"})
 	if observed.Status != "failed" {
 		t.Fatalf("failure discarded: %+v", observed)
 	}

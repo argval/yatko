@@ -15,7 +15,51 @@ afterEach(() => {
   resetDetectArchFromWebGLCache();
 });
 
+test("partial CPU samples remain visible without claiming an exhaustive target list", () => {
+  const asset: Asset = {
+    name: "sdk-windows.zip", browser_download_url: "https://github.com/o/r/releases/download/v1/sdk.zip", size: 1000, download_count: 0,
+    artifact: { status: "inspected", role: "application", evidence: [], targets_partial: true, targets: [{ platform: "windows", arch: "arm64" }] },
+  };
+  expect(assetMatchesTarget(asset, { platform: "windows", arch: "amd64" })).toBe(true);
+  expect(assetMatchesTarget(asset, { platform: "linux", arch: "amd64" })).toBe(false);
+  expect(assetTargetLabel(asset)).toContain("additional targets unverified");
+  asset.artifact!.targets_partial = false;
+  expect(assetMatchesTarget(asset, { platform: "windows", arch: "amd64" })).toBe(false);
+});
+
+test("AppImage filtering requires its verified launcher CPU", () => {
+  const artifact = { status: "inspected", role: "application", evidence: [], targets: [{ platform: "linux", arch: "arm64" }] } satisfies NonNullable<Asset["artifact"]>;
+  const asset: Asset = { name: "tool-linux-arm64.AppImage", browser_download_url: "https://github.com/o/r/releases/download/v1/tool.AppImage", size: 1000, download_count: 0, artifact };
+  expect(assetMatchesTarget(asset, { platform: "linux", arch: "arm64" })).toBe(false);
+  asset.artifact = { ...artifact, launcher_arch: "amd64" };
+  expect(assetMatchesTarget(asset, { platform: "linux", arch: "arm64" })).toBe(false);
+  asset.artifact = { ...artifact, launcher_arch: "arm64" };
+  expect(assetMatchesTarget(asset, { platform: "linux", arch: "arm64" })).toBe(true);
+  expect(assetMatchesTarget(asset, { platform: "linux", arch: "" })).toBe(true);
+});
+
+describe("detectPlatformFromUA", () => {
+  test("reads darwin from a curl target triple", () => {
+    expect(detectPlatformFromUA("curl/8.4.0 (aarch64-apple-darwin24.0)")).toBe("macos");
+  });
+
+  test("reads mingw as Windows", () => {
+    expect(detectPlatformFromUA("curl/8.5.0 (x86_64-w64-mingw32)")).toBe("windows");
+  });
+});
+
 describe("detectArchFromUA", () => {
+  test("matches Go's bounded ARM detection without matching unrelated words", () => {
+    for (const ua of ["arm", "ARM", "Mozilla/5.0 (X11; Linux arm)", "curl/8.5.0 (arm-unknown-linux-gnueabihf)", "linux_arm", "arm32"]) {
+      expect(detectArchFromUA(ua)).toBe("arm");
+    }
+    for (const ua of ["charm-client/1.0", "farm", "armada", "armv8"]) {
+      expect(detectArchFromUA(ua)).toBe("");
+    }
+    expect(detectArchFromUA("arm arm64")).toBe("arm64");
+    expect(detectArchFromUA("arm aarch64")).toBe("arm64");
+  });
+
   test("reads arm64 from explicit UA tokens", () => {
     expect(
       detectArchFromUA(
@@ -107,8 +151,6 @@ test("source and metadata remain visible with their role but do not match the ap
   const source: Asset = { ...inspectedZip, artifact: { ...inspectedZip.artifact!, role: "source" } };
   expect(assetTargetLabel(source)).toBe("Source code");
   expect(assetMatchesTarget(source, { platform: "windows", arch: "arm64" })).toBe(false);
-  const { artifact: _, ...legacy } = inspectedZip;
-  expect(assetMatchesTarget({ ...legacy, name: "tool-windows-arm64.zip" }, { platform: "windows", arch: "arm64" })).toBe(true);
 });
 
 test("install command filtering requires a known matching target", () => {
@@ -155,11 +197,6 @@ test("a known visitor CPU requires evidence of a compatible artifact CPU", () =>
   const partial: Asset = { ...inspectedZip, artifact: { ...inspectedZip.artifact!, targets: [{ platform: "windows" }] } };
   expect(assetMatchesTarget(partial, { platform: "windows", arch: "amd64" })).toBe(false);
   expect(assetMatchesTarget(partial, { platform: "windows", arch: "" })).toBe(true);
-  const { artifact: _, ...legacy } = inspectedZip;
-  expect(assetMatchesTarget({ ...legacy, name: "Setup.exe" }, { platform: "windows", arch: "amd64" })).toBe(false);
-  expect(assetMatchesTarget({ ...legacy, name: "tool-linux-riscv64.tar.gz" }, { platform: "linux", arch: "amd64" })).toBe(false);
-  expect(assetMatchesTarget({ ...legacy, name: "tool-win32-x64.zip" }, { platform: "windows", arch: "arm64" })).toBe(true);
-  expect(assetMatchesTarget({ ...legacy, name: "tool-universal.dmg" }, { platform: "macos", arch: "arm64" })).toBe(true);
 });
 
 test("CPU and libc compatibility must come from the same observed target", () => {
@@ -173,9 +210,8 @@ test("CPU and libc compatibility must come from the same observed target", () =>
   expect(assetMatchesTarget(failed, { platform: "linux", arch: "arm64" })).toBe(false);
 });
 
-test("legacy metadata and debug assets do not enter compatible downloads", () => {
-  const { artifact: _, ...legacy } = inspectedZip;
-  for (const name of ["tool-windows-x64.exe.sha256", "tool-windows-x64-debuginfo.zip", "tool-windows-x64.pdb"]) {
-    expect(assetMatchesTarget({ ...legacy, name }, { platform: "windows", arch: "amd64" })).toBe(false);
-  }
+test("assets without server facts never match a target, whatever their filename", () => {
+  const { artifact: _, ...bare } = inspectedZip;
+  expect(assetMatchesTarget({ ...bare, name: "tool-windows-x64.exe" }, { platform: "windows", arch: "amd64" })).toBe(false);
+  expect(assetTargetLabel({ ...bare, name: "tool-windows-x64.exe" })).toBe("Target unknown");
 });

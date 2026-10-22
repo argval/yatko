@@ -7,7 +7,8 @@ import {
   parseLinkPick,
   pickFromReleaseTable,
 } from "./link-decision";
-import type { Asset } from "./pick-asset";
+import type { Asset } from "./platform-utils";
+import type { VisitorContext } from "./visitor-context";
 
 const assets: Asset[] = [
   {
@@ -17,6 +18,23 @@ const assets: Asset[] = [
     download_count: 9,
   },
 ];
+
+test("recommendation and pinned download preserve the same device evidence", () => {
+  const context: VisitorContext = {
+    platformSource: "manual", archSource: "manual",
+    clientHints: { platform: "Windows", architecture: "arm", bitness: "64", platformVersion: "15.0.0" },
+  };
+  const lookup = new URL(downloadLinkPath("o", "r", "v1", "linux", "amd64", context), "https://yatko.app");
+  const click = new URL(downloadRedirectPath("o", "r", "v1", "linux", "amd64", "app.tar.gz", context), "https://yatko.app");
+  expect(click.searchParams.get("asset")).toBe("app.tar.gz");
+  click.searchParams.delete("asset");
+  expect(click.search).toBe(lookup.search);
+  expect(lookup.searchParams.get("platform_source")).toBe("manual");
+  expect(lookup.searchParams.get("platform")).toBe("linux");
+  expect(lookup.searchParams.get("hint_platform")).toBe("Windows");
+  expect(lookup.searchParams.get("hint_architecture")).toBe("arm");
+  expect(lookup.searchParams.get("hint_platform_version")).toBe("15.0.0");
+});
 
 describe("downloadLinkPath", () => {
   test("pins platform and arch so Mac ARM is not inferred from the UA", () => {
@@ -95,6 +113,20 @@ describe("parseLinkPick", () => {
       url: "https://example.com/tool-darwin-arm64.dmg",
       size: 42,
     });
+  });
+
+  test("rejects a miss payload that explains how the platform was chosen", () => {
+    expect(
+      parseLinkPick({
+        url: "https://github.com/acme/tool/releases/tag/v1.0.0",
+        platform: "linux",
+        arch: "amd64",
+        platform_source: "default",
+        arch_source: "default",
+        confidence: "low",
+        error: "no suitable asset found for platform",
+      }),
+    ).toBeNull();
   });
 
   test("rejects low-confidence payloads even if a filename is present", () => {

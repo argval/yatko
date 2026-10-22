@@ -34,13 +34,13 @@ export function DownloadSection({
   const detected = usePlatform();
   const platform = detected?.platform ?? null;
   const arch = detected?.arch ?? null;
-  // Fallback path when /api/release predates the picks table (rolling deploy).
+  // Jev decisions need this visitor's context; rule-only responses may include a table.
   const [fetchedPick, setFetchedPick] = useState<{ path: string; pick: LinkPick | null } | null>(null);
 
   const tablePick =
     platform ? pickFromReleaseTable(picks, platform, arch ?? "") : undefined;
-  const fetchPath = tablePick === undefined && platform && assets.length > 0
-    ? downloadLinkPath(owner, repo, tagName, platform, arch ?? "") : null;
+  const fetchPath = tablePick === undefined && platform && !detected?.pending && assets.length > 0
+    ? downloadLinkPath(owner, repo, tagName, platform, arch ?? "", detected?.context) : null;
 
   useEffect(() => {
     if (!fetchPath) return;
@@ -103,6 +103,7 @@ export function DownloadSection({
         hasAssets={assets.length > 0}
         tagName={tagName}
         decision={pick}
+        visitorContext={detected.context}
       /> : <>
         <a href="#downloads" className="inline-flex min-h-11 items-center rounded-xl bg-foreground px-6 py-3 font-semibold text-background focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-foreground active:opacity-90">Browse downloads</a>
         <p className="text-sm text-muted">Select an operating system to find a download.</p>

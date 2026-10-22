@@ -90,6 +90,8 @@ func (c *Client) InspectArtifact(ctx context.Context, asset Asset) (ArtifactMeta
 		inspect = inspectMSI
 	case strings.HasSuffix(name, ".dmg"):
 		inspect = inspectDMG
+	case strings.HasSuffix(name, ".exe"):
+		inspect = inspectEXE
 	case hasAnySuffix(name, ".tar.gz", ".tgz"):
 		inspect = tarInspector(func(r io.Reader) (io.Reader, error) { return gzip.NewReader(r) })
 	case hasAnySuffix(name, ".tar.bz2", ".tbz2", ".tbz"):
@@ -100,6 +102,8 @@ func (c *Client) InspectArtifact(ctx context.Context, asset Asset) (ArtifactMeta
 		inspect = inspectGzip
 	case strings.HasSuffix(name, ".deb"):
 		inspect = inspectDeb
+	case strings.HasSuffix(name, ".appimage"):
+		inspect = inspectAppImage
 	case sniffable(name):
 		inspect = inspectBinary
 	default:
@@ -118,6 +122,7 @@ func (c *Client) InspectArtifact(ctx context.Context, asset Asset) (ArtifactMeta
 	case errors.Is(err, errInspectLimit), err != nil && errors.Is(f.err, errInspectLimit):
 		// The limit was hit before any structure parsed: too large, not broken.
 		m.Status = "unsupported"
+		m.TargetsPartial = true
 		note(&m, "", "inspection.skipped", "exceeds inspection limits")
 		return m, nil
 	case err != nil:
@@ -269,6 +274,23 @@ func inspectBinary(f *remoteFile, m *ArtifactMetadata) error {
 	return sniffOrNote(f, m, "")
 }
 
+// inspectAppImage records the ELF launcher separately from an embedded payload.
+func inspectAppImage(f *remoteFile, m *ArtifactMetadata) error {
+	if err := inspectBinary(f, m); err != nil {
+		return err
+	}
+	setAppImageLauncher(m)
+	return nil
+}
+
+func setAppImageLauncher(m *ArtifactMetadata) {
+	if len(m.Targets) == 1 && slices.ContainsFunc(m.Evidence, func(e ArtifactEvidence) bool {
+		return e.Field == "elf.machine" || strings.HasSuffix(e.Field, ":elf.machine")
+	}) {
+		m.LauncherArch = m.Targets[0].Arch
+	}
+}
+
 func sniffOrNote(r io.ReaderAt, m *ArtifactMetadata, at string) error {
 	found, err := sniffBinary(r, m, at)
 	if err == nil && !found {
@@ -299,8 +321,11 @@ func inspectZIP(f *remoteFile, m *ArtifactMetadata) error {
 	slices.SortStableFunc(candidates, func(a, b *zip.File) int {
 		return bundleRank(a.Name) - bundleRank(b.Name)
 	})
+	// Directory CPU names choose samples, never establish CPU compatibility.
+	candidates = diverseZIPCandidates(candidates)
 	sniffed := 0
 	bundle := macAppBundle(names)
+	checked := 0
 	for _, zf := range candidates {
 		if sniffed == inspectMaxBinaries {
 			break
@@ -323,8 +348,40 @@ func inspectZIP(f *remoteFile, m *ArtifactMetadata) error {
 		if err := inspectArchiveEntry(head, m, "zip:"+zf.Name, zf.Name, bundle); err != nil {
 			return err
 		}
+		checked++
 	}
+	m.TargetsPartial = m.TargetsPartial || checked < len(candidates)
 	return nil
+}
+
+func diverseZIPCandidates(files []*zip.File) []*zip.File {
+	var first, rest []*zip.File
+	seen := map[string]bool{}
+	for _, f := range files {
+		group := ""
+		for _, part := range strings.Split(strings.ToLower(f.Name), "/") {
+			switch part {
+			case "x64", "amd64", "x86_64":
+				group = "amd64"
+			case "arm64", "aarch64":
+				group = "arm64"
+			case "x86", "i386", "386", "win32":
+				group = "386"
+			case "arm", "armhf", "armv7":
+				group = "arm"
+			}
+		}
+		key := fmt.Sprintf("%d:%s", bundleRank(f.Name), group)
+		if seen[key] {
+			rest = append(rest, f)
+		} else {
+			seen[key] = true
+			first = append(first, f)
+		}
+	}
+	out := append(first, rest...)
+	slices.SortStableFunc(out, func(a, b *zip.File) int { return bundleRank(a.Name) - bundleRank(b.Name) })
+	return out
 }
 
 // tarInspector lists tar entries through a decompressor and sniffs the first
@@ -345,9 +402,11 @@ func tarInspector(decompress func(io.Reader) (io.Reader, error)) func(*remoteFil
 			head []byte
 		}
 		sniffed, partial := 0, false
+		complete := false
 		for sniffed < inspectMaxBinaries {
 			h, err := tr.Next()
 			if err == io.EOF {
+				complete = true
 				break
 			}
 			if err != nil {
@@ -379,6 +438,7 @@ func tarInspector(decompress func(io.Reader) (io.Reader, error)) func(*remoteFil
 		if partial {
 			note(m, "", "tar.listing", "partial")
 		}
+		m.TargetsPartial = !complete
 		archiveStructure(m, "tar", names)
 		bundle := macAppBundle(names)
 		for _, entry := range entries {
@@ -568,6 +628,9 @@ func inspectArchiveEntry(head []byte, m *ArtifactMetadata, at, name, bundle stri
 	found, err := sniffBinary(bytes.NewReader(head), &observed, at)
 	if err != nil {
 		return err
+	}
+	if !found {
+		m.TargetsPartial = true
 	}
 	mainPrefix := bundle + "/Contents/MacOS/"
 	mainEntry := bundle != "" && strings.HasPrefix(name, mainPrefix) && !strings.Contains(strings.TrimPrefix(name, mainPrefix), "/")
@@ -890,9 +953,8 @@ func elfArch(m elf.Machine, is64 bool) string {
 	return "elf:" + strconv.FormatUint(uint64(m), 10)
 }
 
-// readPE records machine, subsystem, and DLL/CLR flags. A PE image targets
-// Windows unless its subsystem is EFI. CLR images keep their machine constraint
-// because the CLR header alone does not establish AnyCPU support.
+// readPE records machine, hybrid metadata, subsystem, and DLL/CLR flags.
+// Windows is assumed except for EFI. CPU-neutral IL needs validated CLR metadata.
 func readPE(r io.ReaderAt, m *ArtifactMetadata, at string) (bool, error) {
 	dos := make([]byte, 64)
 	if n, _ := r.ReadAt(dos, 0); n < 64 {
@@ -915,6 +977,7 @@ func readPE(r io.ReaderAt, m *ArtifactMetadata, at string) (bool, error) {
 	if target.Arch == "" {
 		target.Arch = fmt.Sprintf("pe:0x%x", machine)
 	}
+	anyCPU := false
 	if len(opt) >= 70 {
 		subsystem := binary.LittleEndian.Uint16(opt[68:])
 		note(m, at, "pe.subsystem", strconv.Itoa(int(subsystem)))
@@ -927,7 +990,17 @@ func readPE(r io.ReaderAt, m *ArtifactMetadata, at string) (bool, error) {
 		}
 		if clr := dd + 14*8; len(opt) >= clr+8 && binary.LittleEndian.Uint32(opt[clr:]) != 0 {
 			note(m, at, "pe.clr", "present")
-			// CLR presence does not prove AnyCPU; 32BITREQUIRED may still constrain x86.
+			if target.Platform == "windows" {
+				anyCPU = peCLR(r, lfanew, h[:24], opt, m, at)
+			}
+		}
+	}
+	if target.Platform == "windows" && (machine == 0x8664 || machine == 0xaa64) {
+		if hybrid := peHybrid(r, lfanew, h[:24], opt); hybrid != "" {
+			note(m, at, "pe.hybrid", hybrid)
+			if hybrid == "arm64ec" || hybrid == "arm64x" {
+				target.Arch = "arm64"
+			}
 		}
 	}
 	if chars&0x2000 == 0 && chars&0x0002 != 0 {
@@ -935,11 +1008,17 @@ func readPE(r io.ReaderAt, m *ArtifactMetadata, at string) (bool, error) {
 	} else {
 		observeRole(m, "metadata")
 	}
-	addTarget(m, target)
+	if anyCPU {
+		for _, arch := range []string{"386", "amd64", "arm64"} {
+			addTarget(m, ArtifactTarget{Platform: "windows", Arch: arch})
+		}
+	} else {
+		addTarget(m, target)
+	}
 	return true, nil
 }
 
-var peArch = map[uint16]string{0x8664: "amd64", 0xaa64: "arm64", 0xa641: "arm64", 0x14c: "386", 0x1c4: "arm", 0x5064: "riscv64"}
+var peArch = map[uint16]string{0x8664: "amd64", 0xaa64: "arm64", 0x14c: "386", 0x1c4: "arm", 0x5064: "riscv64"}
 
 func machoOrder(b []byte) binary.ByteOrder {
 	switch binary.LittleEndian.Uint32(b) {

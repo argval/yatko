@@ -911,6 +911,7 @@ func (a *sevenZip) inspect(f *remoteFile, m *ArtifactMetadata) error {
 	}
 	archiveStructure(m, "7z", names)
 	slices.SortStableFunc(candidates, func(x, y *szFile) int { return bundleRank(x.name) - bundleRank(y.name) })
+	m.TargetsPartial = len(candidates) > inspectMaxBinaries
 	candidates = candidates[:min(len(candidates), inspectMaxBinaries)]
 	slices.SortStableFunc(candidates, func(x, y *szFile) int {
 		if x.folder != y.folder {
@@ -926,6 +927,7 @@ func (a *sevenZip) inspect(f *remoteFile, m *ArtifactMetadata) error {
 			r, err := a.streams.open(f, c.folder)
 			if err != nil {
 				if errors.Is(err, errInspectLimit) && f.err == nil {
+					m.TargetsPartial = true
 					note(m, "7z:"+c.name, "decoder", err.Error())
 					continue
 				}
@@ -942,8 +944,10 @@ func (a *sevenZip) inspect(f *remoteFile, m *ArtifactMetadata) error {
 		pos = c.off + int64(len(head))
 		switch {
 		case f.err != nil:
+			m.TargetsPartial = true
 			return nil // budget or transport; InspectArtifact reports transport errors
 		case errors.Is(err, errInspectLimit):
+			m.TargetsPartial = true
 			note(m, "7z:"+c.name, "decoder", err.Error())
 			folder = -1 // the decoder is unusable after an error
 			continue

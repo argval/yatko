@@ -18,7 +18,7 @@ func TestReleaseMetadata(t *testing.T) {
 		"axolotlsay-aarch64-unknown-linux-musl.tar.gz", "axolotlsay-aarch64-unknown-linux-musl.tar.gz.sha256",
 		"axolotlsay-x86_64-pc-windows-msvc.msi", "axolotlsay-installer.sh", "axolotlsay-universal2-apple-darwin.tar.gz",
 		"axolotlsay-x86_64-unknown-linux-gnu-update", "axolotlsay-x86_64-unknown-linux-gnu.tar.gz.debug",
-		"source.tar.gz", "future.bin", "App-1.0.0-arm64-mac.zip", "App-1.0.0-mac.zip", "App-1.0.0.dmg",
+		"source.tar.gz", "future.bin", "App-1.0.0-arm64-mac.zip", "App-1.0.0-mac.zip", "App-1.0.0.zip", "App-1.0.0.dmg",
 		"App Setup 1.0.0.exe", "app-1.0.0-x64.nsis.7z", "app-1.0.0-arm64.nsis.7z", "App-1.0.0-arm64.AppImage",
 	} {
 		assets = append(assets, s.add(name, []byte("asset bytes are never fetched")))
@@ -59,8 +59,13 @@ func TestReleaseMetadata(t *testing.T) {
 			t.Errorf("%s: ok=%v %+v", name, ok, m)
 		}
 	}
-	// Listed by two channel files with different platforms.
-	if m := got["App-1.0.0-mac.zip"]; len(m.Conflicts) == 0 || len(m.Targets) != 2 {
+	// An unmarked file listed by two channel files with different platforms conflicts.
+	if m := got["App-1.0.0.zip"]; len(m.Conflicts) == 0 || len(m.Targets) != 2 {
+		t.Errorf("unmarked zip in two channels: %+v", m)
+	}
+	// A file that names macOS keeps only the mac channel's claim, even when the
+	// Windows channel lists it too.
+	if m := got["App-1.0.0-mac.zip"]; len(m.Conflicts) != 0 || !slices.Equal(m.Targets, []ArtifactTarget{{Platform: "macos"}}) {
 		t.Errorf("mac zip: %+v", m)
 	}
 	// Not uploaded (Homebrew formula), or referenced only by path traversal / foreign URL.
@@ -125,6 +130,32 @@ func TestElectronRejectsYAMLReferences(t *testing.T) {
 	for _, data := range []string{"version: &v 1.0.0\npath: *v\n", "version: 1.0.0\nfiles: &files [{url: app.zip}]\n"} {
 		if _, err := parseElectronUpdate("latest.yml", []byte(data), ArtifactTarget{Platform: "windows"}, inventory{}); !errors.Is(err, ErrMalformedArtifact) {
 			t.Fatalf("expected bounded rejection, got %v", err)
+		}
+	}
+}
+
+// A channel file that lists every platform's files (AFFiNE's latest.yml)
+// describes only the files that do not name another OS.
+func TestElectronChannelSkipsFilesNamingAnotherOS(t *testing.T) {
+	inv := inventory{byName: map[string]bool{}}
+	names := []string{"app-windows-x64.exe", "app-macos-arm64.dmg", "app-macos-x64.zip", "app-linux-x64.deb", "app-x64.zip"}
+	data := "version: 1.0.0\nfiles:\n"
+	for _, n := range names {
+		inv.byName[n] = true
+		data += "  - url: " + n + "\n"
+	}
+	facts, err := parseElectronUpdate("latest.yml", []byte(data), ArtifactTarget{Platform: "windows"}, inv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, n := range []string{"app-windows-x64.exe", "app-x64.zip"} {
+		if _, ok := facts[n]; !ok {
+			t.Errorf("%s: Windows channel fact missing", n)
+		}
+	}
+	for _, n := range []string{"app-macos-arm64.dmg", "app-macos-x64.zip", "app-linux-x64.deb"} {
+		if f, ok := facts[n]; ok {
+			t.Errorf("%s: got Windows channel fact %+v", n, f.Targets)
 		}
 	}
 }

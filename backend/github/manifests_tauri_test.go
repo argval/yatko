@@ -43,9 +43,9 @@ func TestTauriManifestOnlyDescribesCurrentReleaseAssets(t *testing.T) {
 }
 
 func TestTauriCustomTargetsAndMalformedSchemas(t *testing.T) {
-	for _, key := range []string{"macos-universal", "darwin-aarch64-custom", "linux-mips64", "unknown"} {
-		if target := tauriTarget(key); target.Platform != "tauri-target:"+key {
-			t.Fatalf("invented meaning for %s: %+v", key, target)
+	for _, key := range []string{"macos-universal", "darwin-universal-custom", "windows-universal", "linux-universal", "darwin-aarch64-custom", "linux-mips64", "unknown"} {
+		if targets := tauriTargets(key); !slices.Equal(targets, []ArtifactTarget{{Platform: "tauri-target:" + key}}) {
+			t.Fatalf("invented meaning for %s: %+v", key, targets)
 		}
 	}
 	for _, data := range []string{`{}`, `{"version":"1","platforms":{}}`, `{"version":"1","platforms":{"windows-x86_64":{"url":"app.msi"}}}`, `{"version":true}`} {
@@ -90,5 +90,28 @@ func TestTauriManifestRESTAssetURLsAndBundleKeys(t *testing.T) {
 	}
 	if _, ok := got[other.Name]; ok {
 		t.Fatal("asset ID from another repo was trusted")
+	}
+}
+
+func TestTauriUniversalManifestMatchesInspectedMacTargets(t *testing.T) {
+	for _, key := range []string{"darwin-universal", "darwin-universal-app"} {
+		t.Run(key, func(t *testing.T) {
+			data := []byte(`{"version":"1.2.3","platforms":{"` + key + `":{"url":"App_universal.app.tar.gz","signature":"s"}}}`)
+			got, err := parseTauriUpdate("latest.json", data, inventory{byName: map[string]bool{"App_universal.app.tar.gz": true}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := []ArtifactTarget{{Platform: "macos", Arch: "amd64"}, {Platform: "macos", Arch: "arm64"}}
+			m := got["App_universal.app.tar.gz"]
+			if !slices.Equal(m.Targets, want) {
+				t.Fatalf("universal manifest targets = %+v, want %+v", m.Targets, want)
+			}
+			for _, partial := range []bool{false, true} {
+				observed := ArtifactMetadata{Status: "inspected", Role: "application", Targets: want, TargetsPartial: partial}
+				if merged := MergeObservations(m, observed); len(merged.Conflicts) != 0 || !slices.Equal(merged.Targets, want) {
+					t.Fatalf("manifest displaced Mach-O targets: %+v", merged)
+				}
+			}
+		})
 	}
 }

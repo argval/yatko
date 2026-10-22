@@ -238,11 +238,11 @@ func TestMSIInspection(t *testing.T) {
 	}
 	b = msiFixture("x64;1033", false)
 	binary.LittleEndian.PutUint32(b[44:], 110)
-	var m ArtifactMetadata
-	if err := inspectMSI(installerFile(b), &m); err != nil || m.Status != "unsupported" {
-		t.Fatalf("extended DIFAT: %+v %v", m, err)
+	if err := inspectMSI(installerFile(b), &ArtifactMetadata{}); err == nil {
+		t.Fatal("accepted a FAT count larger than the file")
 	}
 	b = msiFixture("x64;1033", false)
+	var m ArtifactMetadata
 	copy(b[1024+80:1024+96], bytes.Repeat([]byte{0}, 16))
 	m = ArtifactMetadata{}
 	if err := inspectMSI(installerFile(b), &m); err != nil || m.Status != "unsupported" || len(m.Targets) > 0 {
@@ -251,6 +251,42 @@ func TestMSIInspection(t *testing.T) {
 	b = msiFixture("x64;1033", false)
 	if err := inspectMSI(installerFile(b[:1800]), &ArtifactMetadata{}); err == nil {
 		t.Fatal("accepted truncated CFB")
+	}
+}
+
+func TestMSIMiniStreamRejectsRepeatedSector(t *testing.T) {
+	b := msiFixture("x64;1033", true)
+	le := binary.LittleEndian
+	le.PutUint32(b[512+3*4:], 3) // Root stream points back to itself.
+	le.PutUint64(b[1024+120:], 1024)
+	le.PutUint32(b[1024+128+116:], 8)
+	for i := 8; i < 12; i++ {
+		le.PutUint32(b[1536+i*4:], uint32(i+1))
+	}
+	le.PutUint32(b[1536+11*4:], cfbEnd)
+	if err := inspectMSI(installerFile(b), &ArtifactMetadata{}); !errors.Is(err, ErrMalformedArtifact) {
+		t.Fatalf("accepted repeated mini-stream sector: %v", err)
+	}
+}
+
+func TestMSIDIFATGuards(t *testing.T) {
+	for _, duplicate := range []bool{false, true} {
+		b := make([]byte, 1024)
+		le := binary.LittleEndian
+		for i := 0; i < 127; i++ {
+			le.PutUint32(b[512+i*4:], uint32(i+1000))
+		}
+		le.PutUint32(b[512+127*4:], 0) // Extended DIFAT loops back to sector 0.
+		c := msiCompound{f: installerFile(b), sector: 512, fatSectors: 237,
+			difat: make([]uint32, 109), difatLeft: 2, nextDIFAT: 0,
+			difatSeen: map[uint32]bool{}, fatSeen: map[uint32]bool{}, fat: map[uint32][]uint32{}}
+		if duplicate {
+			c.fatSeen[1000] = true // First extended ID repeats a header FAT ID.
+		}
+		_, err := c.next(236 * 128) // Requires a second extended DIFAT sector.
+		if !errors.Is(err, ErrMalformedArtifact) {
+			t.Fatalf("duplicate=%v accepted malformed DIFAT: %v", duplicate, err)
+		}
 	}
 }
 
@@ -267,5 +303,66 @@ func TestRPMReadsTargetFromLargeStore(t *testing.T) {
 	}
 	if len(m.Targets) != 1 || m.Targets[0].Arch != "amd64" {
 		t.Fatalf("%+v", m)
+	}
+}
+
+// TestMSIExtendedDIFAT builds a ~7 MB v3 CFB whose directory and summary sit
+// past the first 109 FAT sectors, so their FAT entries are reachable only
+// through the extended DIFAT chain (as in every large WiX/Tauri MSI).
+func TestMSIExtendedDIFAT(t *testing.T) {
+	le := binary.LittleEndian
+	const per, fatCount, dirID, difatID = 128, 110, 109 * 128, 111
+	sector := func(b []byte, id int) []byte { return b[(id+1)*512 : (id+2)*512] }
+	b := make([]byte, (dirID+10)*512)
+	h := b[:512]
+	copy(h, []byte{0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1})
+	le.PutUint16(h[26:], 3)
+	le.PutUint16(h[28:], 0xfffe)
+	le.PutUint16(h[30:], 9)
+	le.PutUint16(h[32:], 6)
+	le.PutUint32(h[44:], fatCount)
+	le.PutUint32(h[48:], dirID)
+	le.PutUint32(h[56:], 4096)
+	le.PutUint32(h[60:], cfbEnd)
+	le.PutUint32(h[68:], difatID)
+	le.PutUint32(h[72:], 1)
+	for k := 0; k < 109; k++ {
+		le.PutUint32(h[76+k*4:], uint32(k+1)) // FAT sector k lives at id k+1
+	}
+	difat := sector(b, difatID)
+	for j := 0; j < per; j++ {
+		le.PutUint32(difat[j*4:], 0xffffffff)
+	}
+	le.PutUint32(difat, 110) // FAT sector 109 lives at id 110
+	le.PutUint32(difat[(per-1)*4:], cfbEnd)
+	fat := sector(b, 110) // covers ids 109*128 ... 109*128+127
+	for j := 0; j < per; j++ {
+		le.PutUint32(fat[j*4:], 0xffffffff)
+	}
+	le.PutUint32(fat[0:], cfbEnd) // directory: one sector
+	for i := 1; i < 8; i++ {
+		le.PutUint32(fat[i*4:], uint32(dirID+i+1)) // summary: 8 sectors
+	}
+	le.PutUint32(fat[8*4:], cfbEnd)
+
+	// Reuse the small fixture's directory and summary bytes.
+	small := msiFixture("Arm64;1033", false)
+	dir := sector(b, dirID)
+	copy(dir, small[1024:1536])
+	le.PutUint32(dir[128+116:], dirID+1)
+	copy(b[(dirID+2)*512:], small[1536:1536+4096])
+
+	var m ArtifactMetadata
+	if err := inspectMSI(installerFile(b), &m); err != nil {
+		t.Fatal(err)
+	}
+	if len(m.Targets) != 1 || m.Targets[0] != (ArtifactTarget{Platform: "windows", Arch: "arm64"}) {
+		t.Fatalf("%+v", m)
+	}
+	le.PutUint32(difat[(per-1)*4:], difatID) // broken chain: no FAT sector 109, next loops
+	le.PutUint32(h[72:], 2)
+	le.PutUint32(difat, 0xffffffff)
+	if err := inspectMSI(installerFile(b), &ArtifactMetadata{}); err == nil {
+		t.Fatal("accepted a broken DIFAT chain")
 	}
 }

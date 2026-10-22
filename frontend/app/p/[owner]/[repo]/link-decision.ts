@@ -1,4 +1,5 @@
-import type { Arch, Asset, Platform } from "./pick-asset";
+import type { Arch, Asset, Platform } from "./platform-utils";
+import type { VisitorContext } from "./visitor-context";
 
 export type LinkPick = {
   filename?: string;
@@ -10,9 +11,22 @@ export type LinkPick = {
   alternatives?: { filename: string; url: string; size: number }[];
 };
 
-function pickerQuery(platform: Platform, arch: Arch): string {
+function pickerQuery(platform: Platform, arch: Arch, context?: VisitorContext): string {
   const params = new URLSearchParams({ platform });
   params.set("arch", arch || "unknown");
+  if (context) {
+    params.set("platform_source", context.platformSource);
+    params.set("arch_source", context.archSource);
+    const hints = context.clientHints;
+    for (const [key, value] of [
+      ["hint_platform", hints?.platform],
+      ["hint_architecture", hints?.architecture],
+      ["hint_bitness", hints?.bitness],
+      ["hint_platform_version", hints?.platformVersion],
+    ]) {
+      if (key && value) params.set(key, value.slice(0, 128));
+    }
+  }
   return params.toString();
 }
 
@@ -23,8 +37,9 @@ function pickerPath(
   tagName: string,
   platform: Platform,
   arch: Arch,
+  context?: VisitorContext,
 ): string {
-  return `${prefix}/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/${encodeURIComponent(tagName)}?${pickerQuery(platform, arch)}`;
+  return `${prefix}/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/${encodeURIComponent(tagName)}?${pickerQuery(platform, arch, context)}`;
 }
 
 /** Same-origin path for the Go picker JSON. Arch must be a query param — Mac ARM is often missing from the UA. */
@@ -34,8 +49,9 @@ export function downloadLinkPath(
   tagName: string,
   platform: Platform,
   arch: Arch,
+  context?: VisitorContext,
 ): string {
-  return pickerPath("/api/link", owner, repo, tagName, platform, arch);
+  return pickerPath("/api/link", owner, repo, tagName, platform, arch, context);
 }
 
 /** Pin a displayed filename while Go rechecks compatibility on click. */
@@ -46,8 +62,9 @@ export function downloadRedirectPath(
   platform: Platform,
   arch: Arch,
   filename?: string,
+  context?: VisitorContext,
 ): string {
-  const path = pickerPath("/dl", owner, repo, tagName, platform, arch);
+  const path = pickerPath("/dl", owner, repo, tagName, platform, arch, context);
   return filename ? `${path}&asset=${encodeURIComponent(filename)}` : path;
 }
 
@@ -80,6 +97,7 @@ export function parseLinkPick(body: unknown): LinkPick | null {
     };
   }
   if (status !== undefined && status !== "selected") return null;
+  if (typeof rec.error === "string" && rec.error !== "") return null;
   if (rec.confidence === "low") return null;
   if (typeof rec.filename !== "string" || rec.filename === "") return null;
   if (typeof rec.url !== "string" || rec.url === "") return null;

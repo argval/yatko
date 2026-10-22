@@ -5,7 +5,6 @@ import (
 	"log"
 	"net/http"
 	"slices"
-	"sync"
 
 	"github.com/argval/yatko/artifactscan"
 	"github.com/argval/yatko/cache"
@@ -21,22 +20,10 @@ type RedirectHandler struct {
 	ScanStore *artifactscan.Store
 	// Primary makes Jev the main decider, with the rule picker as fallback; nil keeps the rules.
 	Primary *jev.Primary
-
-	// Shadow, when set, runs next to the rule picker for logs only (see shadow.go).
-	Shadow      ShadowDecider
-	shadowMu    sync.Mutex
-	shadowSeen  map[string]struct{}
-	shadowSlots chan struct{}
-	shadowWG    sync.WaitGroup
 }
 
 func NewRedirectHandler(gh *github.Client, c *cache.Cache) *RedirectHandler {
-	return &RedirectHandler{
-		gh:          gh,
-		cache:       c,
-		shadowSeen:  make(map[string]struct{}),
-		shadowSlots: make(chan struct{}, maxShadowInFlight),
-	}
+	return &RedirectHandler{gh: gh, cache: c}
 }
 
 func (h *RedirectHandler) Handle(c *gin.Context) {
@@ -56,8 +43,7 @@ func (h *RedirectHandler) handle(c *gin.Context, owner, repo, version string) {
 		return
 	}
 
-	p := h.pick(c, owner, repo, release.Assets)
-	h.startShadow(c, owner, repo, release, p)
+	p := h.pick(c, owner, repo, release)
 	if !p.Decision.ShouldAutoSelect() {
 		respondDownloadMiss(c, owner, repo, release, p)
 		return
@@ -92,4 +78,30 @@ func (h *RedirectHandler) getRelease(c *gin.Context, owner, repo, version string
 	result.Assets = slices.Clone(release.Assets)
 	h.enrichArtifacts(c.Request.Context(), result.Assets)
 	return &result, nil
+}
+
+// getRepoMeta also reports whether the repo itself was confirmed to exist
+// (the page uses it to disambiguate a "repo not found" 404 from a "no releases yet" 404).
+func (h *RedirectHandler) getRepoMeta(c *gin.Context, owner, repo string) (repoMeta, bool) {
+	key := cache.DescriptionKey(owner, repo)
+	meta, err := cache.FetchCached(c.Request.Context(), h.cache, key, func(ctx context.Context, etag string) (repoMeta, string, bool, error) {
+		return h.fetchRepoMeta(ctx, owner, repo, etag)
+	})
+	if err != nil {
+		log.Printf("repo fetch error for %s/%s: %v", owner, repo, err)
+		return repoMeta{}, false
+	}
+	return meta, true
+}
+
+func (h *RedirectHandler) fetchRepoMeta(ctx context.Context, owner, repo, etag string) (repoMeta, string, bool, error) {
+	data, newETag, notModified, err := h.gh.GetRepo(ctx, owner, repo, etag)
+	if err != nil || notModified {
+		return repoMeta{}, newETag, notModified, err
+	}
+	return repoMeta{
+		Description: data.Description,
+		AvatarURL:   data.Owner.AvatarURL,
+		Stars:       data.Stars,
+	}, newETag, false, nil
 }

@@ -1,5 +1,6 @@
 import { downloadRedirectPath } from "./link-decision";
 import { platformLabels, type Arch, type Asset, type Platform } from "./platform-utils";
+import type { VisitorContext } from "./visitor-context";
 
 export function downloadCta({
   platform,
@@ -9,6 +10,7 @@ export function downloadCta({
   hasAssets,
   owner,
   repo,
+  visitorContext,
 }: {
   platform: Platform;
   arch: Arch;
@@ -18,6 +20,7 @@ export function downloadCta({
   hasAssets: boolean;
   owner: string;
   repo: string;
+  visitorContext?: VisitorContext;
 }): { href: string; label: string; external: boolean } {
   if (!hasAssets) {
     return {
@@ -34,7 +37,7 @@ export function downloadCta({
     };
   }
   return {
-    href: downloadRedirectPath(owner, repo, tagName, platform, arch, primaryAsset?.name),
+    href: downloadRedirectPath(owner, repo, tagName, platform, arch, primaryAsset?.name, visitorContext),
     label: `Download for ${platformLabels[platform]}`,
     external: false,
   };

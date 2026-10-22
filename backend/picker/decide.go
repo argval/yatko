@@ -103,6 +103,14 @@ func DecideAsset(assets []github.Asset, platform Platform, arch Arch, opts PickO
 			unresolved = true
 			continue
 		}
+		if len(facts.Targets) == 0 && (IncompatiblePlatform(facts, platform) ||
+			facts.FormatPlatform != "" && facts.FormatPlatform != platform) {
+			continue
+		}
+		if NeedsVerification(facts, platform, arch, libc) {
+			unresolved = true
+			continue
+		}
 		if len(facts.Targets) == 0 {
 			unresolved = true
 		}

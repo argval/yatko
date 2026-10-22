@@ -2037,6 +2037,1206 @@
           }
         ]
       }
+    },
+    {
+      "repo": "zed-industries/zed",
+      "tag": "v1.24.2",
+      "assets": [
+        "bwrap-linux-aarch64.gz",
+        "bwrap-linux-x86_64.gz",
+        "Zed-aarch64.dmg",
+        "Zed-aarch64.exe",
+        "zed-linux-aarch64.tar.gz",
+        "zed-linux-x86_64.tar.gz",
+        "zed-remote-server-linux-aarch64.gz",
+        "zed-remote-server-linux-x86_64.gz",
+        "zed-remote-server-macos-aarch64.gz",
+        "zed-remote-server-macos-x86_64.gz",
+        "zed-remote-server-windows-aarch64.zip",
+        "zed-remote-server-windows-x86_64.zip",
+        "Zed-x86_64.dmg",
+        "Zed-x86_64.exe"
+      ],
+      "expect": [
+        {
+          "platform": "macos",
+          "arch": "arm64",
+          "asset": "Zed-aarch64.dmg",
+          "reason": "The desktop app is the main program; the remote server is a companion tool."
+        },
+        {
+          "platform": "macos",
+          "arch": "amd64",
+          "asset": "Zed-x86_64.dmg",
+          "reason": "The desktop app is the main program; the remote server is a companion tool."
+        },
+        {
+          "platform": "windows",
+          "arch": "amd64",
+          "asset": "Zed-x86_64.exe",
+          "reason": "The desktop app is the main program; the remote server is a companion tool."
+        },
+        {
+          "platform": "windows",
+          "arch": "arm64",
+          "asset": "Zed-aarch64.exe",
+          "reason": "The desktop app is the main program; the remote server is a companion tool."
+        },
+        {
+          "platform": "linux",
+          "arch": "amd64",
+          "asset": "zed-linux-x86_64.tar.gz",
+          "reason": "The editor tarball is the main program; the remote server and bwrap are companion tools."
+        },
+        {
+          "platform": "linux",
+          "arch": "arm64",
+          "asset": "zed-linux-aarch64.tar.gz",
+          "reason": "The editor tarball is the main program; the remote server and bwrap are companion tools."
+        }
+      ],
+      "targetLabels": {
+        "bwrap-linux-aarch64.gz": [
+          {
+            "platform": "linux",
+            "arch": "arm64"
+          }
+        ],
+        "bwrap-linux-x86_64.gz": [
+          {
+            "platform": "linux",
+            "arch": "amd64"
+          }
+        ],
+        "Zed-aarch64.dmg": [
+          {
+            "platform": "macos",
+            "arch": "arm64"
+          }
+        ],
+        "Zed-aarch64.exe": [
+          {
+            "platform": "windows",
+            "arch": "arm64"
+          }
+        ],
+        "zed-linux-aarch64.tar.gz": [
+          {
+            "platform": "linux",
+            "arch": "arm64"
+          }
+        ],
+        "zed-linux-x86_64.tar.gz": [
+          {
+            "platform": "linux",
+            "arch": "amd64"
+          }
+        ],
+        "zed-remote-server-linux-aarch64.gz": [
+          {
+            "platform": "linux",
+            "arch": "arm64"
+          }
+        ],
+        "zed-remote-server-linux-x86_64.gz": [
+          {
+            "platform": "linux",
+            "arch": "amd64"
+          }
+        ],
+        "zed-remote-server-macos-aarch64.gz": [
+          {
+            "platform": "macos",
+            "arch": "arm64"
+          }
+        ],
+        "zed-remote-server-macos-x86_64.gz": [
+          {
+            "platform": "macos",
+            "arch": "amd64"
+          }
+        ],
+        "zed-remote-server-windows-aarch64.zip": [
+          {
+            "platform": "windows",
+            "arch": "arm64"
+          }
+        ],
+        "zed-remote-server-windows-x86_64.zip": [
+          {
+            "platform": "windows",
+            "arch": "amd64"
+          }
+        ],
+        "Zed-x86_64.dmg": [
+          {
+            "platform": "macos",
+            "arch": "amd64"
+          }
+        ],
+        "Zed-x86_64.exe": [
+          {
+            "platform": "windows",
+            "arch": "amd64"
+          }
+        ]
+      }
+    },
+    {
+      "repo": "TriliumNext/Trilium",
+      "tag": "v0.106.0",
+      "assets": [
+        "TriliumNotes-Server-v0.106.0-linux-arm64.tar.xz",
+        "TriliumNotes-Server-v0.106.0-linux-x64.tar.xz",
+        "TriliumNotes-v0.106.0-linux-arm64.AppImage",
+        "TriliumNotes-v0.106.0-linux-arm64.deb",
+        "TriliumNotes-v0.106.0-linux-arm64.flatpak",
+        "TriliumNotes-v0.106.0-linux-arm64.rpm",
+        "TriliumNotes-v0.106.0-linux-arm64.zip",
+        "TriliumNotes-v0.106.0-linux-x64.AppImage",
+        "TriliumNotes-v0.106.0-linux-x64.deb",
+        "TriliumNotes-v0.106.0-linux-x64.flatpak",
+        "TriliumNotes-v0.106.0-linux-x64.rpm",
+        "TriliumNotes-v0.106.0-linux-x64.zip",
+        "TriliumNotes-v0.106.0-macos-arm64.dmg",
+        "TriliumNotes-v0.106.0-macos-arm64.zip",
+        "TriliumNotes-v0.106.0-macos-x64.dmg",
+        "TriliumNotes-v0.106.0-macos-x64.zip",
+        "TriliumNotes-v0.106.0-windows-arm64.exe",
+        "TriliumNotes-v0.106.0-windows-arm64.zip",
+        "TriliumNotes-v0.106.0-windows-x64.exe",
+        "TriliumNotes-v0.106.0-windows-x64.zip"
+      ],
+      "expect": [
+        {
+          "platform": "macos",
+          "arch": "arm64",
+          "asset": "TriliumNotes-v0.106.0-macos-arm64.dmg",
+          "reason": "The desktop app is the main program; the server is a companion tool."
+        },
+        {
+          "platform": "macos",
+          "arch": "amd64",
+          "asset": "TriliumNotes-v0.106.0-macos-x64.dmg",
+          "reason": "The desktop app is the main program; the server is a companion tool."
+        },
+        {
+          "platform": "windows",
+          "arch": "amd64",
+          "asset": "TriliumNotes-v0.106.0-windows-x64.exe",
+          "reason": "The desktop app is the main program; the server is a companion tool."
+        },
+        {
+          "platform": "windows",
+          "arch": "arm64",
+          "asset": "TriliumNotes-v0.106.0-windows-arm64.exe",
+          "reason": "The desktop app is the main program; the server is a companion tool."
+        },
+        {
+          "platform": "linux",
+          "arch": "amd64",
+          "asset": "TriliumNotes-v0.106.0-linux-x64.AppImage",
+          "reason": "The desktop app is the main program; the server tarball is a companion tool."
+        },
+        {
+          "platform": "linux",
+          "arch": "arm64",
+          "asset": "TriliumNotes-v0.106.0-linux-arm64.AppImage",
+          "reason": "The desktop app is the main program; the server tarball is a companion tool."
+        }
+      ],
+      "targetLabels": {
+        "TriliumNotes-Server-v0.106.0-linux-arm64.tar.xz": [
+          {
+            "platform": "linux",
+            "arch": "arm64"
+          }
+        ],
+        "TriliumNotes-Server-v0.106.0-linux-x64.tar.xz": [
+          {
+            "platform": "linux",
+            "arch": "amd64"
+          }
+        ],
+        "TriliumNotes-v0.106.0-linux-arm64.AppImage": [
+          {
+            "platform": "linux",
+            "arch": "arm64"
+          }
+        ],
+        "TriliumNotes-v0.106.0-linux-arm64.deb": [
+          {
+            "platform": "linux",
+            "arch": "arm64"
+          }
+        ],
+        "TriliumNotes-v0.106.0-linux-arm64.flatpak": [
+          {
+            "platform": "linux",
+            "arch": "arm64"
+          }
+        ],
+        "TriliumNotes-v0.106.0-linux-arm64.rpm": [
+          {
+            "platform": "linux",
+            "arch": "arm64"
+          }
+        ],
+        "TriliumNotes-v0.106.0-linux-arm64.zip": [
+          {
+            "platform": "linux",
+            "arch": "arm64"
+          }
+        ],
+        "TriliumNotes-v0.106.0-linux-x64.AppImage": [
+          {
+            "platform": "linux",
+            "arch": "amd64"
+          }
+        ],
+        "TriliumNotes-v0.106.0-linux-x64.deb": [
+          {
+            "platform": "linux",
+            "arch": "amd64"
+          }
+        ],
+        "TriliumNotes-v0.106.0-linux-x64.flatpak": [
+          {
+            "platform": "linux",
+            "arch": "amd64"
+          }
+        ],
+        "TriliumNotes-v0.106.0-linux-x64.rpm": [
+          {
+            "platform": "linux",
+            "arch": "amd64"
+          }
+        ],
+        "TriliumNotes-v0.106.0-linux-x64.zip": [
+          {
+            "platform": "linux",
+            "arch": "amd64"
+          }
+        ],
+        "TriliumNotes-v0.106.0-macos-arm64.dmg": [
+          {
+            "platform": "macos",
+            "arch": "arm64"
+          }
+        ],
+        "TriliumNotes-v0.106.0-macos-arm64.zip": [
+          {
+            "platform": "macos",
+            "arch": "arm64"
+          }
+        ],
+        "TriliumNotes-v0.106.0-macos-x64.dmg": [
+          {
+            "platform": "macos",
+            "arch": "amd64"
+          }
+        ],
+        "TriliumNotes-v0.106.0-macos-x64.zip": [
+          {
+            "platform": "macos",
+            "arch": "amd64"
+          }
+        ],
+        "TriliumNotes-v0.106.0-windows-arm64.exe": [
+          {
+            "platform": "windows",
+            "arch": "arm64"
+          }
+        ],
+        "TriliumNotes-v0.106.0-windows-arm64.zip": [
+          {
+            "platform": "windows",
+            "arch": "arm64"
+          }
+        ],
+        "TriliumNotes-v0.106.0-windows-x64.exe": [
+          {
+            "platform": "windows",
+            "arch": "amd64"
+          }
+        ],
+        "TriliumNotes-v0.106.0-windows-x64.zip": [
+          {
+            "platform": "windows",
+            "arch": "amd64"
+          }
+        ]
+      }
+    },
+    {
+      "repo": "harry0703/MangoDisk",
+      "tag": "v1.1.9",
+      "assets": [
+        "MangoDisk-1.1.9-linux-arm64.AppImage",
+        "MangoDisk-1.1.9-linux-arm64.deb",
+        "MangoDisk-1.1.9-linux-x64.AppImage",
+        "MangoDisk-1.1.9-linux-x64.deb",
+        "MangoDisk-1.1.9-macos-cli.tar.gz",
+        "MangoDisk-1.1.9-macos.dmg",
+        "MangoDisk-1.1.9-windows-cli.exe",
+        "MangoDisk-1.1.9-windows-portable.exe",
+        "MangoDisk-1.1.9-windows.exe"
+      ],
+      "expect": [
+        {
+          "platform": "macos",
+          "arch": "arm64",
+          "asset": "MangoDisk-1.1.9-macos.dmg",
+          "reason": "The desktop app is the main program; the CLI tarball is a companion tool."
+        },
+        {
+          "platform": "windows",
+          "arch": "amd64",
+          "asset": "MangoDisk-1.1.9-windows.exe",
+          "reason": "The installer outranks the portable build; the CLI exe is a companion tool. Rule picker misses this.",
+          "knownMiss": true
+        },
+        {
+          "platform": "linux",
+          "arch": "amd64",
+          "asset": "MangoDisk-1.1.9-linux-x64.AppImage",
+          "reason": "AppImage outranks deb for an unknown distribution."
+        }
+      ],
+      "targetLabels": {
+        "MangoDisk-1.1.9-linux-arm64.AppImage": [
+          {
+            "platform": "linux",
+            "arch": "arm64"
+          }
+        ],
+        "MangoDisk-1.1.9-linux-arm64.deb": [
+          {
+            "platform": "linux",
+            "arch": "arm64"
+          }
+        ],
+        "MangoDisk-1.1.9-linux-x64.AppImage": [
+          {
+            "platform": "linux",
+            "arch": "amd64"
+          }
+        ],
+        "MangoDisk-1.1.9-linux-x64.deb": [
+          {
+            "platform": "linux",
+            "arch": "amd64"
+          }
+        ],
+        "MangoDisk-1.1.9-macos-cli.tar.gz": [
+          {
+            "platform": "macos",
+            "arch": "arm64"
+          },
+          {
+            "platform": "macos",
+            "arch": "amd64"
+          }
+        ],
+        "MangoDisk-1.1.9-macos.dmg": [
+          {
+            "platform": "macos"
+          }
+        ],
+        "MangoDisk-1.1.9-windows-cli.exe": [
+          {
+            "platform": "windows",
+            "arch": "amd64"
+          }
+        ],
+        "MangoDisk-1.1.9-windows-portable.exe": [
+          {
+            "platform": "windows",
+            "arch": "amd64"
+          }
+        ],
+        "MangoDisk-1.1.9-windows.exe": [
+          {
+            "platform": "windows",
+            "arch": "amd64"
+          }
+        ]
+      }
+    },
+    {
+      "repo": "duplicati/duplicati",
+      "tag": "v2.4.0.1_stable_2026-10-07",
+      "assets": [
+        "duplicati-2.4.0.1_stable_2026-10-07-linux-arm64-agent.deb",
+        "duplicati-2.4.0.1_stable_2026-10-07-linux-arm64-agent.rpm",
+        "duplicati-2.4.0.1_stable_2026-10-07-linux-arm64-agent.zip",
+        "duplicati-2.4.0.1_stable_2026-10-07-linux-arm64-cli.deb",
+        "duplicati-2.4.0.1_stable_2026-10-07-linux-arm64-cli.rpm",
+        "duplicati-2.4.0.1_stable_2026-10-07-linux-arm64-cli.spk",
+        "duplicati-2.4.0.1_stable_2026-10-07-linux-arm64-cli.zip",
+        "duplicati-2.4.0.1_stable_2026-10-07-linux-arm64-gui.appimage",
+        "duplicati-2.4.0.1_stable_2026-10-07-linux-arm64-gui.deb",
+        "duplicati-2.4.0.1_stable_2026-10-07-linux-arm64-gui.rpm",
+        "duplicati-2.4.0.1_stable_2026-10-07-linux-arm64-gui.zip",
+        "duplicati-2.4.0.1_stable_2026-10-07-linux-arm7-agent.deb",
+        "duplicati-2.4.0.1_stable_2026-10-07-linux-arm7-agent.zip",
+        "duplicati-2.4.0.1_stable_2026-10-07-linux-arm7-cli.deb",
+        "duplicati-2.4.0.1_stable_2026-10-07-linux-arm7-cli.spk",
+        "duplicati-2.4.0.1_stable_2026-10-07-linux-arm7-cli.zip",
+        "duplicati-2.4.0.1_stable_2026-10-07-linux-arm7-gui.appimage",
+        "duplicati-2.4.0.1_stable_2026-10-07-linux-arm7-gui.deb",
+        "duplicati-2.4.0.1_stable_2026-10-07-linux-arm7-gui.zip",
+        "duplicati-2.4.0.1_stable_2026-10-07-linux-x64-agent.deb",
+        "duplicati-2.4.0.1_stable_2026-10-07-linux-x64-agent.rpm",
+        "duplicati-2.4.0.1_stable_2026-10-07-linux-x64-agent.zip",
+        "duplicati-2.4.0.1_stable_2026-10-07-linux-x64-cli.deb",
+        "duplicati-2.4.0.1_stable_2026-10-07-linux-x64-cli.rpm",
+        "duplicati-2.4.0.1_stable_2026-10-07-linux-x64-cli.spk",
+        "duplicati-2.4.0.1_stable_2026-10-07-linux-x64-cli.zip",
+        "duplicati-2.4.0.1_stable_2026-10-07-linux-x64-gui.appimage",
+        "duplicati-2.4.0.1_stable_2026-10-07-linux-x64-gui.deb",
+        "duplicati-2.4.0.1_stable_2026-10-07-linux-x64-gui.rpm",
+        "duplicati-2.4.0.1_stable_2026-10-07-linux-x64-gui.zip",
+        "duplicati-2.4.0.1_stable_2026-10-07-osx-arm64-agent.pkg",
+        "duplicati-2.4.0.1_stable_2026-10-07-osx-arm64-cli.pkg",
+        "duplicati-2.4.0.1_stable_2026-10-07-osx-arm64-gui.dmg",
+        "duplicati-2.4.0.1_stable_2026-10-07-osx-arm64-gui.pkg",
+        "duplicati-2.4.0.1_stable_2026-10-07-osx-x64-agent.pkg",
+        "duplicati-2.4.0.1_stable_2026-10-07-osx-x64-cli.pkg",
+        "duplicati-2.4.0.1_stable_2026-10-07-osx-x64-gui.dmg",
+        "duplicati-2.4.0.1_stable_2026-10-07-osx-x64-gui.pkg",
+        "duplicati-2.4.0.1_stable_2026-10-07-win-arm64-agent.msi",
+        "duplicati-2.4.0.1_stable_2026-10-07-win-arm64-agent.zip",
+        "duplicati-2.4.0.1_stable_2026-10-07-win-arm64-gui.msi",
+        "duplicati-2.4.0.1_stable_2026-10-07-win-arm64-gui.zip",
+        "duplicati-2.4.0.1_stable_2026-10-07-win-x64-agent.msi",
+        "duplicati-2.4.0.1_stable_2026-10-07-win-x64-agent.zip",
+        "duplicati-2.4.0.1_stable_2026-10-07-win-x64-gui.msi",
+        "duplicati-2.4.0.1_stable_2026-10-07-win-x64-gui.zip",
+        "duplicati-2.4.0.1_stable_2026-10-07-win-x86-gui.msi",
+        "duplicati-2.4.0.1_stable_2026-10-07-win-x86-gui.zip",
+        "duplicati-2.4.0.1_stable_2026-10-07.signatures.zip"
+      ],
+      "expect": [
+        {
+          "platform": "macos",
+          "arch": "arm64",
+          "asset": "duplicati-2.4.0.1_stable_2026-10-07-osx-arm64-gui.dmg",
+          "reason": "The GUI build is the main program; the agent and CLI are companion tools."
+        },
+        {
+          "platform": "macos",
+          "arch": "amd64",
+          "asset": "duplicati-2.4.0.1_stable_2026-10-07-osx-x64-gui.dmg",
+          "reason": "The GUI build is the main program; the agent and CLI are companion tools."
+        },
+        {
+          "platform": "windows",
+          "arch": "amd64",
+          "asset": "duplicati-2.4.0.1_stable_2026-10-07-win-x64-gui.msi",
+          "reason": "The GUI build is the main program; the agent is a companion tool. Rule picker misses this.",
+          "knownMiss": true
+        },
+        {
+          "platform": "windows",
+          "arch": "arm64",
+          "asset": "duplicati-2.4.0.1_stable_2026-10-07-win-arm64-gui.msi",
+          "reason": "The GUI build is the main program; the agent is a companion tool. Rule picker misses this.",
+          "knownMiss": true
+        },
+        {
+          "platform": "linux",
+          "arch": "amd64",
+          "asset": "duplicati-2.4.0.1_stable_2026-10-07-linux-x64-gui.appimage",
+          "reason": "The GUI build is the main program; the agent and CLI are companion tools."
+        },
+        {
+          "platform": "linux",
+          "arch": "arm",
+          "asset": "duplicati-2.4.0.1_stable_2026-10-07-linux-arm7-gui.appimage",
+          "reason": "The GUI build is the main program; the agent and CLI are companion tools."
+        }
+      ],
+      "targetLabels": {
+        "duplicati-2.4.0.1_stable_2026-10-07-linux-arm64-agent.deb": [
+          {
+            "platform": "linux",
+            "arch": "arm64"
+          }
+        ],
+        "duplicati-2.4.0.1_stable_2026-10-07-linux-arm64-agent.rpm": [
+          {
+            "platform": "linux",
+            "arch": "arm64"
+          }
+        ],
+        "duplicati-2.4.0.1_stable_2026-10-07-linux-arm64-agent.zip": [
+          {
+            "platform": "linux",
+            "arch": "arm64"
+          }
+        ],
+        "duplicati-2.4.0.1_stable_2026-10-07-linux-arm64-cli.deb": [
+          {
+            "platform": "linux",
+            "arch": "arm64"
+          }
+        ],
+        "duplicati-2.4.0.1_stable_2026-10-07-linux-arm64-cli.rpm": [
+          {
+            "platform": "linux",
+            "arch": "arm64"
+          }
+        ],
+        "duplicati-2.4.0.1_stable_2026-10-07-linux-arm64-cli.zip": [
+          {
+            "platform": "linux",
+            "arch": "arm64"
+          }
+        ],
+        "duplicati-2.4.0.1_stable_2026-10-07-linux-arm64-gui.appimage": [
+          {
+            "platform": "linux",
+            "arch": "arm64"
+          }
+        ],
+        "duplicati-2.4.0.1_stable_2026-10-07-linux-arm64-gui.deb": [
+          {
+            "platform": "linux",
+            "arch": "arm64"
+          }
+        ],
+        "duplicati-2.4.0.1_stable_2026-10-07-linux-arm64-gui.rpm": [
+          {
+            "platform": "linux",
+            "arch": "arm64"
+          }
+        ],
+        "duplicati-2.4.0.1_stable_2026-10-07-linux-arm64-gui.zip": [
+          {
+            "platform": "linux",
+            "arch": "arm64"
+          }
+        ],
+        "duplicati-2.4.0.1_stable_2026-10-07-linux-arm7-agent.deb": [
+          {
+            "platform": "linux",
+            "arch": "arm"
+          }
+        ],
+        "duplicati-2.4.0.1_stable_2026-10-07-linux-arm7-agent.zip": [
+          {
+            "platform": "linux",
+            "arch": "arm"
+          }
+        ],
+        "duplicati-2.4.0.1_stable_2026-10-07-linux-arm7-cli.deb": [
+          {
+            "platform": "linux",
+            "arch": "arm"
+          }
+        ],
+        "duplicati-2.4.0.1_stable_2026-10-07-linux-arm7-cli.zip": [
+          {
+            "platform": "linux",
+            "arch": "arm"
+          }
+        ],
+        "duplicati-2.4.0.1_stable_2026-10-07-linux-arm7-gui.appimage": [
+          {
+            "platform": "linux",
+            "arch": "arm"
+          }
+        ],
+        "duplicati-2.4.0.1_stable_2026-10-07-linux-arm7-gui.deb": [
+          {
+            "platform": "linux",
+            "arch": "arm"
+          }
+        ],
+        "duplicati-2.4.0.1_stable_2026-10-07-linux-arm7-gui.zip": [
+          {
+            "platform": "linux",
+            "arch": "arm"
+          }
+        ],
+        "duplicati-2.4.0.1_stable_2026-10-07-linux-x64-agent.deb": [
+          {
+            "platform": "linux",
+            "arch": "amd64"
+          }
+        ],
+        "duplicati-2.4.0.1_stable_2026-10-07-linux-x64-agent.rpm": [
+          {
+            "platform": "linux",
+            "arch": "amd64"
+          }
+        ],
+        "duplicati-2.4.0.1_stable_2026-10-07-linux-x64-agent.zip": [
+          {
+            "platform": "linux",
+            "arch": "amd64"
+          }
+        ],
+        "duplicati-2.4.0.1_stable_2026-10-07-linux-x64-cli.deb": [
+          {
+            "platform": "linux",
+            "arch": "amd64"
+          }
+        ],
+        "duplicati-2.4.0.1_stable_2026-10-07-linux-x64-cli.rpm": [
+          {
+            "platform": "linux",
+            "arch": "amd64"
+          }
+        ],
+        "duplicati-2.4.0.1_stable_2026-10-07-linux-x64-cli.zip": [
+          {
+            "platform": "linux",
+            "arch": "amd64"
+          }
+        ],
+        "duplicati-2.4.0.1_stable_2026-10-07-linux-x64-gui.appimage": [
+          {
+            "platform": "linux",
+            "arch": "amd64"
+          }
+        ],
+        "duplicati-2.4.0.1_stable_2026-10-07-linux-x64-gui.deb": [
+          {
+            "platform": "linux",
+            "arch": "amd64"
+          }
+        ],
+        "duplicati-2.4.0.1_stable_2026-10-07-linux-x64-gui.rpm": [
+          {
+            "platform": "linux",
+            "arch": "amd64"
+          }
+        ],
+        "duplicati-2.4.0.1_stable_2026-10-07-linux-x64-gui.zip": [
+          {
+            "platform": "linux",
+            "arch": "amd64"
+          }
+        ],
+        "duplicati-2.4.0.1_stable_2026-10-07-osx-arm64-agent.pkg": [
+          {
+            "platform": "macos",
+            "arch": "arm64"
+          }
+        ],
+        "duplicati-2.4.0.1_stable_2026-10-07-osx-arm64-cli.pkg": [
+          {
+            "platform": "macos",
+            "arch": "arm64"
+          }
+        ],
+        "duplicati-2.4.0.1_stable_2026-10-07-osx-arm64-gui.dmg": [
+          {
+            "platform": "macos",
+            "arch": "arm64"
+          }
+        ],
+        "duplicati-2.4.0.1_stable_2026-10-07-osx-arm64-gui.pkg": [
+          {
+            "platform": "macos",
+            "arch": "arm64"
+          }
+        ],
+        "duplicati-2.4.0.1_stable_2026-10-07-osx-x64-agent.pkg": [
+          {
+            "platform": "macos",
+            "arch": "amd64"
+          }
+        ],
+        "duplicati-2.4.0.1_stable_2026-10-07-osx-x64-cli.pkg": [
+          {
+            "platform": "macos",
+            "arch": "amd64"
+          }
+        ],
+        "duplicati-2.4.0.1_stable_2026-10-07-osx-x64-gui.dmg": [
+          {
+            "platform": "macos",
+            "arch": "amd64"
+          }
+        ],
+        "duplicati-2.4.0.1_stable_2026-10-07-osx-x64-gui.pkg": [
+          {
+            "platform": "macos",
+            "arch": "amd64"
+          }
+        ],
+        "duplicati-2.4.0.1_stable_2026-10-07-win-arm64-agent.msi": [
+          {
+            "platform": "windows",
+            "arch": "arm64"
+          }
+        ],
+        "duplicati-2.4.0.1_stable_2026-10-07-win-arm64-agent.zip": [
+          {
+            "platform": "windows",
+            "arch": "arm64"
+          }
+        ],
+        "duplicati-2.4.0.1_stable_2026-10-07-win-arm64-gui.msi": [
+          {
+            "platform": "windows",
+            "arch": "arm64"
+          }
+        ],
+        "duplicati-2.4.0.1_stable_2026-10-07-win-arm64-gui.zip": [
+          {
+            "platform": "windows",
+            "arch": "arm64"
+          }
+        ],
+        "duplicati-2.4.0.1_stable_2026-10-07-win-x64-agent.msi": [
+          {
+            "platform": "windows",
+            "arch": "amd64"
+          }
+        ],
+        "duplicati-2.4.0.1_stable_2026-10-07-win-x64-agent.zip": [
+          {
+            "platform": "windows",
+            "arch": "amd64"
+          }
+        ],
+        "duplicati-2.4.0.1_stable_2026-10-07-win-x64-gui.msi": [
+          {
+            "platform": "windows",
+            "arch": "amd64"
+          }
+        ],
+        "duplicati-2.4.0.1_stable_2026-10-07-win-x64-gui.zip": [
+          {
+            "platform": "windows",
+            "arch": "amd64"
+          }
+        ],
+        "duplicati-2.4.0.1_stable_2026-10-07-win-x86-gui.msi": [
+          {
+            "platform": "windows",
+            "arch": "386"
+          }
+        ],
+        "duplicati-2.4.0.1_stable_2026-10-07-win-x86-gui.zip": [
+          {
+            "platform": "windows",
+            "arch": "386"
+          }
+        ]
+      }
+    },
+    {
+      "repo": "multica-ai/multica",
+      "tag": "v0.6.3",
+      "assets": [
+        "checksums.txt",
+        "latest-arm64.yml",
+        "latest-linux-arm64.yml",
+        "latest-linux.yml",
+        "latest-mac.yml",
+        "latest-x64-mac.yml",
+        "latest.yml",
+        "multica-cli-0.6.3-darwin-amd64.tar.gz",
+        "multica-cli-0.6.3-darwin-arm64.tar.gz",
+        "multica-cli-0.6.3-linux-amd64.tar.gz",
+        "multica-cli-0.6.3-linux-arm64.tar.gz",
+        "multica-cli-0.6.3-windows-amd64.zip",
+        "multica-cli-0.6.3-windows-arm64.zip",
+        "multica-desktop-0.6.3-linux-aarch64.rpm",
+        "multica-desktop-0.6.3-linux-amd64.deb",
+        "multica-desktop-0.6.3-linux-arm64.AppImage",
+        "multica-desktop-0.6.3-linux-arm64.deb",
+        "multica-desktop-0.6.3-linux-x86_64.AppImage",
+        "multica-desktop-0.6.3-linux-x86_64.rpm",
+        "multica-desktop-0.6.3-mac-arm64.dmg",
+        "multica-desktop-0.6.3-mac-arm64.dmg.blockmap",
+        "multica-desktop-0.6.3-mac-arm64.zip",
+        "multica-desktop-0.6.3-mac-arm64.zip.blockmap",
+        "multica-desktop-0.6.3-mac-x64.dmg",
+        "multica-desktop-0.6.3-mac-x64.dmg.blockmap",
+        "multica-desktop-0.6.3-mac-x64.zip",
+        "multica-desktop-0.6.3-mac-x64.zip.blockmap",
+        "multica-desktop-0.6.3-windows-arm64.exe",
+        "multica-desktop-0.6.3-windows-arm64.exe.blockmap",
+        "multica-desktop-0.6.3-windows-x64.exe",
+        "multica-desktop-0.6.3-windows-x64.exe.blockmap",
+        "multica_darwin_amd64.tar.gz",
+        "multica_darwin_arm64.tar.gz",
+        "multica_linux_amd64.tar.gz",
+        "multica_linux_arm64.tar.gz",
+        "multica_windows_amd64.zip",
+        "multica_windows_arm64.zip"
+      ],
+      "expect": [
+        {
+          "platform": "macos",
+          "arch": "arm64",
+          "asset": "multica-desktop-0.6.3-mac-arm64.dmg",
+          "reason": "The desktop app is the main program; the CLI is a companion tool."
+        },
+        {
+          "platform": "macos",
+          "arch": "amd64",
+          "asset": "multica-desktop-0.6.3-mac-x64.dmg",
+          "reason": "The desktop app is the main program; the CLI is a companion tool."
+        },
+        {
+          "platform": "windows",
+          "arch": "amd64",
+          "asset": "multica-desktop-0.6.3-windows-x64.exe",
+          "reason": "The desktop app is the main program; the CLI is a companion tool."
+        },
+        {
+          "platform": "windows",
+          "arch": "arm64",
+          "asset": "multica-desktop-0.6.3-windows-arm64.exe",
+          "reason": "The desktop app is the main program; the CLI is a companion tool."
+        },
+        {
+          "platform": "linux",
+          "arch": "amd64",
+          "asset": "multica-desktop-0.6.3-linux-x86_64.AppImage",
+          "reason": "The desktop app is the main program; the CLI is a companion tool."
+        },
+        {
+          "platform": "linux",
+          "arch": "arm64",
+          "asset": "multica-desktop-0.6.3-linux-arm64.AppImage",
+          "reason": "The desktop app is the main program; the CLI is a companion tool."
+        }
+      ],
+      "targetLabels": {
+        "multica-cli-0.6.3-darwin-amd64.tar.gz": [
+          {
+            "platform": "macos",
+            "arch": "amd64"
+          }
+        ],
+        "multica-cli-0.6.3-darwin-arm64.tar.gz": [
+          {
+            "platform": "macos",
+            "arch": "arm64"
+          }
+        ],
+        "multica-cli-0.6.3-linux-amd64.tar.gz": [
+          {
+            "platform": "linux",
+            "arch": "amd64"
+          }
+        ],
+        "multica-cli-0.6.3-linux-arm64.tar.gz": [
+          {
+            "platform": "linux",
+            "arch": "arm64"
+          }
+        ],
+        "multica-cli-0.6.3-windows-amd64.zip": [
+          {
+            "platform": "windows",
+            "arch": "amd64"
+          }
+        ],
+        "multica-cli-0.6.3-windows-arm64.zip": [
+          {
+            "platform": "windows",
+            "arch": "arm64"
+          }
+        ],
+        "multica-desktop-0.6.3-linux-aarch64.rpm": [
+          {
+            "platform": "linux",
+            "arch": "arm64"
+          }
+        ],
+        "multica-desktop-0.6.3-linux-amd64.deb": [
+          {
+            "platform": "linux",
+            "arch": "amd64"
+          }
+        ],
+        "multica-desktop-0.6.3-linux-arm64.AppImage": [
+          {
+            "platform": "linux",
+            "arch": "arm64"
+          }
+        ],
+        "multica-desktop-0.6.3-linux-arm64.deb": [
+          {
+            "platform": "linux",
+            "arch": "arm64"
+          }
+        ],
+        "multica-desktop-0.6.3-linux-x86_64.AppImage": [
+          {
+            "platform": "linux",
+            "arch": "amd64"
+          }
+        ],
+        "multica-desktop-0.6.3-linux-x86_64.rpm": [
+          {
+            "platform": "linux",
+            "arch": "amd64"
+          }
+        ],
+        "multica-desktop-0.6.3-mac-arm64.dmg": [
+          {
+            "platform": "macos",
+            "arch": "arm64"
+          }
+        ],
+        "multica-desktop-0.6.3-mac-arm64.zip": [
+          {
+            "platform": "macos",
+            "arch": "arm64"
+          }
+        ],
+        "multica-desktop-0.6.3-mac-x64.dmg": [
+          {
+            "platform": "macos",
+            "arch": "amd64"
+          }
+        ],
+        "multica-desktop-0.6.3-mac-x64.zip": [
+          {
+            "platform": "macos",
+            "arch": "amd64"
+          }
+        ],
+        "multica-desktop-0.6.3-windows-arm64.exe": [
+          {
+            "platform": "windows",
+            "arch": "arm64"
+          }
+        ],
+        "multica-desktop-0.6.3-windows-x64.exe": [
+          {
+            "platform": "windows",
+            "arch": "amd64"
+          }
+        ],
+        "multica_darwin_amd64.tar.gz": [
+          {
+            "platform": "macos",
+            "arch": "amd64"
+          }
+        ],
+        "multica_darwin_arm64.tar.gz": [
+          {
+            "platform": "macos",
+            "arch": "arm64"
+          }
+        ],
+        "multica_linux_amd64.tar.gz": [
+          {
+            "platform": "linux",
+            "arch": "amd64"
+          }
+        ],
+        "multica_linux_arm64.tar.gz": [
+          {
+            "platform": "linux",
+            "arch": "arm64"
+          }
+        ],
+        "multica_windows_amd64.zip": [
+          {
+            "platform": "windows",
+            "arch": "amd64"
+          }
+        ],
+        "multica_windows_arm64.zip": [
+          {
+            "platform": "windows",
+            "arch": "arm64"
+          }
+        ]
+      }
+    },
+    {
+      "repo": "Automattic/harper",
+      "tag": "v2.13.0",
+      "assets": [
+        "harper-alpine-arm64-2.13.0.vsix",
+        "harper-alpine-x64-2.13.0.vsix",
+        "harper-chrome-plugin.zip",
+        "harper-cli-aarch64-apple-darwin.tar.gz",
+        "harper-cli-aarch64-unknown-linux-gnu.tar.gz",
+        "harper-cli-aarch64-unknown-linux-musl.tar.gz",
+        "harper-cli-x86_64-apple-darwin.tar.gz",
+        "harper-cli-x86_64-pc-windows-msvc.zip",
+        "harper-cli-x86_64-unknown-linux-gnu.tar.gz",
+        "harper-cli-x86_64-unknown-linux-musl.tar.gz",
+        "harper-darwin-arm64-2.13.0.vsix",
+        "harper-darwin-x64-2.13.0.vsix",
+        "harper-firefox-plugin.zip",
+        "harper-linux-arm64-2.13.0.vsix",
+        "harper-linux-armhf-2.13.0.vsix",
+        "harper-linux-x64-2.13.0.vsix",
+        "harper-ls-aarch64-apple-darwin.tar.gz",
+        "harper-ls-aarch64-unknown-linux-gnu.tar.gz",
+        "harper-ls-aarch64-unknown-linux-musl.tar.gz",
+        "harper-ls-x86_64-apple-darwin.tar.gz",
+        "harper-ls-x86_64-pc-windows-msvc.zip",
+        "harper-ls-x86_64-unknown-linux-gnu.tar.gz",
+        "harper-ls-x86_64-unknown-linux-musl.tar.gz",
+        "harper-win32-arm64-2.13.0.vsix",
+        "harper-win32-x64-2.13.0.vsix",
+        "Harper.app.tar.gz",
+        "Harper.app.tar.gz.sig",
+        "harper.zip",
+        "Harper_2.13.0_universal.dmg",
+        "Harper_2.13.0_x64-setup.exe"
+      ],
+      "expect": [
+        {
+          "platform": "macos",
+          "arch": "arm64",
+          "asset": "Harper_2.13.0_universal.dmg",
+          "reason": "The universal desktop app is the main program; harper-cli and harper-ls are companion tools."
+        },
+        {
+          "platform": "macos",
+          "arch": "amd64",
+          "asset": "Harper_2.13.0_universal.dmg",
+          "reason": "The universal desktop app is the main program; harper-cli and harper-ls are companion tools."
+        },
+        {
+          "platform": "windows",
+          "arch": "amd64",
+          "asset": "Harper_2.13.0_x64-setup.exe",
+          "reason": "The desktop installer is the main program; harper-cli and harper-ls are companion tools."
+        },
+        {
+          "platform": "windows",
+          "arch": "arm64",
+          "asset": "Harper_2.13.0_x64-setup.exe",
+          "reason": "No ARM64 desktop build; Windows on ARM runs the x64 installer through emulation."
+        },
+        {
+          "platform": "linux",
+          "arch": "amd64",
+          "asset": null,
+          "reason": "No Linux desktop build; harper-cli and harper-ls are two different companion tools. Rule picker misses this.",
+          "knownMiss": true
+        }
+      ],
+      "targetLabels": {
+        "harper-cli-aarch64-apple-darwin.tar.gz": [
+          {
+            "platform": "macos",
+            "arch": "arm64"
+          }
+        ],
+        "harper-cli-aarch64-unknown-linux-gnu.tar.gz": [
+          {
+            "platform": "linux",
+            "arch": "arm64"
+          }
+        ],
+        "harper-cli-aarch64-unknown-linux-musl.tar.gz": [
+          {
+            "platform": "linux",
+            "arch": "arm64"
+          }
+        ],
+        "harper-cli-x86_64-apple-darwin.tar.gz": [
+          {
+            "platform": "macos",
+            "arch": "amd64"
+          }
+        ],
+        "harper-cli-x86_64-pc-windows-msvc.zip": [
+          {
+            "platform": "windows",
+            "arch": "amd64"
+          }
+        ],
+        "harper-cli-x86_64-unknown-linux-gnu.tar.gz": [
+          {
+            "platform": "linux",
+            "arch": "amd64"
+          }
+        ],
+        "harper-cli-x86_64-unknown-linux-musl.tar.gz": [
+          {
+            "platform": "linux",
+            "arch": "amd64"
+          }
+        ],
+        "harper-ls-aarch64-apple-darwin.tar.gz": [
+          {
+            "platform": "macos",
+            "arch": "arm64"
+          }
+        ],
+        "harper-ls-aarch64-unknown-linux-gnu.tar.gz": [
+          {
+            "platform": "linux",
+            "arch": "arm64"
+          }
+        ],
+        "harper-ls-aarch64-unknown-linux-musl.tar.gz": [
+          {
+            "platform": "linux",
+            "arch": "arm64"
+          }
+        ],
+        "harper-ls-x86_64-apple-darwin.tar.gz": [
+          {
+            "platform": "macos",
+            "arch": "amd64"
+          }
+        ],
+        "harper-ls-x86_64-pc-windows-msvc.zip": [
+          {
+            "platform": "windows",
+            "arch": "amd64"
+          }
+        ],
+        "harper-ls-x86_64-unknown-linux-gnu.tar.gz": [
+          {
+            "platform": "linux",
+            "arch": "amd64"
+          }
+        ],
+        "harper-ls-x86_64-unknown-linux-musl.tar.gz": [
+          {
+            "platform": "linux",
+            "arch": "amd64"
+          }
+        ],
+        "Harper.app.tar.gz": [
+          {
+            "platform": "macos",
+            "arch": "arm64"
+          },
+          {
+            "platform": "macos",
+            "arch": "amd64"
+          }
+        ],
+        "Harper_2.13.0_universal.dmg": [
+          {
+            "platform": "macos",
+            "arch": "arm64"
+          },
+          {
+            "platform": "macos",
+            "arch": "amd64"
+          }
+        ],
+        "Harper_2.13.0_x64-setup.exe": [
+          {
+            "platform": "windows",
+            "arch": "amd64"
+          }
+        ]
+      }
     }
   ]
 }

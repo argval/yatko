@@ -16,7 +16,7 @@ import (
 )
 
 // DeepInspectorVersion invalidates persisted facts when parser or tool behavior changes.
-const DeepInspectorVersion = "full-v2-7zip26.04-inno0.7"
+const DeepInspectorVersion = "full-v3-launcher-7zip26.04-inno0.7"
 
 const (
 	deepMaxDownload = 2 << 30
@@ -98,6 +98,14 @@ func (d *DeepInspector) InspectFile(ctx context.Context, asset Asset, filename s
 		} else {
 			return m, err
 		}
+	}
+	if strings.HasSuffix(strings.ToLower(asset.Name), ".appimage") {
+		launcher, err := deepLocalHeaders(filename, asset.Name)
+		if err != nil {
+			return ArtifactMetadata{}, err
+		}
+		setAppImageLauncher(&launcher)
+		m.LauncherArch = launcher.LauncherArch
 	}
 	for i := range m.Evidence {
 		m.Evidence[i].Source = "deep-inspection"
@@ -335,7 +343,7 @@ func (r *deepContextReader) Read(p []byte) (int, error) {
 }
 
 func deepProven(m ArtifactMetadata) bool {
-	return m.Status == "inspected" && len(m.Conflicts) == 0 && len(m.Targets) > 0 && !slices.ContainsFunc(m.Targets, func(t ArtifactTarget) bool {
+	return !m.TargetsPartial && m.Status == "inspected" && len(m.Conflicts) == 0 && len(m.Targets) > 0 && !slices.ContainsFunc(m.Targets, func(t ArtifactTarget) bool {
 		return t.Platform == "" || t.Arch == "" || strings.Contains(t.Arch, ":")
 	})
 }
@@ -358,6 +366,7 @@ func commonDeepTargets(results []ArtifactMetadata) ArtifactMetadata {
 	out := results[0]
 	out.Targets = slices.Clone(out.Targets)
 	for _, m := range results[1:] {
+		out.TargetsPartial = out.TargetsPartial || m.TargetsPartial
 		out.Targets = slices.DeleteFunc(out.Targets, func(t ArtifactTarget) bool { return !slices.Contains(m.Targets, t) })
 		out.Evidence = append(out.Evidence, m.Evidence...)
 	}

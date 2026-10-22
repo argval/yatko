@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { getChecksums } from "./backend";
-import type { Asset } from "./pick-asset";
+import type { Asset } from "./platform-utils";
 
 const sha256 = "a".repeat(64);
 const linuxSha256 = "b".repeat(64);

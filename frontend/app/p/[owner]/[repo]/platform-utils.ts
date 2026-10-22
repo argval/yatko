@@ -1,10 +1,31 @@
-// Platform detection and display helpers. Asset ranking lives in Go
-// (backend/picker). The download button points at /dl as soon as platform
-// is known; filename comes from the /api/release picks table. Keep UA
-// detection aligned with Go DetectPlatform / DetectArch / ResolveArch.
+// Platform detection, asset types and display helpers. The backend decides
+// downloads (Jev, rule picker fallback) and attaches `artifact` facts to every
+// asset; the browser only filters and labels with them. Keep UA detection
+// aligned with Go DetectPlatform / DetectArch / ResolveArch.
 
-export type { Arch, Asset, Platform } from "./pick-asset";
-import { classify, primaryPlatform, type Arch, type Asset, type Libc, type Platform } from "./pick-asset";
+export type Platform = "windows" | "macos" | "linux" | "android" | "ios";
+export type Arch = "amd64" | "arm64" | "arm" | "386" | "";
+export type Libc = "" | "musl" | "gnu" | "static";
+export type ArtifactMetadata = {
+  targets: { platform: string; arch?: string; libc?: string }[];
+  role: "application" | "installer" | "source" | "debug" | "unknown" | "metadata";
+  evidence: { source: string; field: string; value: string }[];
+  status: "unknown" | "inspected" | "unsupported" | "failed";
+  conflicts?: string[];
+  targets_partial?: boolean;
+  launcher_arch?: string;
+};
+
+export type Asset = {
+  id?: number;
+  digest?: string;
+  updated_at?: string;
+  artifact?: ArtifactMetadata;
+  name: string;
+  browser_download_url: string;
+  size: number;
+  download_count: number;
+};
 
 export const platformLabels: Record<Platform, string> = {
   windows: "Windows",
@@ -59,6 +80,7 @@ export type BrowserHints = {
   platform?: string;
   architecture?: string;
   bitness?: string;
+  platformVersion?: string;
   getHighEntropyValues?: (hints: string[]) => Promise<BrowserHints>;
 };
 
@@ -155,11 +177,6 @@ export function detectArch(): Arch {
   return "";
 }
 
-export function assetPlatformLabel(name: string): string | null {
-  const platform = primaryPlatform(classify(name));
-  return platform ? platformLabels[platform] : null;
-}
-
 export function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
@@ -177,29 +194,24 @@ function runsEmulated(platform: Platform | "", visitor: Arch, asset: string): bo
   return !!platform && !!EMULATION[platform]?.[visitor]?.includes(asset);
 }
 
-/** Server metadata is authoritative; filename facts support older API responses. */
+/** Server `artifact` facts decide compatibility; an asset without them matches nothing. */
 export function assetMatchesTarget(asset: Asset, target: { platform: Platform | ""; arch: Arch; libc?: Libc }): boolean {
-  if (!target.platform) return false;
-  if (asset.artifact) {
-    return asset.artifact.status !== "failed" &&
-      !["source", "debug", "metadata"].includes(asset.artifact.role) &&
-      !asset.artifact.conflicts?.length &&
-      asset.artifact.targets.some((entry) => entry.platform === target.platform &&
-        (!target.arch || entry.arch === target.arch || entry.arch === "universal" ||
-          (!!entry.arch && runsEmulated(target.platform, target.arch, entry.arch))) &&
-        (!target.libc || !entry.libc || entry.libc === target.libc || entry.libc === "static"));
-  }
-  const facts = classify(asset.name);
-  const sidecar = /\.(sha256|sha512|md5|sig|asc|minisig|blockmap|ya?ml|json)$/.test(facts.canonical);
-  const debug = /(?:^|[^a-z])(?:symbols|pdbs?|dsyms?|dbsym|debuginfo|debugsymbols|debug-symbols)(?:$|[^a-z])/.test(facts.canonical);
-  return !facts.source && !facts.nonNative && !sidecar && !debug && primaryPlatform(facts) === target.platform &&
-    (!target.arch || facts.arches.includes(target.arch) || facts.arches.some((arch) => runsEmulated(target.platform, target.arch, arch))) &&
-    (!target.libc || !facts.libc || facts.libc === target.libc || facts.libc === "static");
+  const artifact = asset.artifact;
+  if (!target.platform || !artifact) return false;
+  if (/\.appimage$/i.test(asset.name) && (!artifact.launcher_arch ||
+    (target.arch && artifact.launcher_arch !== target.arch && !runsEmulated(target.platform, target.arch, artifact.launcher_arch)))) return false;
+  return artifact.status !== "failed" &&
+    !["source", "debug", "metadata"].includes(artifact.role) &&
+    !artifact.conflicts?.length &&
+    artifact.targets.some((entry) => entry.platform === target.platform &&
+      (artifact.targets_partial || !target.arch || entry.arch === target.arch || entry.arch === "universal" ||
+        (!!entry.arch && runsEmulated(target.platform, target.arch, entry.arch))) &&
+      (!target.libc || !entry.libc || entry.libc === target.libc || entry.libc === "static"));
 }
 
 export function assetTargetLabel(asset: Asset): string {
-  if (!asset.artifact) return assetPlatformLabel(asset.name) ?? "Target unknown";
-  const { targets, role, conflicts, status } = asset.artifact;
+  if (!asset.artifact) return "Target unknown";
+  const { targets, role, conflicts, status, targets_partial } = asset.artifact;
   if (conflicts?.length) return "Conflicting target evidence";
   if (role === "source") return "Source code";
   if (role === "debug") return "Debug files";
@@ -208,7 +220,7 @@ export function assetTargetLabel(asset: Asset): string {
   return targets.map(({ platform, arch }) => {
     const label = Object.hasOwn(platformLabels, platform) ? platformLabels[platform as Platform] : platform || "OS unknown";
     return [label, arch || "CPU unknown"].join(" · ");
-  }).join(" / ");
+  }).join(" / ") + (targets_partial ? " · additional targets unverified" : "");
 }
 
 /** Commands with explicit targets must match both the selected OS and CPU. */

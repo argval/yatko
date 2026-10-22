@@ -3,7 +3,7 @@
 import { CopyButton } from "./copy-button";
 import { useCopy } from "./use-copy";
 import { verifyChecksumCommand } from "./verify-checksum";
-import type { Platform } from "./pick-asset";
+import type { Platform } from "./platform-utils";
 
 export function AssetChecksum({
   hash,

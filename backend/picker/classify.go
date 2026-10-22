@@ -23,21 +23,23 @@ const (
 // catalog does not know stay absent — Classify never guesses a platform or arch
 // just because a caller needs one.
 type ArtifactFacts struct {
-	Original   string
-	Canonical  string
-	Platforms  []Platform
-	Arches     []Arch
-	Libc       Libc
-	Kind       ArtifactKind
-	Extension  string // format key without a leading dot, e.g. "tar.gz"
-	Variants   []string
-	Source     bool
-	NonNative  bool
-	Evidence   []string
-	Targets    []github.ArtifactTarget
-	Conflicts  []string
-	Role       string
-	Inspection string
+	Original       string
+	Canonical      string
+	Platforms      []Platform
+	Arches         []Arch
+	Libc           Libc
+	Kind           ArtifactKind
+	Extension      string // format key without a leading dot, e.g. "tar.gz"
+	Variants       []string
+	Source         bool
+	NonNative      bool
+	Evidence       []string
+	Targets        []github.ArtifactTarget
+	Conflicts      []string
+	Role           string
+	Inspection     string
+	TargetsPartial bool
+	LauncherArch   string
 	// FormatPlatform is set only when the extension itself implies an OS
 	// (exe → windows, dmg → macos). Generic archives leave it empty.
 	FormatPlatform Platform
@@ -89,10 +91,10 @@ func (f ArtifactFacts) HasOtherArch(want Arch) bool {
 	return false
 }
 
-// incompatiblePlatform reports whether facts name a different OS that should
+// IncompatiblePlatform reports whether facts name a different OS that should
 // exclude this asset from want. Filenames that carry both linux and android
 // (NDK/cross builds) target android; a linux visitor still must not receive them.
-func incompatiblePlatform(facts ArtifactFacts, want Platform) bool {
+func IncompatiblePlatform(facts ArtifactFacts, want Platform) bool {
 	if !facts.HasOtherPlatform(want) {
 		return false
 	}

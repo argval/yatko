@@ -4,7 +4,7 @@ import {
   isChecksumAssetName,
   parseChecksumText,
 } from "./parse-checksums";
-import type { Asset } from "./pick-asset";
+import type { Asset } from "./platform-utils";
 
 const sha256 = "a".repeat(64);
 

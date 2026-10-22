@@ -39,7 +39,7 @@ func (h *PageHandler) HandleRepoMeta(c *gin.Context) {
 	if refresh {
 		_ = h.cache.Invalidate(c.Request.Context(), cache.DescriptionKey(owner, repo))
 	}
-	meta, found := h.getRepoMeta(c, owner, repo)
+	meta, found := h.redirect.getRepoMeta(c, owner, repo)
 	if !found {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Repository not found"})
 		return
@@ -91,7 +91,7 @@ func (h *PageHandler) handle(c *gin.Context, owner, repo, version string) {
 		// fallback. repoFound (from separately fetched repo metadata)
 		// disambiguates the two for the frontend.
 		if status == http.StatusNotFound {
-			_, repoFound := h.getRepoMeta(c, owner, repo)
+			_, repoFound := h.redirect.getRepoMeta(c, owner, repo)
 			if repoFound {
 				body["reason"] = "no_releases"
 			}
@@ -116,8 +116,7 @@ func (h *PageHandler) handle(c *gin.Context, owner, repo, version string) {
 		"prerelease":   release.Prerelease,
 		"assets":       release.Assets,
 	}
-	// Precomputed DecideAsset results so the release page can paint the
-	// filename as soon as platform/arch is known — without waiting on /api/link.
+	// Rule-only mode can precompute target picks. Jev uses /api/link with real visitor context.
 	if picks := h.redirect.buildPicks(c.Request.Context(), owner, repo, release.Assets); picks != nil {
 		payload["picks"] = picks
 	}
@@ -137,31 +136,6 @@ type repoMeta struct {
 	Description string `json:"description"`
 	AvatarURL   string `json:"avatar_url"`
 	Stars       int    `json:"stars"`
-}
-
-// getRepoMeta also reports whether the repo itself was confirmed to exist
-// (used to disambiguate a "repo not found" 404 from a "no releases yet" 404).
-func (h *PageHandler) getRepoMeta(c *gin.Context, owner, repo string) (repoMeta, bool) {
-	key := cache.DescriptionKey(owner, repo)
-	meta, err := cache.FetchCached(c.Request.Context(), h.cache, key, func(ctx context.Context, etag string) (repoMeta, string, bool, error) {
-		data, newETag, notModified, err := h.gh.GetRepo(ctx, owner, repo, etag)
-		if err != nil {
-			return repoMeta{}, "", false, err
-		}
-		if notModified {
-			return repoMeta{}, newETag, true, nil
-		}
-		return repoMeta{
-			Description: data.Description,
-			AvatarURL:   data.Owner.AvatarURL,
-			Stars:       data.Stars,
-		}, newETag, false, nil
-	})
-	if err != nil {
-		log.Printf("repo fetch error for %s/%s: %v", owner, repo, err)
-		return repoMeta{}, false
-	}
-	return meta, true
 }
 
 func (h *PageHandler) getREADME(c *gin.Context, owner, repo string) string {

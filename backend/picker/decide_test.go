@@ -57,7 +57,7 @@ func TestDecideAssetOSEvidenceBeatsArchOnlyName(t *testing.T) {
 		{Name: "Obsidian-1.14.4.apk", Artifact: &github.ArtifactMetadata{ // live inspection result
 			Targets: []github.ArtifactTarget{{Platform: "android", Arch: "arm64"}}, Role: "installer", Status: "inspected"}},
 		{Name: "obsidian-1.14.4-arm64.tar.gz"},
-		{Name: "Obsidian-1.14.4-arm64.AppImage"},
+		{Name: "Obsidian-1.14.4-arm64.AppImage", Artifact: &github.ArtifactMetadata{Status: "inspected", LauncherArch: "arm64"}},
 	}
 	for _, tc := range []struct {
 		platform Platform

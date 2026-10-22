@@ -27,7 +27,7 @@ func (h *RedirectHandler) enrichArtifacts(parent context.Context, assets []githu
 		identities[i] = artifactIdentity(a)
 	}
 	slices.Sort(identities)
-	key := fmt.Sprintf("artifact-manifests:v2:%x", sha256.Sum256([]byte(strings.Join(identities, "\n"))))
+	key := fmt.Sprintf("artifact-manifests:v3:%x", sha256.Sum256([]byte(strings.Join(identities, "\n"))))
 	metadata, _ := cache.FetchCached(ctx, h.cache, key, func(ctx context.Context, _ string) (map[string]github.ArtifactMetadata, string, bool, error) {
 		m, err := h.gh.ReleaseMetadata(ctx, assets)
 		if len(m) > 0 {
@@ -70,7 +70,7 @@ func (h *RedirectHandler) enrichArtifacts(parent context.Context, assets []githu
 			break
 		}
 		a := assets[p.i]
-		k := fmt.Sprintf("artifact-content:v3:%x", sha256.Sum256([]byte(artifactIdentity(a))))
+		k := fmt.Sprintf("artifact-content:v4:%x", sha256.Sum256([]byte(artifactIdentity(a))))
 		observed, hit := cache.GetCached[github.ArtifactMetadata](ctx, h.cache, k)
 		if !hit {
 			if probes == 4 {
@@ -114,6 +114,9 @@ func inspectionRank(a github.Asset) (int, bool) {
 		return 0, true
 	}
 	if strings.HasSuffix(strings.ToLower(a.Name), ".apk") {
+		return 1, true
+	}
+	if strings.HasSuffix(strings.ToLower(a.Name), ".appimage") {
 		return 1, true
 	}
 	if slices.ContainsFunc(facts.Targets, func(t github.ArtifactTarget) bool { return t.Arch == "" }) {

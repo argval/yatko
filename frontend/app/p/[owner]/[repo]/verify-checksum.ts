@@ -1,4 +1,4 @@
-import type { Platform } from "./pick-asset";
+import type { Platform } from "./platform-utils";
 
 function quotePosix(value: string): string {
   return `'${value.replaceAll("'", "'\\''")}'`;

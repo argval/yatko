@@ -89,13 +89,13 @@ func (h *LinkHandler) handle(c *gin.Context, owner, repo, version string) {
 		return
 	}
 
-	p := h.redirect.pick(c, owner, repo, release.Assets)
-	h.redirect.startShadow(c, owner, repo, release, p)
+	p := h.redirect.pick(c, owner, repo, release)
 	if !p.Decision.ShouldAutoSelect() {
 		logPickerMiss(owner, repo, p, IsScriptUA(p.UA), release.Assets)
 		c.JSON(http.StatusNotFound, linkResponse(release, p))
 		return
 	}
+	h.redirect.rememberDownload(c, owner, repo, release, p)
 	logPickerShadow(owner, repo, p)
 	c.JSON(http.StatusOK, linkResponse(release, p))
 }

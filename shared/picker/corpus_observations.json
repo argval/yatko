@@ -1,0 +1,538 @@
+{
+  "neovim/neovim@v0.12.5": {
+    "nvim-linux-arm64.appimage": {
+      "status": "inspected",
+      "role": "application",
+      "launcher_arch": "arm64",
+      "targets": [
+        {
+          "platform": "",
+          "arch": "arm64"
+        }
+      ],
+      "evidence": [
+        {
+          "source": "inspection",
+          "field": "elf.machine",
+          "value": "0xb7"
+        }
+      ]
+    },
+    "nvim-linux-x86_64.appimage": {
+      "status": "inspected",
+      "role": "application",
+      "launcher_arch": "amd64",
+      "targets": [
+        {
+          "platform": "",
+          "arch": "amd64"
+        }
+      ],
+      "evidence": [
+        {
+          "source": "inspection",
+          "field": "elf.machine",
+          "value": "0x3e"
+        }
+      ]
+    }
+  },
+  "logseq/logseq@2.0.1": {
+    "Logseq-linux-arm64-2.0.1.AppImage": {
+      "status": "inspected",
+      "role": "application",
+      "launcher_arch": "arm64",
+      "targets": [
+        {
+          "platform": "",
+          "arch": "arm64"
+        }
+      ],
+      "evidence": [
+        {
+          "source": "inspection",
+          "field": "elf.machine",
+          "value": "0xb7"
+        }
+      ]
+    },
+    "Logseq-linux-x86_64-2.0.1.AppImage": {
+      "status": "inspected",
+      "role": "application",
+      "launcher_arch": "amd64",
+      "targets": [
+        {
+          "platform": "",
+          "arch": "amd64"
+        }
+      ],
+      "evidence": [
+        {
+          "source": "inspection",
+          "field": "elf.machine",
+          "value": "0x3e"
+        }
+      ]
+    }
+  },
+  "tw93/Pake@V3.17.5": {
+    "ChatGPT_x86_64.AppImage": {
+      "status": "inspected",
+      "role": "application",
+      "launcher_arch": "amd64",
+      "targets": [
+        {
+          "platform": "",
+          "arch": "amd64"
+        }
+      ],
+      "evidence": [
+        {
+          "source": "inspection",
+          "field": "elf.machine",
+          "value": "0x3e"
+        }
+      ]
+    },
+    "DeepSeek_x86_64.AppImage": {
+      "status": "inspected",
+      "role": "application",
+      "launcher_arch": "amd64",
+      "targets": [
+        {
+          "platform": "",
+          "arch": "amd64"
+        }
+      ],
+      "evidence": [
+        {
+          "source": "inspection",
+          "field": "elf.machine",
+          "value": "0x3e"
+        }
+      ]
+    },
+    "Excalidraw_x86_64.AppImage": {
+      "status": "inspected",
+      "role": "application",
+      "launcher_arch": "amd64",
+      "targets": [
+        {
+          "platform": "",
+          "arch": "amd64"
+        }
+      ],
+      "evidence": [
+        {
+          "source": "inspection",
+          "field": "elf.machine",
+          "value": "0x3e"
+        }
+      ]
+    },
+    "Flomo_x86_64.AppImage": {
+      "status": "inspected",
+      "role": "application",
+      "launcher_arch": "amd64",
+      "targets": [
+        {
+          "platform": "",
+          "arch": "amd64"
+        }
+      ],
+      "evidence": [
+        {
+          "source": "inspection",
+          "field": "elf.machine",
+          "value": "0x3e"
+        }
+      ]
+    },
+    "Gemini_x86_64.AppImage": {
+      "status": "inspected",
+      "role": "application",
+      "launcher_arch": "amd64",
+      "targets": [
+        {
+          "platform": "",
+          "arch": "amd64"
+        }
+      ],
+      "evidence": [
+        {
+          "source": "inspection",
+          "field": "elf.machine",
+          "value": "0x3e"
+        }
+      ]
+    },
+    "Grok_x86_64.AppImage": {
+      "status": "inspected",
+      "role": "application",
+      "launcher_arch": "amd64",
+      "targets": [
+        {
+          "platform": "",
+          "arch": "amd64"
+        }
+      ],
+      "evidence": [
+        {
+          "source": "inspection",
+          "field": "elf.machine",
+          "value": "0x3e"
+        }
+      ]
+    },
+    "LiZhi_x86_64.AppImage": {
+      "status": "inspected",
+      "role": "application",
+      "launcher_arch": "amd64",
+      "targets": [
+        {
+          "platform": "",
+          "arch": "amd64"
+        }
+      ],
+      "evidence": [
+        {
+          "source": "inspection",
+          "field": "elf.machine",
+          "value": "0x3e"
+        }
+      ]
+    },
+    "Notion_x86_64.AppImage": {
+      "status": "inspected",
+      "role": "application",
+      "launcher_arch": "amd64",
+      "targets": [
+        {
+          "platform": "",
+          "arch": "amd64"
+        }
+      ],
+      "evidence": [
+        {
+          "source": "inspection",
+          "field": "elf.machine",
+          "value": "0x3e"
+        }
+      ]
+    },
+    "ProgramMusic_x86_64.AppImage": {
+      "status": "inspected",
+      "role": "application",
+      "launcher_arch": "amd64",
+      "targets": [
+        {
+          "platform": "",
+          "arch": "amd64"
+        }
+      ],
+      "evidence": [
+        {
+          "source": "inspection",
+          "field": "elf.machine",
+          "value": "0x3e"
+        }
+      ]
+    },
+    "Qwerty_x86_64.AppImage": {
+      "status": "inspected",
+      "role": "application",
+      "launcher_arch": "amd64",
+      "targets": [
+        {
+          "platform": "",
+          "arch": "amd64"
+        }
+      ],
+      "evidence": [
+        {
+          "source": "inspection",
+          "field": "elf.machine",
+          "value": "0x3e"
+        }
+      ]
+    },
+    "Twitter_x86_64.AppImage": {
+      "status": "inspected",
+      "role": "application",
+      "launcher_arch": "amd64",
+      "targets": [
+        {
+          "platform": "",
+          "arch": "amd64"
+        }
+      ],
+      "evidence": [
+        {
+          "source": "inspection",
+          "field": "elf.machine",
+          "value": "0x3e"
+        }
+      ]
+    },
+    "WeChat_x86_64.AppImage": {
+      "status": "inspected",
+      "role": "application",
+      "launcher_arch": "amd64",
+      "targets": [
+        {
+          "platform": "",
+          "arch": "amd64"
+        }
+      ],
+      "evidence": [
+        {
+          "source": "inspection",
+          "field": "elf.machine",
+          "value": "0x3e"
+        }
+      ]
+    },
+    "WeRead_x86_64.AppImage": {
+      "status": "inspected",
+      "role": "application",
+      "launcher_arch": "amd64",
+      "targets": [
+        {
+          "platform": "",
+          "arch": "amd64"
+        }
+      ],
+      "evidence": [
+        {
+          "source": "inspection",
+          "field": "elf.machine",
+          "value": "0x3e"
+        }
+      ]
+    },
+    "XiaoHongShu_x86_64.AppImage": {
+      "status": "inspected",
+      "role": "application",
+      "launcher_arch": "amd64",
+      "targets": [
+        {
+          "platform": "",
+          "arch": "amd64"
+        }
+      ],
+      "evidence": [
+        {
+          "source": "inspection",
+          "field": "elf.machine",
+          "value": "0x3e"
+        }
+      ]
+    },
+    "YouTubeMusic_x86_64.AppImage": {
+      "status": "inspected",
+      "role": "application",
+      "launcher_arch": "amd64",
+      "targets": [
+        {
+          "platform": "",
+          "arch": "amd64"
+        }
+      ],
+      "evidence": [
+        {
+          "source": "inspection",
+          "field": "elf.machine",
+          "value": "0x3e"
+        }
+      ]
+    },
+    "YouTube_x86_64.AppImage": {
+      "status": "inspected",
+      "role": "application",
+      "launcher_arch": "amd64",
+      "targets": [
+        {
+          "platform": "",
+          "arch": "amd64"
+        }
+      ],
+      "evidence": [
+        {
+          "source": "inspection",
+          "field": "elf.machine",
+          "value": "0x3e"
+        }
+      ]
+    }
+  },
+  "TriliumNext/Trilium@v0.106.0": {
+    "TriliumNotes-v0.106.0-linux-arm64.AppImage": {
+      "status": "inspected",
+      "role": "application",
+      "launcher_arch": "arm64",
+      "targets": [
+        {
+          "platform": "",
+          "arch": "arm64"
+        }
+      ],
+      "evidence": [
+        {
+          "source": "inspection",
+          "field": "elf.machine",
+          "value": "0xb7"
+        }
+      ]
+    },
+    "TriliumNotes-v0.106.0-linux-x64.AppImage": {
+      "status": "inspected",
+      "role": "application",
+      "launcher_arch": "amd64",
+      "targets": [
+        {
+          "platform": "",
+          "arch": "amd64"
+        }
+      ],
+      "evidence": [
+        {
+          "source": "inspection",
+          "field": "elf.machine",
+          "value": "0x3e"
+        }
+      ]
+    }
+  },
+  "harry0703/MangoDisk@v1.1.9": {
+    "MangoDisk-1.1.9-linux-arm64.AppImage": {
+      "status": "inspected",
+      "role": "application",
+      "launcher_arch": "arm64",
+      "targets": [
+        {
+          "platform": "",
+          "arch": "arm64"
+        }
+      ],
+      "evidence": [
+        {
+          "source": "inspection",
+          "field": "elf.machine",
+          "value": "0xb7"
+        }
+      ]
+    },
+    "MangoDisk-1.1.9-linux-x64.AppImage": {
+      "status": "inspected",
+      "role": "application",
+      "launcher_arch": "amd64",
+      "targets": [
+        {
+          "platform": "",
+          "arch": "amd64"
+        }
+      ],
+      "evidence": [
+        {
+          "source": "inspection",
+          "field": "elf.machine",
+          "value": "0x3e"
+        }
+      ]
+    }
+  },
+  "duplicati/duplicati@v2.4.0.1_stable_2026-10-07": {
+    "duplicati-2.4.0.1_stable_2026-10-07-linux-arm64-gui.appimage": {
+      "status": "inspected",
+      "role": "application",
+      "launcher_arch": "arm64",
+      "targets": [
+        {
+          "platform": "",
+          "arch": "arm64"
+        }
+      ],
+      "evidence": [
+        {
+          "source": "inspection",
+          "field": "elf.machine",
+          "value": "0xb7"
+        }
+      ]
+    },
+    "duplicati-2.4.0.1_stable_2026-10-07-linux-arm7-gui.appimage": {
+      "status": "inspected",
+      "role": "application",
+      "launcher_arch": "arm",
+      "targets": [
+        {
+          "platform": "",
+          "arch": "arm"
+        }
+      ],
+      "evidence": [
+        {
+          "source": "inspection",
+          "field": "elf.machine",
+          "value": "0x28"
+        }
+      ]
+    },
+    "duplicati-2.4.0.1_stable_2026-10-07-linux-x64-gui.appimage": {
+      "status": "inspected",
+      "role": "application",
+      "launcher_arch": "amd64",
+      "targets": [
+        {
+          "platform": "",
+          "arch": "amd64"
+        }
+      ],
+      "evidence": [
+        {
+          "source": "inspection",
+          "field": "elf.machine",
+          "value": "0x3e"
+        }
+      ]
+    }
+  },
+  "multica-ai/multica@v0.6.3": {
+    "multica-desktop-0.6.3-linux-arm64.AppImage": {
+      "status": "inspected",
+      "role": "application",
+      "launcher_arch": "arm64",
+      "targets": [
+        {
+          "platform": "",
+          "arch": "arm64"
+        }
+      ],
+      "evidence": [
+        {
+          "source": "inspection",
+          "field": "elf.machine",
+          "value": "0xb7"
+        }
+      ]
+    },
+    "multica-desktop-0.6.3-linux-x86_64.AppImage": {
+      "status": "inspected",
+      "role": "application",
+      "launcher_arch": "amd64",
+      "targets": [
+        {
+          "platform": "",
+          "arch": "amd64"
+        }
+      ],
+      "evidence": [
+        {
+          "source": "inspection",
+          "field": "elf.machine",
+          "value": "0x3e"
+        }
+      ]
+    }
+  }
+}

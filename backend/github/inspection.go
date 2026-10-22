@@ -102,6 +102,8 @@ func (c *Client) InspectArtifact(ctx context.Context, asset Asset) (ArtifactMeta
 		inspect = inspectGzip
 	case strings.HasSuffix(name, ".deb"):
 		inspect = inspectDeb
+	case strings.HasSuffix(name, ".appimage"):
+		inspect = inspectAppImage
 	case sniffable(name):
 		inspect = inspectBinary
 	default:
@@ -120,6 +122,7 @@ func (c *Client) InspectArtifact(ctx context.Context, asset Asset) (ArtifactMeta
 	case errors.Is(err, errInspectLimit), err != nil && errors.Is(f.err, errInspectLimit):
 		// The limit was hit before any structure parsed: too large, not broken.
 		m.Status = "unsupported"
+		m.TargetsPartial = true
 		note(&m, "", "inspection.skipped", "exceeds inspection limits")
 		return m, nil
 	case err != nil:
@@ -271,6 +274,23 @@ func inspectBinary(f *remoteFile, m *ArtifactMetadata) error {
 	return sniffOrNote(f, m, "")
 }
 
+// inspectAppImage records the ELF launcher separately from an embedded payload.
+func inspectAppImage(f *remoteFile, m *ArtifactMetadata) error {
+	if err := inspectBinary(f, m); err != nil {
+		return err
+	}
+	setAppImageLauncher(m)
+	return nil
+}
+
+func setAppImageLauncher(m *ArtifactMetadata) {
+	if len(m.Targets) == 1 && slices.ContainsFunc(m.Evidence, func(e ArtifactEvidence) bool {
+		return e.Field == "elf.machine" || strings.HasSuffix(e.Field, ":elf.machine")
+	}) {
+		m.LauncherArch = m.Targets[0].Arch
+	}
+}
+
 func sniffOrNote(r io.ReaderAt, m *ArtifactMetadata, at string) error {
 	found, err := sniffBinary(r, m, at)
 	if err == nil && !found {
@@ -301,8 +321,11 @@ func inspectZIP(f *remoteFile, m *ArtifactMetadata) error {
 	slices.SortStableFunc(candidates, func(a, b *zip.File) int {
 		return bundleRank(a.Name) - bundleRank(b.Name)
 	})
+	// Directory CPU names choose samples, never establish CPU compatibility.
+	candidates = diverseZIPCandidates(candidates)
 	sniffed := 0
 	bundle := macAppBundle(names)
+	checked := 0
 	for _, zf := range candidates {
 		if sniffed == inspectMaxBinaries {
 			break
@@ -325,8 +348,40 @@ func inspectZIP(f *remoteFile, m *ArtifactMetadata) error {
 		if err := inspectArchiveEntry(head, m, "zip:"+zf.Name, zf.Name, bundle); err != nil {
 			return err
 		}
+		checked++
 	}
+	m.TargetsPartial = m.TargetsPartial || checked < len(candidates)
 	return nil
+}
+
+func diverseZIPCandidates(files []*zip.File) []*zip.File {
+	var first, rest []*zip.File
+	seen := map[string]bool{}
+	for _, f := range files {
+		group := ""
+		for _, part := range strings.Split(strings.ToLower(f.Name), "/") {
+			switch part {
+			case "x64", "amd64", "x86_64":
+				group = "amd64"
+			case "arm64", "aarch64":
+				group = "arm64"
+			case "x86", "i386", "386", "win32":
+				group = "386"
+			case "arm", "armhf", "armv7":
+				group = "arm"
+			}
+		}
+		key := fmt.Sprintf("%d:%s", bundleRank(f.Name), group)
+		if seen[key] {
+			rest = append(rest, f)
+		} else {
+			seen[key] = true
+			first = append(first, f)
+		}
+	}
+	out := append(first, rest...)
+	slices.SortStableFunc(out, func(a, b *zip.File) int { return bundleRank(a.Name) - bundleRank(b.Name) })
+	return out
 }
 
 // tarInspector lists tar entries through a decompressor and sniffs the first
@@ -347,9 +402,11 @@ func tarInspector(decompress func(io.Reader) (io.Reader, error)) func(*remoteFil
 			head []byte
 		}
 		sniffed, partial := 0, false
+		complete := false
 		for sniffed < inspectMaxBinaries {
 			h, err := tr.Next()
 			if err == io.EOF {
+				complete = true
 				break
 			}
 			if err != nil {
@@ -381,6 +438,7 @@ func tarInspector(decompress func(io.Reader) (io.Reader, error)) func(*remoteFil
 		if partial {
 			note(m, "", "tar.listing", "partial")
 		}
+		m.TargetsPartial = !complete
 		archiveStructure(m, "tar", names)
 		bundle := macAppBundle(names)
 		for _, entry := range entries {
@@ -570,6 +628,9 @@ func inspectArchiveEntry(head []byte, m *ArtifactMetadata, at, name, bundle stri
 	found, err := sniffBinary(bytes.NewReader(head), &observed, at)
 	if err != nil {
 		return err
+	}
+	if !found {
+		m.TargetsPartial = true
 	}
 	mainPrefix := bundle + "/Contents/MacOS/"
 	mainEntry := bundle != "" && strings.HasPrefix(name, mainPrefix) && !strings.Contains(strings.TrimPrefix(name, mainPrefix), "/")

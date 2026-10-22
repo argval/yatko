@@ -131,6 +131,7 @@ func TestReinspectHarvest(t *testing.T) {
 		before[row["status"].(string)]++
 		after[m.Status]++
 		row["status"], row["role"] = m.Status, m.Role
+		row["targets_partial"], row["launcher_arch"] = m.TargetsPartial, m.LauncherArch
 		delete(row, "targets")
 		delete(row, "error")
 		if len(m.Targets) > 0 {

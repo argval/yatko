@@ -16,6 +16,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/argval/yatko/cache"
 	"github.com/argval/yatko/picker"
 )
 
@@ -36,6 +37,8 @@ type Client struct {
 	model     string
 	http      *http.Client
 	attrCache attrCache
+	// Cache shares Describe results across instances; nil keeps them in this process.
+	Cache *cache.Cache
 }
 
 // ModelName is the versioned model this client sends.

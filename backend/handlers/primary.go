@@ -15,6 +15,9 @@ import (
 
 const optionalRepoMetaBudget = 100 * time.Millisecond
 
+// warmRepoMetaBudget bounds the background repo description lookup for warmPick.
+const warmRepoMetaBudget = 5 * time.Second
+
 // pick asks Jev for the full release; only service failure invokes rule ranking.
 // A previously offered pin is revalidated before asking for a new preference.
 func (h *RedirectHandler) pick(c *gin.Context, owner, repo string, release *github.Release) assetPick {
@@ -40,6 +43,25 @@ func (h *RedirectHandler) pick(c *gin.Context, owner, repo string, release *gith
 	}
 	p.Decision = ruleDecision(c, assets, p)
 	return p
+}
+
+// warmPick starts Jev's per-release Describe in the background when the release
+// page loads, so a direct visit's first pick only waits for its own Choice. It
+// fetches the repo description first and caches it, so the pick's
+// optionalProductDescription reads the same text and the Describe keys match.
+func (h *RedirectHandler) warmPick(parent context.Context, owner, repo string, assets []github.Asset) {
+	if h.Primary == nil {
+		return
+	}
+	h.warming.Add(1)
+	go func() {
+		defer h.warming.Done()
+		ctx := context.WithoutCancel(parent)
+		metaCtx, cancel := context.WithTimeout(ctx, warmRepoMetaBudget)
+		meta, _ := h.getRepoMeta(metaCtx, owner, repo)
+		cancel()
+		h.Primary.Warm(ctx, owner+"/"+repo, strings.TrimSpace(meta.Description), assets)
+	}()
 }
 
 // Optional context cannot share a short-lived cache fill with the page's required lookup.

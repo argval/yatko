@@ -43,6 +43,7 @@ func main() {
 	// Jev is the primary asset decider whenever a TypeSafe key is set; the rule
 	// picker answers when Jev errors, is slow, or JEV_PRIMARY=0.
 	if jc := jev.NewClientFromEnv(); jc != nil && os.Getenv("JEV_PRIMARY") != "0" {
+		jc.Cache = redisCache // share Describe results across instances
 		redirectHandler.Primary = &jev.Primary{Client: jc, Cache: redisCache}
 		log.Printf("jev primary decider enabled model=%s", jc.ModelName())
 	}

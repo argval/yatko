@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"log"
 	"slices"
 	"strings"
 	"sync/atomic"
@@ -207,4 +208,21 @@ func (p *Primary) Decide(ctx context.Context, repo string, assets []github.Asset
 	case <-ctx.Done():
 	}
 	return picker.AssetDecision{}, false
+}
+
+// Warm describes a release's files before its first pick, so that pick only
+// pays for the per-visitor Choice. It blocks; callers run it in the
+// background. It shares Decide's in-flight bound and breaker, and Describe
+// coalesces it with a pick that needs the same answer.
+func (p *Primary) Warm(ctx context.Context, repo, product string, assets []github.Asset) {
+	describable := describableAssets(assets)
+	if len(describable) == 0 || time.Now().UnixNano() < p.openUntil.Load() || !p.acquire() {
+		return
+	}
+	defer p.inFlight.Add(-1)
+	ctx, cancel := context.WithTimeout(ctx, fetchTimeout)
+	defer cancel()
+	if _, _, err := p.Client.Describe(ctx, repo, product, describable); err != nil {
+		log.Printf("jev warm %s: %v", repo, err)
+	}
 }

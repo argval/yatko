@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"slices"
+	"sync"
 
 	"github.com/argval/yatko/artifactscan"
 	"github.com/argval/yatko/cache"
@@ -20,6 +21,8 @@ type RedirectHandler struct {
 	ScanStore *artifactscan.Store
 	// Primary makes Jev the main decider, with the rule picker as fallback; nil keeps the rules.
 	Primary *jev.Primary
+	// warming tracks background Jev warm-ups so tests can wait for them.
+	warming sync.WaitGroup
 }
 
 func NewRedirectHandler(gh *github.Client, c *cache.Cache) *RedirectHandler {
@@ -82,9 +85,9 @@ func (h *RedirectHandler) getRelease(c *gin.Context, owner, repo, version string
 
 // getRepoMeta also reports whether the repo itself was confirmed to exist
 // (the page uses it to disambiguate a "repo not found" 404 from a "no releases yet" 404).
-func (h *RedirectHandler) getRepoMeta(c *gin.Context, owner, repo string) (repoMeta, bool) {
+func (h *RedirectHandler) getRepoMeta(ctx context.Context, owner, repo string) (repoMeta, bool) {
 	key := cache.DescriptionKey(owner, repo)
-	meta, err := cache.FetchCached(c.Request.Context(), h.cache, key, func(ctx context.Context, etag string) (repoMeta, string, bool, error) {
+	meta, err := cache.FetchCached(ctx, h.cache, key, func(ctx context.Context, etag string) (repoMeta, string, bool, error) {
 		return h.fetchRepoMeta(ctx, owner, repo, etag)
 	})
 	if err != nil {

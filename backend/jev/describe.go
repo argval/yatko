@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/argval/yatko/cache"
 	"github.com/argval/yatko/github"
 	"github.com/argval/yatko/picker"
 	"golang.org/x/sync/singleflight"
@@ -84,7 +85,8 @@ func attrQuestion(file, text string, criteria orderedCriteria) question {
 }
 
 // Describe asks Jev what each file is: OS, CPU and role. The answers do not
-// depend on the visitor, so one cached call serves every visitor of a release.
+// depend on the visitor, so one cached call serves every visitor of a release:
+// in this process first, then in the shared Cache when set.
 // product (the repo description, may be empty) helps tell the main program
 // from companions.
 func (c *Client) Describe(ctx context.Context, repo, product string, assets []github.Asset) ([]FileAttrs, Usage, error) {
@@ -100,9 +102,19 @@ func (c *Client) Describe(ctx context.Context, repo, product string, assets []gi
 	// the caller that made it reports its tokens, so cost totals stay honest.
 	paid := Usage{Model: c.model}
 	v, err, _ := c.attrCache.flight.Do(key, func() (any, error) {
+		sharedKey := "jev:describe:v1:" + key
+		if c.Cache != nil {
+			if attrs, ok := cache.GetCached[[]FileAttrs](ctx, c.Cache, sharedKey); ok {
+				c.attrCache.put(key, attrs)
+				return attrs, nil
+			}
+		}
 		attrs, usage, err := c.describe(ctx, repo, product, names)
 		if err == nil {
 			c.attrCache.put(key, attrs)
+			if c.Cache != nil {
+				_ = cache.StoreCached(ctx, c.Cache, sharedKey, attrs)
+			}
 			paid = usage
 		}
 		return attrs, err
@@ -217,8 +229,8 @@ func cacheKey(model, repo string, names []string) string {
 }
 
 // attrCache remembers Describe results per release in this process, so every
-// visitor after the first skips the call. ponytail: reset at 2k releases;
-// move to the Redis cache if primary logs show repeat calls across instances.
+// visitor after the first skips the call, even the shared-cache read.
+// ponytail: reset at 2k releases.
 type attrCache struct {
 	mu     sync.Mutex
 	m      map[string][]FileAttrs

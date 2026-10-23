@@ -39,7 +39,7 @@ func (h *PageHandler) HandleRepoMeta(c *gin.Context) {
 	if refresh {
 		_ = h.cache.Invalidate(c.Request.Context(), cache.DescriptionKey(owner, repo))
 	}
-	meta, found := h.redirect.getRepoMeta(c, owner, repo)
+	meta, found := h.redirect.getRepoMeta(c.Request.Context(), owner, repo)
 	if !found {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Repository not found"})
 		return
@@ -91,7 +91,7 @@ func (h *PageHandler) handle(c *gin.Context, owner, repo, version string) {
 		// fallback. repoFound (from separately fetched repo metadata)
 		// disambiguates the two for the frontend.
 		if status == http.StatusNotFound {
-			_, repoFound := h.redirect.getRepoMeta(c, owner, repo)
+			_, repoFound := h.redirect.getRepoMeta(c.Request.Context(), owner, repo)
 			if repoFound {
 				body["reason"] = "no_releases"
 			}
@@ -116,7 +116,9 @@ func (h *PageHandler) handle(c *gin.Context, owner, repo, version string) {
 		"prerelease":   release.Prerelease,
 		"assets":       release.Assets,
 	}
-	// Rule-only mode can precompute target picks. Jev uses /api/link with real visitor context.
+	// Rule-only mode can precompute target picks. Jev uses /api/link with real
+	// visitor context, so here it only warms the visitor-independent part.
+	h.redirect.warmPick(c.Request.Context(), owner, repo, release.Assets)
 	if picks := h.redirect.buildPicks(c.Request.Context(), owner, repo, release.Assets); picks != nil {
 		payload["picks"] = picks
 	}

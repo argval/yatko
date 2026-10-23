@@ -121,3 +121,27 @@ func TestRecordRevalidatesAsset(t *testing.T) {
 		t.Fatal("decision accepted an asset that now fails the guard")
 	}
 }
+
+// Warm pays for Describe ahead of the first pick, which then needs at most its
+// own Choice; a second client sharing the cache (another instance) pays nothing.
+func TestWarmLetsFirstPickSkipDescribe(t *testing.T) {
+	c, fs := fakeJev(t, nativeMac)
+	shared := cache.New()
+	c.Cache = shared
+	p := &Primary{Client: c, Cache: shared}
+	p.Warm(context.Background(), "o/app", "An app", macAssets)
+	if fs.describes.Load() != 1 || fs.choices.Load() != 0 {
+		t.Fatalf("warm: describes=%d choices=%d, want 1 and 0", fs.describes.Load(), fs.choices.Load())
+	}
+	d, ok := p.Decide(context.Background(), "o/app", macAssets, picker.MacOS, picker.ARM64, picker.PickOpts{ProductDescription: "An app"})
+	if !ok || name(d) != "app-arm64.dmg" {
+		t.Fatalf("pick after warm: ok=%v %+v", ok, d)
+	}
+	if fs.describes.Load() != 1 {
+		t.Fatalf("pick after warm: describes=%d, want the warmed answer reused", fs.describes.Load())
+	}
+	other := &Client{apiKey: c.apiKey, endpoint: c.endpoint, model: c.model, http: c.http, Cache: shared}
+	if _, _, err := other.Describe(context.Background(), "o/app", "An app", describableAssets(macAssets)); err != nil || fs.describes.Load() != 1 {
+		t.Fatalf("second instance: err=%v describes=%d, want the shared answer", err, fs.describes.Load())
+	}
+}

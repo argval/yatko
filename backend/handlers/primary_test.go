@@ -58,6 +58,8 @@ func primaryRouter(t *testing.T, status int, wait ...time.Duration) *gin.Engine 
 	if len(wait) > 0 {
 		redirect.Primary.Wait = wait[0]
 	}
+	// Background warm-ups must finish before the fake transport is restored.
+	t.Cleanup(redirect.warming.Wait)
 	router := gin.New()
 	router.GET("/dl/:owner/:repo", redirect.Handle)
 	router.GET("/dl/:owner/:repo/:version", redirect.HandleVersioned)
@@ -356,5 +358,41 @@ func TestPrimaryPinnedLinkCannotCreateOffer(t *testing.T) {
 	}
 	if w := request("/dl/acme/tool?" + pin); w.Header().Get("Location") != "https://github.com/acme/tool/releases/tag/v1.0.0" {
 		t.Fatalf("client-supplied pin created an offer: %d %q", w.Code, w.Header().Get("Location"))
+	}
+}
+
+// Loading the release page starts Describe before any visitor asks, with the
+// same repo description and files as the pick, so the pick reuses it.
+func TestPrimaryReleaseWarmsDescribeForFirstPick(t *testing.T) {
+	router := primaryRouter(t, http.StatusOK)
+	var describes atomic.Int32
+	inner := http.DefaultTransport
+	http.DefaultTransport = roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		if r.URL.Host == "api.typesafe.ai" {
+			body, _ := io.ReadAll(r.Body)
+			if bytes.Contains(body, []byte(`"os_0"`)) {
+				describes.Add(1)
+			}
+			r.Body = io.NopCloser(bytes.NewReader(body))
+		}
+		return inner.RoundTrip(r)
+	})
+	t.Cleanup(func() { http.DefaultTransport = inner })
+
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/release/acme/tool", nil))
+	if w.Code != http.StatusOK {
+		t.Fatalf("release = %d", w.Code)
+	}
+	for deadline := time.Now().Add(2 * time.Second); describes.Load() == 0; time.Sleep(5 * time.Millisecond) {
+		if time.Now().After(deadline) {
+			t.Fatal("release page did not start Describe")
+		}
+	}
+	if w := download(router, "curl/8.5.0"); w.Code != http.StatusFound {
+		t.Fatalf("download = %d", w.Code)
+	}
+	if describes.Load() != 1 {
+		t.Fatalf("describes = %d, want the warmed answer reused", describes.Load())
 	}
 }

@@ -215,14 +215,9 @@ func (c *Client) prepare(repo string, assets []github.Asset, platform picker.Pla
 	if _, ok := osNames[platform]; !ok {
 		return prepared{immediate: &picker.AssetDecision{Status: "unknown", Confidence: picker.ConfidenceLow, Reasons: []string{"jev: operating system unknown"}}}, nil
 	}
-	var candidates, describable []github.Asset
+	var candidates []github.Asset
 	unverified := false
 	for _, a := range assets {
-		// Describe sees every real program, whatever the visitor, so its
-		// answers are cached once per release.
-		if assess(a, picker.Unknown, picker.UnknownArch, picker.PickOpts{}).ok {
-			describable = append(describable, a)
-		}
 		if ValidateSelection(a, platform, arch, opts) {
 			candidates = append(candidates, a)
 		} else if picker.NeedsVerification(picker.FactsForAsset(a), platform, arch, opts.Libc) {
@@ -266,7 +261,6 @@ func (c *Client) prepare(repo string, assets []github.Asset, platform picker.Pla
 	// Sorted so requests, and so cache keys, do not depend on GitHub's order.
 	byName := func(x, y github.Asset) int { return strings.Compare(x.Name, y.Name) }
 	slices.SortFunc(candidates, byName)
-	slices.SortFunc(describable, byName)
 
 	visitor := visitorInput{
 		UserAgent:   uaVersion.ReplaceAllString(opts.UserAgent, ""),
@@ -284,7 +278,21 @@ func (c *Client) prepare(repo string, assets []github.Asset, platform picker.Pla
 	if opts.ProductDescription != "" {
 		state["product"] = opts.ProductDescription
 	}
-	return prepared{repo: repo, state: state, candidates: candidates, describable: describable}, nil
+	return prepared{repo: repo, state: state, candidates: candidates, describable: describableAssets(assets)}, nil
+}
+
+// describableAssets is every real program in the release, whatever the visitor,
+// in name order. Describe sees this list, so its answer is shared by every pick
+// of a release and can be warmed before the first one (Primary.Warm).
+func describableAssets(assets []github.Asset) []github.Asset {
+	var out []github.Asset
+	for _, a := range assets {
+		if assess(a, picker.Unknown, picker.UnknownArch, picker.PickOpts{}).ok {
+			out = append(out, a)
+		}
+	}
+	slices.SortFunc(out, func(x, y github.Asset) int { return strings.Compare(x.Name, y.Name) })
+	return out
 }
 
 // uaVersion matches browser/engine versions ("Chrome/141.0", "rv:130.0"). They

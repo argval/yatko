@@ -13,7 +13,7 @@ export function HomeSearchForm({
   onStartNavigating,
 }: {
   onNavigate: (owner: string, repo: string) => void;
-  onStartNavigating: () => void;
+  onStartNavigating: (owner: string, repo: string) => void;
 }) {
   const {
     input,
@@ -115,7 +115,7 @@ export function HomeSearchForm({
                     // RSC (release + README). useRepoSearch prefetches the
                     // active highlight / typed owner/repo only.
                     prefetch={false}
-                    onNavigate={onStartNavigating}
+                    onNavigate={() => onStartNavigating(item.owner, item.repo)}
                     className={`w-full flex items-start gap-3 px-4 py-3 text-left transition-colors duration-100 ${
                       active ? "bg-foreground/[0.08]" : "hover:bg-foreground/[0.04]"
                     }`}

@@ -4,7 +4,10 @@ import {
   downloadLinkPath,
   downloadRedirectPath,
   fetchLinkPick,
+  fetchReleasePick,
+  latestLinkPath,
   parseLinkPick,
+  prefetchLatestPick,
   pickFromReleaseTable,
 } from "./link-decision";
 import type { Asset } from "./platform-utils";
@@ -215,5 +218,26 @@ test("404 JSON preserves a typed abstention but cannot become a selected file", 
     expect(await fetchLinkPick("/api/link/x/y/v1")).toEqual({ status: "unknown", reasons: ["inspection failed"] });
     globalThis.fetch = (async () => new Response(JSON.stringify({ status: "selected", filename: "a.exe", url: "https://example.com/a.exe" }), { status: 404 })) as typeof fetch;
     expect(await fetchLinkPick("/api/link/x/y/v1")).toBeNull();
+  } finally { globalThis.fetch = original; }
+});
+
+test("a pick started on the homepage is reused only for the release it was decided for", async () => {
+  const original = globalThis.fetch;
+  const requested: string[] = [];
+  const pick = (version: string) => JSON.stringify({ status: "selected", filename: `t-${version}.dmg`, url: `https://example.com/t-${version}.dmg`, version });
+  try {
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      requested.push(String(input));
+      return new Response(pick(String(input).includes("/v2?") ? "v2" : "v1"), { status: 200 });
+    }) as typeof fetch;
+    const latest = latestLinkPath("early", "tool", "macos", "arm64");
+    prefetchLatestPick("early", "tool", "macos", "arm64");
+
+    expect((await fetchReleasePick(downloadLinkPath("early", "tool", "v1", "macos", "arm64"), latest, "v1"))?.filename).toBe("t-v1.dmg");
+    expect(requested).toEqual([latest]);
+
+    // A newer release than the early answer must be decided again.
+    expect((await fetchReleasePick(downloadLinkPath("early", "tool", "v2", "macos", "arm64"), latest, "v2"))?.filename).toBe("t-v2.dmg");
+    expect(requested).toHaveLength(2);
   } finally { globalThis.fetch = original; }
 });

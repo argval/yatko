@@ -54,6 +54,11 @@ export function downloadLinkPath(
   return pickerPath("/api/link", owner, repo, tagName, platform, arch, context);
 }
 
+/** Picker path for the latest release, used before the page knows its tag. */
+export function latestLinkPath(owner: string, repo: string, platform: Platform, arch: Arch, context?: VisitorContext): string {
+  return `/api/link/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}?${pickerQuery(platform, arch, context)}`;
+}
+
 /** Pin a displayed filename while Go rechecks compatibility on click. */
 export function downloadRedirectPath(
   owner: string,
@@ -127,15 +132,43 @@ export function assetFromLinkPick(assets: Asset[], pick: LinkPick | null | undef
   };
 }
 
-export async function fetchLinkPick(path: string, signal?: AbortSignal): Promise<LinkPick | null> {
+type LinkResult = { pick: LinkPick | null; version?: string };
+
+/** Fetch a pick plus the release tag Go decided it for. */
+async function fetchLinkResult(path: string, signal?: AbortSignal): Promise<LinkResult> {
   const res = await fetch(path, { signal });
-  if (!res.ok && res.status !== 404 && res.status !== 409) return null;
+  if (!res.ok && res.status !== 404 && res.status !== 409) return { pick: null };
   try {
-    const pick = parseLinkPick(await res.json());
-    return res.ok || (pick?.status && pick.status !== "selected") ? pick : null;
+    const body: unknown = await res.json();
+    const pick = parseLinkPick(body);
+    const version = typeof body === "object" && body !== null && "version" in body &&
+      typeof body.version === "string" ? body.version : undefined;
+    return { pick: res.ok || (pick?.status && pick.status !== "selected") ? pick : null, version };
   } catch {
-    return null;
+    return { pick: null };
   }
+}
+
+export async function fetchLinkPick(path: string, signal?: AbortSignal): Promise<LinkPick | null> {
+  return (await fetchLinkResult(path, signal)).pick;
+}
+
+// Picks started during homepage navigation, keyed by latest-release path, so
+// the pick runs in parallel with the page render. Entries are reused only for
+// the same visitor query and release tag. ponytail: one entry per navigation, never pruned.
+const earlyPicks = new Map<string, Promise<LinkResult | null>>();
+
+/** Start the latest-release pick before the release page has rendered. */
+export function prefetchLatestPick(owner: string, repo: string, platform: Platform, arch: Arch, context?: VisitorContext): void {
+  const path = latestLinkPath(owner, repo, platform, arch, context);
+  earlyPicks.set(path, fetchLinkResult(path).catch(() => null));
+}
+
+/** Use the early pick when it was decided for this tag; otherwise fetch the tag's pick. */
+export async function fetchReleasePick(path: string, latestPath: string, tagName: string, signal?: AbortSignal): Promise<LinkPick | null> {
+  const early = await earlyPicks.get(latestPath);
+  if (early?.version === tagName) return early.pick;
+  return fetchLinkPick(path, signal);
 }
 
 /** Explain a server abstention without turning uncertain candidates into a recommendation. */

@@ -9,6 +9,7 @@ import type { Asset } from "./platform-utils";
 import {
   BACKEND_FETCH_REVALIDATE_SECONDS,
   BACKEND_FETCH_TIMEOUT_MS,
+  BACKEND_RELEASE_TIMEOUT_MS,
   BACKEND_URL,
 } from "@/lib/backend-env";
 
@@ -19,10 +20,10 @@ export type ReleaseResult =
 
 const MAX_CHECKSUM_FILE_BYTES = 1 << 20;
 
-function backendFetch(path: string): Promise<Response> {
+function backendFetch(path: string, timeoutMs = BACKEND_FETCH_TIMEOUT_MS): Promise<Response> {
   return fetch(`${BACKEND_URL}${path}`, {
     next: { revalidate: BACKEND_FETCH_REVALIDATE_SECONDS },
-    signal: AbortSignal.timeout(BACKEND_FETCH_TIMEOUT_MS),
+    signal: AbortSignal.timeout(timeoutMs),
   });
 }
 
@@ -38,7 +39,7 @@ export async function getRelease(owner: string, repo: string, version?: string):
     : `/api/release/${owner}/${repo}`;
   let res: Response;
   try {
-    res = await backendFetch(path);
+    res = await backendFetch(path, BACKEND_RELEASE_TIMEOUT_MS);
   } catch {
     return { ok: false, message: "Couldn't reach the download service. Try again in a moment." };
   }

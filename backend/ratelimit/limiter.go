@@ -6,9 +6,12 @@ package ratelimit
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
+	"net"
 	"os"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -18,6 +21,10 @@ import (
 // flood of distinct keys cannot unbounded-grow backend memory.
 const localMaxKeys = 10_000
 
+// redisPause is how long Redis is skipped after a network failure, so a dead
+// Redis does not add dial retries to every request.
+const redisPause = 30 * time.Second
+
 // Limiter enforces a fixed-window request budget keyed by an opaque string
 // (typically a client IP). Without a Redis URL env it uses a process-local
 // fixed window (fine for single-instance local/dev; prod should set Redis so
@@ -25,7 +32,8 @@ const localMaxKeys = 10_000
 // unreachable, it falls back to the same process-local window instead of
 // failing open.
 type Limiter struct {
-	client *redis.Client
+	client    *redis.Client
+	downUntil atomic.Int64 // unix nanos; local windows are used until then
 
 	localMu sync.Mutex
 	local   map[string]localWindow
@@ -49,6 +57,7 @@ func New() *Limiter {
 		return &Limiter{local: make(map[string]localWindow)}
 	}
 	opt.TLSConfig = &tls.Config{MinVersion: tls.VersionTLS12}
+	opt.DialerRetries = 1 // fail fast on a dead host; command retries remain
 	return &Limiter{
 		client: redis.NewClient(opt),
 		local:  make(map[string]localWindow),
@@ -79,7 +88,7 @@ func (l *Limiter) Allow(ctx context.Context, key string, limit int, window time.
 	if l == nil {
 		return true, 0, nil
 	}
-	if l.client == nil {
+	if l.client == nil || time.Now().UnixNano() < l.downUntil.Load() {
 		allowed, retryAfter := l.allowLocal(key, limit, window)
 		return allowed, retryAfter, nil
 	}
@@ -89,6 +98,9 @@ func (l *Limiter) Allow(ctx context.Context, key string, limit int, window time.
 	incr := pipe.Incr(ctx, rlKey)
 	pipe.ExpireNX(ctx, rlKey, window) // only takes effect on the first request in a window
 	if _, err := pipe.Exec(ctx); err != nil {
+		if opErr := (*net.OpError)(nil); ctx.Err() == nil && errors.As(err, &opErr) {
+			l.downUntil.Store(time.Now().Add(redisPause).UnixNano())
+		}
 		fmt.Fprintf(os.Stderr, "warning: rate limit redis error, using local fallback: %v\n", err)
 		allowed, retryAfter := l.allowLocal(key, limit, window)
 		return allowed, retryAfter, nil

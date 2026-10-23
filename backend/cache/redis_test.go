@@ -261,3 +261,26 @@ func TestFetchCached_L1WorksWithoutRedis(t *testing.T) {
 		t.Fatalf("expected L1-only second hit, got %d calls", calls)
 	}
 }
+
+// A deleted or unreachable Redis must not slow every call: after one network
+// failure the cache serves from L1 and skips Redis until the pause ends.
+func TestUnreachableRedisIsPausedAndL1KeepsServing(t *testing.T) {
+	c := newTestCache(t, time.Hour)
+	ctx := context.Background()
+	mr := miniredis.RunT(t)
+	c.client = redis.NewClient(&redis.Options{Addr: mr.Addr(), MaxRetries: -1})
+	mr.Close()
+
+	if _, err := getEntry[string](ctx, c, "missing"); err == nil {
+		t.Fatal("first read should report the Redis failure")
+	}
+	if c.redisUp() {
+		t.Fatal("Redis should be paused after a network failure")
+	}
+	if err := StoreCached(ctx, c, "k", "v"); err != nil {
+		t.Fatalf("store while paused should skip Redis, got %v", err)
+	}
+	if got, ok := GetCached[string](ctx, c, "k"); !ok || got != "v" {
+		t.Fatalf("L1 should still serve while Redis is paused, got %q %v", got, ok)
+	}
+}

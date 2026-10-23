@@ -6,7 +6,8 @@ import { usePlatform } from "./use-platform";
 import {
   assetFromLinkPick,
   downloadLinkPath,
-  fetchLinkPick,
+  fetchReleasePick,
+  latestLinkPath,
   pickFromReleaseTable,
   type LinkPick,
 } from "./link-decision";
@@ -41,12 +42,14 @@ export function DownloadSection({
     platform ? pickFromReleaseTable(picks, platform, arch ?? "") : undefined;
   const fetchPath = tablePick === undefined && platform && !detected?.pending && assets.length > 0
     ? downloadLinkPath(owner, repo, tagName, platform, arch ?? "", detected?.context) : null;
+  // A pick started on the homepage click is keyed by the latest-release path.
+  const latestPath = fetchPath && platform ? latestLinkPath(owner, repo, platform, arch ?? "", detected?.context) : "";
 
   useEffect(() => {
     if (!fetchPath) return;
     const ac = new AbortController();
     let cancelled = false;
-    fetchLinkPick(fetchPath, ac.signal)
+    fetchReleasePick(fetchPath, latestPath, tagName, ac.signal)
       .then((got) => {
         if (!cancelled) setFetchedPick({ path: fetchPath, pick: got });
       })
@@ -59,7 +62,7 @@ export function DownloadSection({
       cancelled = true;
       ac.abort();
     };
-  }, [fetchPath]);
+  }, [fetchPath, latestPath, tagName]);
 
   const pick = tablePick !== undefined ? tablePick :
     fetchedPick?.path === fetchPath ? fetchedPick?.pick : undefined;

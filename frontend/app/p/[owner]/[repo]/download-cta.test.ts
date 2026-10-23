@@ -10,7 +10,7 @@ const apk: Asset = {
 };
 
 describe("downloadCta", () => {
-  test("points at /dl as soon as the platform is known, even before the pick returns", () => {
+  test("points at /dl before the pick returns, without promising a platform build", () => {
     expect(
       downloadCta({
         platform: "android",
@@ -23,7 +23,7 @@ describe("downloadCta", () => {
       }),
     ).toEqual({
       href: "/dl/termux/termux-app/v0.118.0?platform=android&arch=arm64",
-      label: "Download for Android",
+      label: "Finding your download…",
       external: false,
     });
   });

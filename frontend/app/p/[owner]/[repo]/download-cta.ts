@@ -36,9 +36,11 @@ export function downloadCta({
       external: false,
     };
   }
+  // While the pick is in flight, /dl still works if clicked, but the label
+  // must not promise a platform build that may not exist.
   return {
     href: downloadRedirectPath(owner, repo, tagName, platform, arch, primaryAsset?.name, visitorContext),
-    label: `Download for ${platformLabels[platform]}`,
+    label: primaryAsset ? `Download for ${platformLabels[platform]}` : "Finding your download…",
     external: false,
   };
 }

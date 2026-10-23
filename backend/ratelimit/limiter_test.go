@@ -144,3 +144,21 @@ func TestAllow_FallsBackToLocalOnRedisError(t *testing.T) {
 		t.Fatalf("expected positive retryAfter, got %v", retryAfter)
 	}
 }
+
+// After one network failure the limiter stays on local windows instead of
+// dialing a dead Redis on every request.
+func TestAllow_PausesUnreachableRedis(t *testing.T) {
+	l, mr := newTestLimiterWithMiniredis(t)
+	l.client = redis.NewClient(&redis.Options{Addr: mr.Addr(), MaxRetries: -1})
+	mr.Close()
+
+	if allowed, _, err := l.Allow(context.Background(), "1.2.3.4", 1, time.Minute); err != nil || !allowed {
+		t.Fatalf("first request should fall back to local and pass, got allowed=%v err=%v", allowed, err)
+	}
+	if time.Now().UnixNano() >= l.downUntil.Load() {
+		t.Fatal("Redis should be paused after a network failure")
+	}
+	if allowed, _, _ := l.Allow(context.Background(), "1.2.3.4", 1, time.Minute); allowed {
+		t.Fatal("local window should still enforce the limit while Redis is paused")
+	}
+}

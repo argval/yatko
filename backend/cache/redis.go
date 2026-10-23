@@ -4,10 +4,13 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
+	"net"
 	"os"
 	"strconv"
+	"sync/atomic"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -30,12 +33,17 @@ const SearchSoftTTL = 2 * time.Hour
 // GitHub's rate limit) instead of falling back to a full, rate-limited fetch.
 const HardTTL = 24 * time.Hour
 
+// redisPause is how long Redis is skipped after a network failure. A dead or
+// deleted Redis then costs one failed call per pause, not every call.
+const redisPause = 30 * time.Second
+
 type Cache struct {
-	client  *redis.Client
-	softTTL time.Duration
-	hardTTL time.Duration
-	sf      singleflight.Group
-	l1      *l1Cache
+	client    *redis.Client
+	softTTL   time.Duration
+	hardTTL   time.Duration
+	sf        singleflight.Group
+	l1        *l1Cache
+	downUntil atomic.Int64 // unix nanos; Redis is skipped until then
 }
 
 func New() *Cache {
@@ -63,6 +71,9 @@ func New() *Cache {
 	// Bound socket I/O, TLS handshakes and retries by the caller's deadline.
 	opt.ContextTimeoutEnabled = true
 	opt.Dialer = (&tls.Dialer{Config: opt.TLSConfig}).DialContext
+	// One dial per attempt: the default 5 dial retries turned each command
+	// against a dead host into seconds of waiting. Command retries remain.
+	opt.DialerRetries = 1
 
 	return &Cache{
 		client:  redis.NewClient(opt),
@@ -76,6 +87,21 @@ func New() *Cache {
 // (REDIS_URL / KV_URL / UPSTASH_REDIS_URL). It does not ping Redis.
 func (c *Cache) RedisConfigured() bool {
 	return c != nil && c.client != nil
+}
+
+// redisUp reports whether Redis is configured and not paused by a recent failure.
+func (c *Cache) redisUp() bool {
+	return c.client != nil && time.Now().UnixNano() >= c.downUntil.Load()
+}
+
+// noteRedisErr pauses Redis after a network error, so the cache acts like
+// L1-only instead of paying dial retries on every call. A caller's own
+// deadline or cancellation does not count as Redis being down.
+func (c *Cache) noteRedisErr(ctx context.Context, err error) {
+	var opErr *net.OpError
+	if ctx.Err() == nil && errors.As(err, &opErr) {
+		c.downUntil.Store(time.Now().Add(redisPause).UnixNano())
+	}
 }
 
 // firstEnv returns the first non-empty environment variable among keys.
@@ -254,10 +280,12 @@ func (c *Cache) Invalidate(ctx context.Context, key string) error {
 	if c.l1 != nil {
 		c.l1.delete(key)
 	}
-	if c.client == nil {
+	if !c.redisUp() {
 		return nil
 	}
-	return c.client.Del(ctx, key).Err()
+	err := c.client.Del(ctx, key).Err()
+	c.noteRedisErr(ctx, err)
+	return err
 }
 
 func getEntry[T any](ctx context.Context, c *Cache, key string) (*entry[T], error) {
@@ -272,7 +300,7 @@ func getEntry[T any](ctx context.Context, c *Cache, key string) (*entry[T], erro
 		}
 	}
 
-	if c.client == nil {
+	if !c.redisUp() {
 		return nil, nil
 	}
 
@@ -281,6 +309,7 @@ func getEntry[T any](ctx context.Context, c *Cache, key string) (*entry[T], erro
 		return nil, nil
 	}
 	if err != nil {
+		c.noteRedisErr(ctx, err)
 		return nil, err
 	}
 
@@ -302,8 +331,10 @@ func setEntry[T any](ctx context.Context, c *Cache, key string, e entry[T]) erro
 	if c.l1 != nil {
 		c.l1.set(key, data)
 	}
-	if c.client == nil {
+	if !c.redisUp() {
 		return nil
 	}
-	return c.client.Set(ctx, key, data, c.hardTTL).Err()
+	err = c.client.Set(ctx, key, data, c.hardTTL).Err()
+	c.noteRedisErr(ctx, err)
+	return err
 }

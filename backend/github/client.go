@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -71,9 +72,20 @@ type Repo struct {
 	} `json:"owner"`
 }
 
+type authMode uint32
+
+const (
+	authPrimary authMode = iota
+	authBackup
+	authAnonymous
+)
+
 type Client struct {
-	httpClient *http.Client
-	token      string
+	httpClient  *http.Client
+	token       string
+	backupToken string
+	// Only a GitHub rejection can advance the mode for the life of the client.
+	authMode atomic.Uint32
 	// remaining is the last-seen X-RateLimit-Remaining value, -1 until the
 	// first response tells us. Read/written atomically since handlers hit
 	// this concurrently.
@@ -111,9 +123,9 @@ func (c *Client) Budget() Budget {
 	}
 }
 
-// HasToken reports whether a GITHUB_TOKEN was configured (never the value).
+// HasToken reports whether either GitHub token was configured.
 func (c *Client) HasToken() bool {
-	return c != nil && c.token != ""
+	return c != nil && (c.token != "" || c.backupToken != "")
 }
 
 const (
@@ -129,6 +141,8 @@ const (
 	// (via FetchCached's stale-while-error fallback) instead of every repo,
 	// hot or cold, racing to fail against an exhausted quota.
 	rateLimitReserve = 200
+	// GitHub gives unauthenticated callers only 60 core requests per hour.
+	anonymousRateLimitReserve = 5
 	// searchRateLimitReserve is the headroom kept below GitHub's Search API
 	// quota (~30/min authenticated). Once search remaining drops below this,
 	// new search fetches are refused so autocomplete fails fast instead of
@@ -137,23 +151,39 @@ const (
 )
 
 func NewClient() *Client {
-	return &Client{
+	c := &Client{
 		httpClient:      &http.Client{Timeout: 10 * time.Second},
 		token:           os.Getenv("GITHUB_TOKEN"),
+		backupToken:     os.Getenv("GITHUB_BACKUP_TOKEN"),
 		remaining:       -1,
 		searchRemaining: -1,
 	}
+	if c.backupToken == c.token {
+		c.backupToken = ""
+	}
+	if c.token == "" {
+		mode := authAnonymous
+		if c.backupToken != "" {
+			mode = authBackup
+		}
+		c.authMode.Store(uint32(mode))
+	}
+	return c
 }
 
 // checkBudget refuses a new request once observed rate-limit headroom is
-// below rateLimitReserve. Unknown budget (before the first response) is
+// below the reserve. Unknown budget (before the first response) is
 // treated as fine. Once the X-RateLimit-Reset timestamp has passed, the
 // observed budget is cleared so a probe request can refresh it — otherwise
 // the guard would stick until process restart (no further responses update
 // remaining while every call is refused).
 func (c *Client) checkBudget() error {
+	reserve := int32(rateLimitReserve)
+	if c.tokenFor(authMode(c.authMode.Load())) == "" {
+		reserve = anonymousRateLimitReserve
+	}
 	remaining := atomic.LoadInt32(&c.remaining)
-	if remaining < 0 || remaining >= rateLimitReserve {
+	if remaining < 0 || remaining >= reserve {
 		return nil
 	}
 	if resetAt := atomic.LoadInt64(&c.resetAt); resetAt > 0 && time.Now().Unix() >= resetAt {
@@ -204,20 +234,59 @@ func (c *Client) recordSearchRateLimit(h http.Header) {
 	}
 }
 
-func (c *Client) newRequest(ctx context.Context, url, accept, etag string) (*http.Request, error) {
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+// tokenFor returns the credential for the selected mode.
+func (c *Client) tokenFor(mode authMode) string {
+	switch mode {
+	case authPrimary:
+		return c.token
+	case authBackup:
+		return c.backupToken
+	default:
+		return ""
+	}
+}
+
+// get switches credentials on a 401. Later requests start with the new mode.
+func (c *Client) get(ctx context.Context, url, accept, etag string) (*http.Response, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("creating request: %w", err)
 	}
 	req.Header.Set("Accept", accept)
 	req.Header.Set("User-Agent", "Yatko/1.0")
-	if c.token != "" {
-		req.Header.Set("Authorization", "Bearer "+c.token)
-	}
 	if etag != "" {
 		req.Header.Set("If-None-Match", etag)
 	}
-	return req, nil
+	for {
+		mode := authMode(c.authMode.Load())
+		token := c.tokenFor(mode)
+		if token == "" {
+			req.Header.Del("Authorization")
+		} else {
+			req.Header.Set("Authorization", "Bearer "+token)
+		}
+		resp, err := c.httpClient.Do(req)
+		if err != nil {
+			return nil, fmt.Errorf("performing request: %w", err)
+		}
+		if resp.StatusCode != http.StatusUnauthorized || token == "" {
+			return resp, nil
+		}
+		resp.Body.Close()
+
+		next := authAnonymous
+		if mode == authPrimary && c.backupToken != "" {
+			next = authBackup
+		}
+		if c.authMode.CompareAndSwap(uint32(mode), uint32(next)) {
+			if next == authBackup {
+				log.Print("github: primary token rejected, switching to backup")
+			} else {
+				log.Print("github: no valid token remains, switching to unauthenticated requests")
+			}
+		}
+		req = req.Clone(ctx)
+	}
 }
 
 func (c *Client) checkStatus(resp *http.Response) error {
@@ -239,13 +308,9 @@ func (c *Client) conditionalGet(ctx context.Context, url, accept, etag string, m
 		return nil, "", false, err
 	}
 
-	req, err := c.newRequest(ctx, url, accept, etag)
+	resp, err := c.get(ctx, url, accept, etag)
 	if err != nil {
-		return nil, "", false, fmt.Errorf("creating request: %w", err)
-	}
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return nil, "", false, fmt.Errorf("performing request: %w", err)
+		return nil, "", false, err
 	}
 	defer resp.Body.Close()
 	c.recordRateLimit(resp.Header)
@@ -427,13 +492,9 @@ func (c *Client) SearchRepositories(ctx context.Context, query, etag string) ([]
 		searchPerPage,
 	)
 
-	req, err := c.newRequest(ctx, u, "application/vnd.github.v3+json", etag)
+	resp, err := c.get(ctx, u, "application/vnd.github.v3+json", etag)
 	if err != nil {
-		return nil, "", false, fmt.Errorf("creating request: %w", err)
-	}
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return nil, "", false, fmt.Errorf("performing request: %w", err)
+		return nil, "", false, err
 	}
 	defer resp.Body.Close()
 	c.recordSearchRateLimit(resp.Header)
@@ -483,11 +544,7 @@ func (c *Client) GetREADME(ctx context.Context, owner, repo, etag string) (strin
 	}
 
 	u := repoAPIPath(owner, repo, "/readme")
-	req, err := c.newRequest(ctx, u, "application/vnd.github.v3.raw", etag)
-	if err != nil {
-		return "", "", false, fmt.Errorf("creating request: %w", err)
-	}
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.get(ctx, u, "application/vnd.github.v3.raw", etag)
 	if err != nil {
 		return "", "", false, fmt.Errorf("fetching readme: %w", err)
 	}

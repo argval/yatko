@@ -1,9 +1,12 @@
 import type { Metadata } from "next";
 import { BackToYatko } from "@/components/back-to-yatko";
+import { GITHUB_REPO_URL, TWITTER_URL } from "@/lib/site";
 
 const title = "Privacy";
 const description =
   "Privacy policy for Yatko (yatko.app) — what we collect, cache, and do not store when you use clean GitHub release download links.";
+const contactLink =
+  "inline-flex min-h-11 items-center rounded-lg border border-border bg-surface px-3 font-medium text-foreground hover:bg-foreground/5 active:bg-foreground/10 focus-visible:outline-2 focus-visible:outline-offset-2";
 
 export const metadata: Metadata = {
   title,
@@ -31,8 +34,25 @@ export default function PrivacyPage() {
         <article className="mx-auto max-w-xl space-y-8 text-sm leading-relaxed text-foreground/90">
           <div className="space-y-3">
             <h1 className="text-3xl font-semibold tracking-tight text-foreground">Privacy</h1>
-            <p className="text-muted">Last updated July 30, 2026</p>
+            <p className="text-muted">Last updated <time dateTime="2026-11-18">November 18, 2026</time></p>
           </div>
+
+          <section aria-labelledby="contact" className="flex flex-col gap-3 rounded-xl border border-border bg-surface/60 p-4">
+            <h2 id="contact" className="text-base font-medium text-foreground">Contact and reporting</h2>
+            <p>
+              For download problems, include the Yatko link and your operating system.
+              Use X for privacy questions or requests.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <a href={`${GITHUB_REPO_URL}/issues/new`} target="_blank" rel="noopener noreferrer" className={contactLink}>
+                Report a bug on GitHub
+              </a>
+              <a href={TWITTER_URL} target="_blank" rel="noopener noreferrer" className={contactLink}>
+                Contact @argvalue on X
+              </a>
+            </div>
+            <p className="text-muted">GitHub issues are public. Leave out personal or sensitive details.</p>
+          </section>
 
         <section className="space-y-3">
           <h2 className="text-base font-medium text-foreground">What Yatko is</h2>
@@ -88,20 +108,19 @@ export default function PrivacyPage() {
             performance. Those products are operated by Vercel under their own privacy terms.
           </p>
         </section>
-
         <section className="space-y-3">
-          <h2 className="text-base font-medium text-foreground">Contact</h2>
+          <h2 className="text-base font-medium text-foreground">License</h2>
           <p>
-            Questions or requests: open an issue on{" "}
+            Yatko’s source code is available under the{" "}
             <a
-              href="https://github.com/argval/yatko"
+              href={`${GITHUB_REPO_URL}/blob/main/LICENSE`}
               target="_blank"
               rel="noopener noreferrer"
-              className="font-medium text-foreground underline underline-offset-2 hover:no-underline"
+              className="font-medium text-foreground underline underline-offset-2"
             >
-              github.com/argval/yatko
+              MIT License
             </a>
-            . The project source is available under the MIT License.
+            .
           </p>
         </section>
       </article>

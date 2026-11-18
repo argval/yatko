@@ -72,11 +72,17 @@ export function ReleasePageBody({
     month: "long",
     day: "numeric",
   });
+  const hasReleaseAssets = release.tag_name?.trim() && release.assets.some(
+    (asset) => asset.name?.trim() && asset.browser_download_url?.trim(),
+  );
 
   return (
     <>
       <BackToYatko />
-      <main className="flex-1 flex flex-col items-center px-4 py-12 sm:py-20">
+      <main
+        data-yatko-release={hasReleaseAssets ? `${owner}/${repo}` : undefined}
+        className="flex-1 flex flex-col items-center px-4 py-12 sm:py-20"
+      >
         <div className="w-full max-w-2xl space-y-8">
           {/* Header */}
           <div className="text-center space-y-4">

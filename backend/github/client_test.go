@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -14,7 +15,7 @@ import (
 )
 
 func TestCheckBudget(t *testing.T) {
-	c := &Client{remaining: -1}
+	c := &Client{token: "test-token", remaining: -1}
 	if err := c.checkBudget(); err != nil {
 		t.Fatalf("expected no error when budget unknown, got %v", err)
 	}
@@ -35,6 +36,7 @@ func TestCheckBudget(t *testing.T) {
 
 func TestCheckBudget_RecoversAfterReset(t *testing.T) {
 	c := &Client{
+		token:     "test-token",
 		remaining: rateLimitReserve - 1,
 		resetAt:   time.Now().Add(-time.Second).Unix(),
 	}
@@ -51,6 +53,7 @@ func TestCheckBudget_RecoversAfterReset(t *testing.T) {
 
 func TestCheckBudget_StillBlocksBeforeReset(t *testing.T) {
 	c := &Client{
+		token:     "test-token",
 		remaining: rateLimitReserve - 1,
 		resetAt:   time.Now().Add(time.Hour).Unix(),
 	}
@@ -244,6 +247,131 @@ func TestRepoAPIPath_EscapesSegments(t *testing.T) {
 	}
 	if got := repoAPIPath("o#wner", "re/po", ""); got != "https://api.github.com/repos/o%23wner/re%2Fpo" {
 		t.Fatalf("unexpected escape of owner/repo: %q", got)
+	}
+}
+
+func TestGetLatestRelease_TokenFailover(t *testing.T) {
+	const primaryToken = "test-primary"
+	const backupToken = "test-backup"
+	const primary = "Bearer " + primaryToken
+	const backup = "Bearer " + backupToken
+	const anonymous = ""
+
+	tests := []struct {
+		name          string
+		primaryToken  string
+		backupToken   string
+		primaryStatus int
+		backupStatus  int
+		wantStatus    int
+		wantRequests  []string
+	}{
+		{"primary works", primaryToken, backupToken, http.StatusOK, http.StatusOK,
+			http.StatusOK, []string{primary, primary}},
+		{"backup works", primaryToken, backupToken, http.StatusUnauthorized, http.StatusOK,
+			http.StatusOK, []string{primary, backup, backup}},
+		{"both rejected", primaryToken, backupToken, http.StatusUnauthorized, http.StatusUnauthorized,
+			http.StatusOK, []string{primary, backup, anonymous, anonymous}},
+		{"no backup", primaryToken, "", http.StatusUnauthorized, http.StatusOK,
+			http.StatusOK, []string{primary, anonymous, anonymous}},
+		{"duplicate backup", primaryToken, primaryToken, http.StatusUnauthorized, http.StatusOK,
+			http.StatusOK, []string{primary, anonymous, anonymous}},
+		{"backup only", "", backupToken, http.StatusUnauthorized, http.StatusOK,
+			http.StatusOK, []string{backup, backup}},
+		{"rate limited", primaryToken, backupToken, http.StatusTooManyRequests, http.StatusOK,
+			http.StatusTooManyRequests, []string{primary, primary}},
+		{"forbidden", primaryToken, backupToken, http.StatusForbidden, http.StatusOK,
+			http.StatusForbidden, []string{primary, primary}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("GITHUB_TOKEN", tc.primaryToken)
+			t.Setenv("GITHUB_BACKUP_TOKEN", tc.backupToken)
+			c := NewClient()
+			var requests []string
+			c.httpClient.Transport = roundTripFunc(func(r *http.Request) (*http.Response, error) {
+				auth := r.Header.Get("Authorization")
+				requests = append(requests, auth)
+				status, remaining := http.StatusOK, "58"
+				switch auth {
+				case primary:
+					status, remaining = tc.primaryStatus, "4999"
+				case backup:
+					status, remaining = tc.backupStatus, "4999"
+				}
+				response := &http.Response{StatusCode: status, Header: make(http.Header), Body: http.NoBody}
+				if status == http.StatusOK {
+					response.Header.Set("X-RateLimit-Remaining", remaining)
+					response.Body = io.NopCloser(strings.NewReader(`{"tag_name":"v1.0"}`))
+				}
+				return response, nil
+			})
+
+			for _, repo := range []string{"tool", "another-tool"} {
+				release, _, _, err := c.GetLatestRelease(t.Context(), "acme", repo, "")
+				if tc.wantStatus == http.StatusOK {
+					if err != nil || release == nil || release.TagName != "v1.0" {
+						t.Fatalf("GetLatestRelease(%q) = %v, %v, want release v1.0", repo, release, err)
+					}
+					continue
+				}
+				var apiErr *APIError
+				if !errors.As(err, &apiErr) || apiErr.StatusCode != tc.wantStatus {
+					t.Fatalf("GetLatestRelease(%q) error = %#v, want status %d", repo, err, tc.wantStatus)
+				}
+			}
+			if !slices.Equal(requests, tc.wantRequests) {
+				t.Fatalf("Authorization headers = %q, want %q", requests, tc.wantRequests)
+			}
+		})
+	}
+}
+
+func TestGetLatestRelease_ConcurrentRejectionsKeepBackup(t *testing.T) {
+	t.Setenv("GITHUB_TOKEN", "test-primary")
+	t.Setenv("GITHUB_BACKUP_TOKEN", "test-backup")
+	c := NewClient()
+	var primaryCalls, backupCalls atomic.Int32
+	bothStarted := make(chan struct{})
+	c.httpClient.Transport = roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		switch r.Header.Get("Authorization") {
+		case "Bearer test-primary":
+			if primaryCalls.Add(1) == 2 {
+				close(bothStarted)
+			}
+			select {
+			case <-bothStarted:
+				return &http.Response{StatusCode: http.StatusUnauthorized, Body: http.NoBody}, nil
+			case <-r.Context().Done():
+				return nil, r.Context().Err()
+			}
+		case "Bearer test-backup":
+			backupCalls.Add(1)
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(`{"tag_name":"v1.0"}`)),
+			}, nil
+		default:
+			return &http.Response{StatusCode: http.StatusForbidden, Body: http.NoBody}, nil
+		}
+	})
+
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	results := make(chan error, 2)
+	for _, repo := range []string{"tool", "another-tool"} {
+		go func() {
+			_, _, _, err := c.GetLatestRelease(ctx, "acme", repo, "")
+			results <- err
+		}()
+	}
+	for range 2 {
+		if err := <-results; err != nil {
+			t.Errorf("release lookup failed: %v", err)
+		}
+	}
+	if primaryCalls.Load() != 2 || backupCalls.Load() != 2 {
+		t.Fatalf("want two requests to each token, got %d primary and %d backup", primaryCalls.Load(), backupCalls.Load())
 	}
 }
 
